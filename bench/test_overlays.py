@@ -462,6 +462,12 @@ def hover_suite(ext):
     check('... and goes under the mouse', frames(), [])
     h.put32(b3 + 0x60, 9)
     new_frame(0); new_frame(0)
+    h.put16(b3 + 0x2F8, 1)            # lookout tower: troops on top swap the roof for an open top
+    h.put32(b3 + 0x60, 11)
+    check('troops on a lookout tower: the remembered roof, not the open top', frames(), [9])
+    h.put16(b3 + 0x2F8, 0)
+    h.put32(b3 + 0x60, 9)
+    new_frame(0); new_frame(0)
     h.put16(b3 + 0xD2, 41)
     h.put32(b3 + 0xB0, 0)
     check('a keep draws its picture as in the game', frames(), [5])

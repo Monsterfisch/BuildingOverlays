@@ -883,10 +883,12 @@ add esp,4
 ret 0x10
 ]]
 
--- A tower's roof picture number: the game sets it to 0 while troops are on the tower (that is
--- how the roof goes away), so in "only while the mouse is on it" mode the reads of it in the
--- overlay drawing go through ROOF_READ, which remembers the last roof per building and hands
--- that back while the game has cleared it. COMMON then hides it only under the mouse.
+-- A tower's roof picture number: while troops are on the tower (hasUnitsOntop, +0x2F8) the game
+-- sets it to 0, or for the lookout tower to an open top, which is how the roof goes away. So in
+-- "only while the mouse is on it" mode the reads of it in the overlay drawing go through
+-- ROOF_READ, which remembers the roof of the empty tower per building and hands that back while
+-- troops are up there. COMMON then hides it only under the mouse.
+local B_ON_TOP = 0x2F8
 local MAX_BUILDINGS = 10000
 local ROOF_READ = [[
 mov eax,[ebp+ROOF_FIELD]
@@ -899,11 +901,15 @@ ja r_done
 mov edx,[CURRENT]
 cmp edx,MAX_BUILDINGS
 jae r_done
+cmp word [ebp+ON_TOP_FIELD],0
+jne r_cached
 test eax,eax
 je r_cached
 mov [ROOF_CACHE+edx*4],eax
 jmp r_done
 r_cached:
+cmp dword [ROOF_CACHE+edx*4],0
+je r_done
 mov eax,[ROOF_CACHE+edx*4]
 r_done:
 pop edx
@@ -1039,6 +1045,7 @@ local function installSites(tail, renderGm, values)
     local roofField = (values.BUILDINGS + B_ROOF) & 0xFFFFFFFF
     local reader = assemble(ROOF_READ, {
       ROOF_FIELD = roofField, TYPE_FIELD = (values.BUILDINGS + B_TYPE) & 0xFFFFFFFF,
+      ON_TOP_FIELD = (values.BUILDINGS + B_ON_TOP) & 0xFFFFFFFF,
       FIRST_TOWER = FIRST_TOWER, LAST_TOWER = LAST_TOWER, CURRENT = values.CURRENT,
       MAX_BUILDINGS = MAX_BUILDINGS, ROOF_CACHE = values.ROOF_CACHE,
     })
