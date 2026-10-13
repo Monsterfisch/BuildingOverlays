@@ -20,8 +20,11 @@ What the module does, in plain English, is in `module/locale/description-en.md`.
 
 1. Edit under `module/`; run `python bench/test_overlays.py` until it is green.
 2. `python tools/publish.py --bump`, then F5 and apply in the UCP GUI.
-3. Lining a picture up in game: Alt + PageUp / PageDown picks an overlay, Alt + arrows nudge it a
-   pixel, Alt + End saves `calibration.lua` (and logs the numbers to `ucp3.log`).
+3. Lining pictures up in game: Alt + O (setting) toggles the tool, Alt + PageUp / PageDown picks an
+   overlay (shown and framed whatever the conditions), Alt + arrows nudge it, Alt + End writes
+   `calibration.lua` - every overlay as an entry, ready to be a plugin's `overlays.lua`.
+4. Plugins: `modules["building-overlays"]:registerOverlaySource(folder)` loads `overlays.lua` and the
+   PNGs from `resources/modsupport/building-overlays/` of the plugin.
 
 ## How it works
 
@@ -29,5 +32,6 @@ What the module does, in plain English, is in `module/locale/description-en.md`.
 * A record table (type, occupancy, entrance direction on screen, gate state, offset, picture)
   walked in assembly; pictures are PNGs packed as TGX (RGB565 and RGB555) and drawn through the
   game's own picture routine, so clipping and the zoomed-out view come for free.
-* "Empty" = building `+0xB0 == 0`; entrance side from `+0x102` (0x50 = along x) flipped on map
+* "Empty" = no unit on the building's tiles (the game's own `hasHumanPlayerUnitsOnBuilding`, which a
+  gatehouse needs - its `+0xB0` flag stays 0) and `+0xB0 == 0`; entrance side from `+0x102` (0x50 = along x) flipped on map
   orientations 2 and 6.

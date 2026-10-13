@@ -33,8 +33,21 @@ local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this t
 
 local DEFAULTS = {
   large_gatehouse = { enabled = true, swap_sides = false },
-  calibration = { keys = true },
+  editor = { enabled = true, key = "letter_o" },
 }
+
+-- Alt + key that switches the line-up tool on and off; only keys that do nothing in the
+-- game's WM_SYSKEYDOWN table (the same list resource-grid-overlay offers).
+local VIRTUAL_KEY_CODES = {
+  letter_a = 0x41, letter_b = 0x42, letter_f = 0x46, letter_g = 0x47, letter_i = 0x49,
+  letter_j = 0x4A, letter_l = 0x4C, letter_m = 0x4D, letter_n = 0x4E, letter_o = 0x4F,
+  letter_p = 0x50, letter_s = 0x53, letter_w = 0x57, letter_y = 0x59, letter_z = 0x5A,
+  f1 = 0x70, f2 = 0x71, f3 = 0x72, f4 = 0x73, f5 = 0x74, f6 = 0x75, f7 = 0x76, f8 = 0x77,
+  f9 = 0x78, insert = 0x2D, delete_key = 0x2E, home = 0x24,
+}
+
+-- Overlays a plugin may add on top of the ones in overlay_list.lua.
+local MAX_OVERLAYS = 64
 
 -- Building ids (BuildingType); overlay_list.lua may also use the plain number.
 local BUILDINGS = {
@@ -77,9 +90,16 @@ local B_GATE_STATE = 0x2A2               -- 0 open, 1 closing, 2 closed, 3 openi
 local VARIATION_X = 0x50
 
 -- One record per overlay, read by the assembly.
-local RECORD_SIZE = 0x28
+local RECORD_SIZE = 0x30
 local R_TYPE, R_UNITS, R_ENTRANCE, R_GATE, R_X, R_Y, R_W, R_H, R_DATA565, R_DATA555 =
   0, 4, 8, 0xC, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24
+local R_OUT565, R_OUT555 = 0x28, 0x2C      -- the frame drawn round the picked overlay
+
+-- The game's own "are there units on this building's tiles" test: thiscall on the buildings
+-- state (building array - 0x14), one argument, `ret 4`.
+local AOB_UNITS_ON_BUILDING = "8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B0 0C 01 00 00 "
+  .. "33 DB 85 F6 57 7E"
+local BUILDINGS_STATE_BEFORE_ARRAY = 0x14
 
 local UNITS = { empty = 0, occupied = 1, any = 2 }
 local ENTRANCES = { any = 0, left = 1, right = 2 }
@@ -89,6 +109,8 @@ local GATES = { any = 0xF, open = 0x1, closing = 0x2, closed = 0x4, opening = 0x
 local SCRIPT = [[
 pushfd
 pushad
+cmp dword [STATE],0
+je done
 lea ebx,[ebp+BUILDINGS]
 cmp dword [ebx+BSHOWN],0
 je done
@@ -99,10 +121,9 @@ or eax,[ebx+FRAME3]
 je done
 movzx eax,word [ebx+BTYPE]
 mov [SCRATCH],eax
-xor eax,eax
-cmp dword [ebx+OCCUPIED],0
-setne al
-mov [SCRATCH+4],eax
+mov dword [SCRATCH+4],-1
+mov eax,[esp+0x50]
+mov [SCRATCH+16],eax
 xor eax,eax
 cmp word [ebx+VARIATION],VARIATION_X
 sete al
@@ -119,14 +140,39 @@ movzx eax,word [ebx+GATE_STATE]
 and eax,3
 mov [SCRATCH+12],eax
 mov ecx,RECORDS
-mov edx,RECORD_COUNT
+mov edx,[STATE]
 next:
 mov eax,[SCRATCH]
 cmp eax,[ecx+R_TYPE]
 jne skip
+cmp dword [STATE+4],0
+je normal
+cmp ecx,[STATE+8]
+je draw
+normal:
 mov eax,[ecx+R_UNITS]
 cmp eax,2
 je units_ok
+cmp dword [SCRATCH+4],-1
+jne occupancy_known
+push ecx
+push edx
+push dword [SCRATCH+16]
+mov ecx,BUILDINGS_STATE
+mov eax,UNITS_ON_BUILDING
+call eax
+pop edx
+pop ecx
+test eax,eax
+setne al
+movzx eax,al
+cmp dword [ebx+OCCUPIED],0
+je occupancy_set
+mov eax,1
+occupancy_set:
+mov [SCRATCH+4],eax
+occupancy_known:
+mov eax,[ecx+R_UNITS]
 cmp eax,[SCRATCH+4]
 jne skip
 units_ok:
@@ -144,13 +190,35 @@ shr eax,cl
 pop ecx
 test al,1
 je skip
-push edx
-push ecx
+draw:
 cmp dword [PIXEL_FORMAT],0x565
 mov eax,[ecx+R_DATA565]
-je have_data
+je picture_ready
 mov eax,[ecx+R_DATA555]
-have_data:
+picture_ready:
+call drawit
+cmp dword [STATE+4],0
+je skip
+cmp ecx,[STATE+8]
+jne skip
+cmp dword [PIXEL_FORMAT],0x565
+mov eax,[ecx+R_OUT565]
+je frame_ready
+mov eax,[ecx+R_OUT555]
+frame_ready:
+call drawit
+skip:
+add ecx,RECORD_SIZE
+dec edx
+jne next
+done:
+popad
+popfd
+ORIGINAL
+jmp RESUME
+drawit:
+push edx
+push ecx
 push eax
 push dword [ecx+R_H]
 push dword [ecx+R_W]
@@ -165,15 +233,7 @@ mov eax,BLIT
 call eax
 pop ecx
 pop edx
-skip:
-add ecx,RECORD_SIZE
-dec edx
-jne next
-done:
-popad
-popfd
-ORIGINAL
-jmp RESUME
+ret
 ]]
 
 local function log(level, text)
@@ -202,16 +262,14 @@ local function scan(pattern, purpose)
   return address
 end
 
-local function readFile(name)
-  for _, folder in ipairs(MODULE_FOLDERS) do
-    local file = io.open(folder .. name, "rb")
-    if file ~= nil then
-      local data = file:read("a")
-      file:close()
-      return data
-    end
+local function readFile(folder, name)
+  local file = io.open(folder .. name, "rb")
+  if file == nil then
+    return nil
   end
-  return nil
+  local data = file:read("a")
+  file:close()
+  return data
 end
 
 ---------------------------------------------------------------------------------------
@@ -255,14 +313,26 @@ local function packTgx(width, height, pixels, is565)
   return out
 end
 
+---A two pixel wide bright frame the size of a picture, as pixels for packTgx.
+local function framePixels(width, height)
+  local pixels = {}
+  for y = 0, height - 1 do
+    for x = 0, width - 1 do
+      local edge = x < 2 or y < 2 or x >= width - 2 or y >= height - 2
+      pixels[y * width + x + 1] = edge and { 255, 0, 255, 255 } or { 0, 0, 0, 0 }
+    end
+  end
+  return pixels
+end
+
 local function store(bytes)
   local address = core.allocate(#bytes, true)
   core.writeBytes(address, bytes)
   return address
 end
 
-local function loadPicture(name)
-  local data = readFile("overlays/" .. name .. ".png")
+local function loadPicture(folder, name)
+  local data = readFile(folder, name .. ".png")
   if data == nil then
     return nil, "not found"
   end
@@ -273,63 +343,185 @@ local function loadPicture(name)
   return { width = width, height = height, pixels = pixels }
 end
 
----Spots saved by Alt + End: { [overlay name] = { x, y } }.
+---Spots saved by Alt + End: a list of overlay entries, used for x and y by name.
 local function loadCalibration()
-  local text = readFile("calibration.lua")
-  if text == nil then
-    return {}
-  end
-  local chunk = load(text, "calibration", "t", {})
-  if chunk == nil then
-    return {}
-  end
-  local ok, result = pcall(chunk)
-  return ok and type(result) == "table" and result or {}
-end
-
----------------------------------------------------------------------------------------
--- Alt keys to line the pictures up
----------------------------------------------------------------------------------------
-
-local function writeCalibration(overlays)
-  local lines = { "return {" }
-  for _, overlay in ipairs(overlays) do
-    local x = core.readInteger(overlay.record + R_X)
-    local y = core.readInteger(overlay.record + R_Y)
-    lines[#lines + 1] = string.format("  %s = { %d, %d },", overlay.name, x, y)
-    log(INFO, string.format("%s: %s x = %d, y = %d", MODULE_NAME, overlay.name, x, y))
-  end
-  lines[#lines + 1] = "}"
-  for _, folder in ipairs(MODULE_FOLDERS) do
-    local ok, file = pcall(io.open, folder .. "calibration.lua", "wb")
-    if ok and file ~= nil then
-      file:write(table.concat(lines, "\n"), "\n")
-      file:close()
-      log(INFO, MODULE_NAME .. ": saved calibration.lua")
-      return
+  local text = readFile(MODULE_FOLDERS[1], "calibration.lua")
+  local chunk = text and load(text, "calibration", "t", {})
+  local ok, result = pcall(chunk or function() end)
+  local spots = {}
+  if ok and type(result) == "table" then
+    for _, entry in ipairs(result) do
+      if type(entry) == "table" and entry.name ~= nil then
+        spots[entry.name] = entry
+      end
     end
   end
-  log(WARNING, MODULE_NAME .. ": could not write calibration.lua; copy the numbers above "
-    .. "into overlay_list.lua")
+  return spots
 end
 
-local function installKeys(overlays, dispatch)
-  local selected = 1
+---------------------------------------------------------------------------------------
+-- The overlay table
+---------------------------------------------------------------------------------------
+
+local state            -- everything the running hook uses; nil until enable has hooked
+local overlays = {}    -- every overlay in the table, in record order
+local pending = {}     -- plugin folders registered before enable finished
+
+---Adds one overlay (an entry of overlay_list.lua or of a plugin's overlays.lua) to the table
+---the hook walks. `folder` is where its picture lives.
+local function addOverlay(entry, folder, swap)
+  if #overlays >= MAX_OVERLAYS then
+    log(WARNING, MODULE_NAME .. ": too many overlays; " .. tostring(entry.name) .. " skipped")
+    return
+  end
+  local id = type(entry.building) == "number" and entry.building or BUILDINGS[entry.building]
+  local picture, problem = loadPicture(folder, entry.picture or "")
+  if id == nil then
+    log(WARNING, string.format("%s: %s: unknown building %s; skipped", MODULE_NAME,
+      tostring(entry.name), tostring(entry.building)))
+    return
+  elseif picture == nil then
+    log(WARNING, string.format("%s: %s%s.png: %s; %s skipped", MODULE_NAME, folder,
+      tostring(entry.picture), problem, tostring(entry.name)))
+    return
+  end
+  local entrance = ENTRANCES[entry.entrance or "any"] or 0
+  if swap and entrance ~= 0 then
+    entrance = 3 - entrance
+  end
+  local overlay = {
+    name = entry.name, id = id, entrance = entry.entrance or "any",
+    units = entry.units or "empty", gate = entry.gate or "any", picture = entry.picture,
+    x = entry.x or 0, y = entry.y or 0,
+  }
+  overlays[#overlays + 1] = overlay
+  local record = state.records + (#overlays - 1) * RECORD_SIZE
+  overlay.record = record
+  core.writeInteger(record + R_TYPE, id)
+  core.writeInteger(record + R_UNITS, UNITS[overlay.units] or 0)
+  core.writeInteger(record + R_ENTRANCE, entrance)
+  core.writeInteger(record + R_GATE, GATES[overlay.gate] or 0xF)
+  core.writeInteger(record + R_X, overlay.x)
+  core.writeInteger(record + R_Y, overlay.y)
+  core.writeInteger(record + R_W, picture.width)
+  core.writeInteger(record + R_H, picture.height)
+  local frame = framePixels(picture.width, picture.height)
+  core.writeInteger(record + R_DATA565,
+    store(packTgx(picture.width, picture.height, picture.pixels, true)))
+  core.writeInteger(record + R_DATA555,
+    store(packTgx(picture.width, picture.height, picture.pixels, false)))
+  core.writeInteger(record + R_OUT565, store(packTgx(picture.width, picture.height, frame, true)))
+  core.writeInteger(record + R_OUT555, store(packTgx(picture.width, picture.height, frame, false)))
+  -- Last, so the hook never sees a half written record.
+  core.writeInteger(state.block, #overlays)
+end
+
+---A plugin hands over a folder holding overlays.lua (the file Alt + End writes) and the PNGs
+---it names. Called from the plugin's own enable, after this module's.
+---e.g. modules["building-overlays"]:registerOverlaySource(
+---  "ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
+local function registerOverlaySource(self, path)
+  if state == nil then
+    pending[#pending + 1] = path
+    return
+  end
+  local folder = path
+  if io.resolveAliasedPath ~= nil then
+    local ok, resolved = pcall(io.resolveAliasedPath, path)
+    if ok and type(resolved) == "string" and resolved ~= "" then
+      folder = resolved
+    end
+  end
+  folder = folder:gsub("\\", "/")
+  if folder:sub(-1) ~= "/" then
+    folder = folder .. "/"
+  end
+  local text = readFile(folder, "overlays.lua")
+  local chunk = text and load(text, "overlays", "t", {})
+  local ok, entries = pcall(chunk or function() end)
+  if not ok or type(entries) ~= "table" then
+    log(WARNING, MODULE_NAME .. ": no readable overlays.lua in " .. folder)
+    return
+  end
+  for _, entry in ipairs(entries) do
+    addOverlay(entry, folder, false)
+  end
+  log(INFO, string.format("%s: %d overlay(s) in total after %s", MODULE_NAME, #overlays, folder))
+end
+
+---------------------------------------------------------------------------------------
+-- The line-up tool: Alt + <key> switches it on, then Alt + arrows move the picked overlay
+---------------------------------------------------------------------------------------
+
+local function formatEntry(overlay)
+  return string.format(
+    '  { name = "%s", building = %d, picture = "%s", entrance = "%s", units = "%s", '
+    .. 'gate = "%s", x = %d, y = %d },', overlay.name, overlay.id, overlay.picture,
+    overlay.entrance, overlay.units, overlay.gate, overlay.x, overlay.y)
+end
+
+local function writeCalibration()
+  local lines = {
+    "-- Written by Building Overlays (Alt + End). Copy it into a plugin as",
+    "-- resources/modsupport/building-overlays/overlays.lua, next to the PNGs it names.",
+    "return {",
+  }
+  for _, overlay in ipairs(overlays) do
+    overlay.x = core.readInteger(overlay.record + R_X)
+    overlay.y = core.readInteger(overlay.record + R_Y)
+    lines[#lines + 1] = formatEntry(overlay)
+    log(INFO, formatEntry(overlay))
+  end
+  lines[#lines + 1] = "}"
+  local ok, file = pcall(io.open, MODULE_FOLDERS[1] .. "calibration.lua", "wb")
+  if ok and file ~= nil then
+    file:write(table.concat(lines, "\n"), "\n")
+    file:close()
+    log(INFO, MODULE_NAME .. ": saved " .. MODULE_FOLDERS[1] .. "calibration.lua")
+  else
+    log(WARNING, MODULE_NAME .. ": could not write calibration.lua; copy the lines above")
+  end
+end
+
+local function pick(index)
+  state.selected = index
+  core.writeInteger(state.block + 8, overlays[index].record)
+  log(INFO, string.format("%s: picked %s (%d of %d)", MODULE_NAME, overlays[index].name,
+    index, #overlays))
+end
+
+local function installKeys(dispatch, toggleKey)
   core.detourCode(function(registers)
     local key = registers.ESI
+    if #overlays == 0 then
+      return registers
+    end
+    if key == toggleKey then
+      local on = core.readInteger(state.block + 4) == 0
+      core.writeInteger(state.block + 4, on and 1 or 0)
+      if on then
+        pick(state.selected)
+      end
+      log(INFO, MODULE_NAME .. ": line-up tool " .. (on and "on" or "off"))
+      return registers
+    end
+    if core.readInteger(state.block + 4) == 0 then
+      return registers
+    end
     local dx, dy = 0, 0
-    if key == VK.prior or key == VK.next then
-      selected = (selected - 1 + (key == VK.next and 1 or -1)) % #overlays + 1
-      log(INFO, string.format("%s: picked %s", MODULE_NAME, overlays[selected].name))
+    if key == VK.prior then
+      pick((state.selected - 2) % #overlays + 1)
+    elseif key == VK.next then
+      pick(state.selected % #overlays + 1)
     elseif key == VK.finish then
-      writeCalibration(overlays)
+      writeCalibration()
     elseif key == VK.left then dx = -1
     elseif key == VK.right then dx = 1
     elseif key == VK.up then dy = -1
     elseif key == VK.down then dy = 1
     end
     if dx ~= 0 or dy ~= 0 then
-      local overlay = overlays[selected]
+      local overlay = overlays[state.selected]
       local x = core.readInteger(overlay.record + R_X) + dx
       local y = core.readInteger(overlay.record + R_Y) + dy
       core.writeInteger(overlay.record + R_X, x)
@@ -344,71 +536,16 @@ end
 -- Enable
 ---------------------------------------------------------------------------------------
 
-local function collectOverlays(config)
-  local swap = setting(config, "large_gatehouse", "swap_sides")
-  local calibrated = loadCalibration()
-  local overlays = {}
-  for _, entry in ipairs(list) do
-    if setting(config, entry.group, "enabled") then
-      local id = type(entry.building) == "number" and entry.building or BUILDINGS[entry.building]
-      local picture, problem = loadPicture(entry.picture)
-      if id == nil then
-        log(WARNING, string.format("%s: %s: unknown building %s; skipped", MODULE_NAME,
-          entry.name, tostring(entry.building)))
-      elseif picture == nil then
-        log(WARNING, string.format("%s: overlays/%s.png: %s; %s skipped", MODULE_NAME,
-          entry.picture, problem, entry.name))
-      else
-        local entrance = ENTRANCES[entry.entrance or "any"] or 0
-        if swap and entry.group == "large_gatehouse" and entrance ~= 0 then
-          entrance = 3 - entrance
-        end
-        local spot = calibrated[entry.name]
-        overlays[#overlays + 1] = {
-          name = entry.name, id = id, picture = picture, entrance = entrance,
-          units = UNITS[entry.units or "empty"] or 0, gate = GATES[entry.gate or "any"] or 0xF,
-          x = spot and spot[1] or entry.x or 0, y = spot and spot[2] or entry.y or 0,
-        }
-      end
-    end
-  end
-  return overlays
-end
-
-local function writeRecords(overlays)
-  local records = core.allocate(#overlays * RECORD_SIZE, true)
-  for index, overlay in ipairs(overlays) do
-    local record = records + (index - 1) * RECORD_SIZE
-    local picture = overlay.picture
-    overlay.record = record
-    core.writeInteger(record + R_TYPE, overlay.id)
-    core.writeInteger(record + R_UNITS, overlay.units)
-    core.writeInteger(record + R_ENTRANCE, overlay.entrance)
-    core.writeInteger(record + R_GATE, overlay.gate)
-    core.writeInteger(record + R_X, overlay.x)
-    core.writeInteger(record + R_Y, overlay.y)
-    core.writeInteger(record + R_W, picture.width)
-    core.writeInteger(record + R_H, picture.height)
-    core.writeInteger(record + R_DATA565,
-      store(packTgx(picture.width, picture.height, picture.pixels, true)))
-    core.writeInteger(record + R_DATA555,
-      store(packTgx(picture.width, picture.height, picture.pixels, false)))
-  end
-  return records
-end
-
 local function enable(self, config)
   config = config or {}
-  local overlays = collectOverlays(config)
-  if #overlays == 0 then
-    return
-  end
+  overlays = {}
 
   local tail = scan(AOB_TAIL, "the end of the building overlay drawing")
   local pixelFormat = core.readInteger(scan(AOB_PIXEL_FORMAT, "the pixel format")
     + PIXEL_FORMAT_OPERAND)
   local orientation = core.readInteger(scan(AOB_MAP_ORIENTATION, "the map orientation")
     + MAP_ORIENTATION_OPERAND)
+  local unitsOnBuilding = scan(AOB_UNITS_ON_BUILDING, "the units-on-building test")
   local typeDisplacement = core.readInteger(tail + TYPE_DISPLACEMENT_OPERAND)
   local renderCore = core.readInteger(tail + CORE_OPERAND)
   local renderGm = tail + RENDER_GM_REL_OPERAND + 4 + core.readInteger(tail + RENDER_GM_REL_OPERAND)
@@ -418,8 +555,13 @@ local function enable(self, config)
   end
   local blit = renderGm + RENDER_GM_BLIT_CALL + 5
     + core.readInteger(renderGm + RENDER_GM_BLIT_CALL + 1)
+  local buildings = (typeDisplacement - B_TYPE) & 0xFFFFFFFF
 
-  local records = writeRecords(overlays)
+  state = {
+    block = core.allocate(16, true),           -- +0 overlay count, +4 tool on, +8 picked record
+    records = core.allocate(MAX_OVERLAYS * RECORD_SIZE, true),
+    selected = 1,
+  }
 
   local original = {}
   for offset = 0, TAIL_SIZE - 1 do
@@ -427,14 +569,16 @@ local function enable(self, config)
   end
   local script = SCRIPT:gsub("%f[%w_]ORIGINAL%f[^%w_]", "db " .. table.concat(original, ","))
   local values = {
-    BUILDINGS = (typeDisplacement - B_TYPE) & 0xFFFFFFFF, BSHOWN = B_SHOWN,
+    BUILDINGS = buildings, BSHOWN = B_SHOWN, STATE = state.block,
     FRAME0 = B_FRAMES[1], FRAME1 = B_FRAMES[2], FRAME2 = B_FRAMES[3], FRAME3 = B_FRAMES[4],
     BTYPE = B_TYPE, OCCUPIED = B_OCCUPIED, VARIATION = B_VARIATION, VARIATION_X = VARIATION_X,
-    GATE_STATE = B_GATE_STATE, SCRATCH = core.allocate(16, true), MAP_ORIENTATION = orientation,
-    PIXEL_FORMAT = pixelFormat, RECORDS = records, RECORD_COUNT = #overlays,
-    RECORD_SIZE = RECORD_SIZE, RENDER_CORE = renderCore, BLIT = blit, RESUME = tail + TAIL_SIZE,
+    GATE_STATE = B_GATE_STATE, SCRATCH = core.allocate(32, true), MAP_ORIENTATION = orientation,
+    PIXEL_FORMAT = pixelFormat, RECORDS = state.records, RECORD_SIZE = RECORD_SIZE,
+    RENDER_CORE = renderCore, BLIT = blit, RESUME = tail + TAIL_SIZE,
+    BUILDINGS_STATE = buildings - BUILDINGS_STATE_BEFORE_ARRAY, UNITS_ON_BUILDING = unitsOnBuilding,
     R_TYPE = R_TYPE, R_UNITS = R_UNITS, R_ENTRANCE = R_ENTRANCE, R_GATE = R_GATE, R_X = R_X,
     R_Y = R_Y, R_W = R_W, R_H = R_H, R_DATA565 = R_DATA565, R_DATA555 = R_DATA555,
+    R_OUT565 = R_OUT565, R_OUT555 = R_OUT555,
   }
   local used = {}
   for name, value in pairs(values) do
@@ -443,20 +587,50 @@ local function enable(self, config)
     end
   end
   local blob = core.allocateAssembly(script, used)
-  core.writeCode(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
 
-  if setting(config, "calibration", "keys") then
-    local ok, dispatch = pcall(core.AOBScan, AOB_SYS_KEY)
-    if ok and dispatch ~= nil then
-      installKeys(overlays, dispatch)
-    else
-      log(WARNING, MODULE_NAME .. ": could not find the Alt key handler; the line-up keys are off")
+  -- The module's own list first; the count stays 0 until the first record is complete.
+  local swap = setting(config, "large_gatehouse", "swap_sides")
+  local calibrated = loadCalibration()
+  for _, entry in ipairs(list) do
+    if setting(config, entry.group, "enabled") then
+      local copy = {}
+      for key, value in pairs(entry) do
+        copy[key] = value
+      end
+      local spot = calibrated[entry.name]
+      if spot ~= nil then
+        copy.x, copy.y = spot.x, spot.y
+      end
+      addOverlay(copy, MODULE_FOLDERS[1] .. "overlays/", swap and entry.group == "large_gatehouse")
     end
   end
+
+  core.writeCode(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
+
+  if setting(config, "editor", "enabled") then
+    local ok, dispatch = pcall(core.AOBScan, AOB_SYS_KEY)
+    local keyName = setting(config, "editor", "key")
+    local toggleKey = VIRTUAL_KEY_CODES[keyName]
+    if toggleKey == nil then
+      log(WARNING, string.format("%s: unknown key '%s', using Alt + O", MODULE_NAME, tostring(keyName)))
+      toggleKey = VIRTUAL_KEY_CODES[DEFAULTS.editor.key]
+    end
+    if ok and dispatch ~= nil then
+      installKeys(dispatch, toggleKey)
+    else
+      log(WARNING, MODULE_NAME .. ": could not find the Alt key handler; the line-up tool is off")
+    end
+  end
+
+  for _, path in ipairs(pending) do
+    registerOverlaySource(self, path)
+  end
+  pending = {}
   log(INFO, string.format("%s: %d overlay(s) active", MODULE_NAME, #overlays))
 end
 
 return {
   enable = enable,
   disable = function(self, config) end,
+  registerOverlaySource = registerOverlaySource,
 }

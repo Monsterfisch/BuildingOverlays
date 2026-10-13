@@ -11,11 +11,16 @@ large_gatehouse_swap_sides_tooltip: |
   Use this if the picture meant for a gatehouse looking to the lower left shows up on one
   looking to the lower right (and the other way round).
 
-calibration_group: Lining pictures up
-calibration_group_descr: |
-  Helps when you make or move an overlay picture.
-calibration_keys: Alt + arrow keys move the overlay pictures
-calibration_keys_tooltip: |
-  In a game, hold Alt and press PageUp or PageDown to pick which overlay to move, then
-  Alt + the arrow keys to nudge it one pixel at a time. Alt + End saves the new spots so
-  they are used from then on. What you picked and where it sits is written to ucp3.log.
+editor_group: Moving overlays in the game
+editor_group_descr: |
+  A tool to line overlay pictures up by eye and save the result.
+editor_enabled: Allow the line-up tool
+editor_enabled_tooltip: |
+  Turns the tool on or off completely. With it off, the key below does nothing.
+editor_key: Key that switches the tool on and off
+editor_key_tooltip: |
+  Hold Alt and press this key in a game. A magenta frame appears round the picked overlay,
+  which is also shown whatever is standing on the building. Alt + PageUp / PageDown picks the
+  next or previous overlay, Alt + the arrow keys move it one pixel, and Alt + End saves
+  every overlay's spot to calibration.lua in the module folder (also written to ucp3.log).
+  Press the key again to switch the tool off.

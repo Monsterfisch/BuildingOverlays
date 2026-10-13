@@ -12,8 +12,9 @@
     x, y      where the picture's top left corner sits, measured from the building's
               anchor point on screen (the point the game puts its own tower pictures at)
 
-  Alt + arrow keys move the overlay picked with Alt + PageUp / PageDown in the game, and
-  Alt + End saves the new spots to calibration.lua, which wins over x and y here.
+  In a game, Alt + O (the key is a setting) switches the line-up tool on: Alt + PageUp /
+  PageDown picks an overlay, Alt + arrows move it, Alt + End saves every overlay to
+  calibration.lua in the module folder. Those spots win over x and y here.
 ]]
 return {
   {

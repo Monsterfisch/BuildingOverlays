@@ -13,8 +13,13 @@ STRIDE = 0x32C
 OVERLAYS = os.path.join(MODULE, 'overlays')
 
 # the module reads ucp/modules/building-overlays/... relative to the working directory
-WORK = tempfile.mkdtemp(prefix='bo_')
-shutil.copytree(MODULE, os.path.join(WORK, 'ucp', 'modules', 'building-overlays'))
+WORK = None
+
+
+def fresh_work():
+    global WORK
+    WORK = tempfile.mkdtemp(prefix='bo_')
+    shutil.copytree(MODULE, os.path.join(WORK, 'ucp', 'modules', 'building-overlays'))
 _chdir = os.chdir
 harness.os.chdir = lambda path: _chdir(WORK)
 
@@ -38,9 +43,16 @@ def conv(p, is565):
     return ((r >> 3) << 11 | (g >> 2) << 5 | b >> 3) if is565 else ((r >> 3) << 10 | (g >> 3) << 5 | b >> 3)
 
 
+class KeyHost(Host):
+    def detour(self, fn, address, size):
+        self.keyfn = fn
+        super().detour(fn, address, size)
+
+
 def suite(ext):
     print('=== %s' % ('Extreme' if ext else 'vanilla'))
-    h = Host(extreme=ext, config={}, foreign_patches=False, aic=False)
+    fresh_work()
+    h = KeyHost(extreme=ext, config={}, foreign_patches=False, aic=False)
     for line in h.logs:
         print('  log', line)
     E = h.E
@@ -127,14 +139,67 @@ def suite(ext):
 
     put_building(1, 45, occupied=1)
     draw(1, bx, by)
-    check('nothing while troops are on it', count(), 0)
+    check('nothing while the game marks it occupied (+0xB0)', count(), 0)
+    units = E.find('8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B0 0C 01 00 00 33 DB 85 F6 57 7E')[0]
+    seen = []
+    h.stub(units, result=1, ret_bytes=4, record=seen)
+    put_building(1, 45)
+    draw(1, bx, by)
+    check('nothing while units stand on its tiles', count(), 0)
+    check('units test gets the building state and index', (seen[0][0], seen[0][1][0]), (buildings - 0x14, 1))
+    h.stub(units, result=0, ret_bytes=4)
+    draw(1, bx, by)
+    check('picture is back when the units leave', count() > 20000, True)
+    del h.cpu.hooks[units]
+
+    # the line-up tool: Alt + O switches it on, the picked overlay is shown whatever stands there
+    def key(vk):
+        regs = h.lua.table()
+        regs[b'ESI'] = vk
+        h.keyfn(regs)
+    h.stub(units, result=1, ret_bytes=4)
+    put_building(1, 45, variation=0x50)
+    key(0x4F)
+    draw(1, bx, by)
+    first = count()
+    check('tool on: picked overlay shown and framed with units on it', first > 27358, True)
+    check('frame is magenta', pixel(bx + spot[0], by + spot[1]), 0xF81F)
+    key(0x27); key(0x27); key(0x28)
+    draw(1, bx, by)
+    check('arrows move it', pixel(bx + spot[0] + 2, by + spot[1] + 1), 0xF81F)
+    key(0x22)
+    put_building(1, 45, variation=0x51)
+    draw(1, bx, by)
+    check('page down picks the other overlay', pixel(bx + spot[0], by + spot[1]), 0xF81F)
+    key(0x23)
+    saved = open(os.path.join(WORK, 'ucp', 'modules', 'building-overlays', 'calibration.lua')).read()
+    check('Alt + End saves both overlays', saved.count('building = 45'), 2)
+    check('the moved spot is saved', 'x = -105, y = -192' in saved, True)
+    key(0x4F)
+    draw(1, bx, by)
+    check('tool off: units hide it again', count(), 0)
+    del h.cpu.hooks[units]
+
+    # a plugin's overlays.lua
+    plugin = os.path.join(WORK, 'plugin')
+    os.makedirs(plugin)
+    shutil.copy(os.path.join(OVERLAYS, 'large_gatehouse_overlay_closed_left.png'), os.path.join(plugin, 'a.png'))
+    open(os.path.join(plugin, 'overlays.lua'), 'w').write(
+        'return { { name = "p", building = "small_gatehouse", picture = "a", x = 5, y = 6 } }')
+    h.mod[b'registerOverlaySource'](h.mod, plugin.encode())
+    put_building(2, 46)
+    draw(2, bx, by)
+    check('a plugin overlay is drawn', pixel(bx + 5 + 100, by + 6 + 100) == conv(left.getpixel((100, 100)), True), True)
+    put_building(1, 45)
+    draw(1, bx, by)
+    check('module overlays still work after registering', count() > 27000, True)
     put_building(1, 45, shown=0)
     draw(1, bx, by)
     check('nothing for a building that is not shown', count(), 0)
     put_building(1, 45, frame=0)
     draw(1, bx, by)
     check('nothing for a building that is not built', count(), 0)
-    put_building(1, 46)
+    put_building(1, 47)
     draw(1, bx, by)
     check('nothing for another building', count(), 0)
 
