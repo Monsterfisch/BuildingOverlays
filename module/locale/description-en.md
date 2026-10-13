@@ -32,9 +32,13 @@ where the picture sits.
 
 ## Using it from a plugin
 
-A plugin can bring its own overlays. Put the PNGs and an `overlays.lua` (the file Alt + End
-writes as `calibration.lua`) in the plugin's `resources/modsupport/building-overlays/` folder,
-make the plugin depend on this module, and call this from the plugin's `enable`:
+A plugin can bring its own overlays. Put the PNGs and an `overlays.lua` in the plugin's
+`resources/modsupport/building-overlays/` folder, and call this from the plugin's `enable`:
 
-    modules["building-overlays"]:registerOverlaySource(
-      "ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
+    local overlays = modules["building-overlays"]
+    if overlays ~= nil then
+      overlays:registerOverlaySource("ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
+    end
+
+An overlay with the same name as one of the module's own replaces it. The Save button writes a
+plugin's overlays straight back into that plugin's `overlays.lua`.

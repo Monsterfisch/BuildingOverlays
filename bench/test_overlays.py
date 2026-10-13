@@ -51,6 +51,7 @@ def suite(ext):
         print('  log', line)
     E = h.E
     tail = E.find('0F B7 85 ? ? ? ? 0F BF C0 8B 04 85 ? ? ? ? 33 C9 3B C1 89 4C 24 30 89 4C 24 34 89 44 24 24')[0]
+    check('registerOverlaySource is public for plugins', h.public[b'public'][1], b'registerOverlaySource')
     check('hook jumps out of the tail', h.m.read(tail, 1), b'\xE9')
     check('hook pads with nops', h.m.read(tail + 5, 2), b'\x90\x90')
     func = E.find('83 EC 18 8B 4C 24 28 53 55 8B 6C 24 24 69 ED 2C 03 00 00')[0]
@@ -279,6 +280,20 @@ def suite(ext):
     put_building(1, 45)
     draw(1, bx, by)
     check('module overlays still work after registering', count() > 27000, True)
+
+    # a plugin overlay with one of the module's names takes its place; Save writes it back
+    open(os.path.join(plugin, 'overlays.lua'), 'w').write(
+        'return { { name = "large_gatehouse_right", building = 45, picture = "a", entrance = "right", x = 1, y = 2 } }')
+    h.mod[b'registerOverlaySource'](h.mod, plugin.encode())
+    check('replacing keeps the count', any('now comes from' in l for l in h.logs), True)
+    put_building(1, 45, variation=0x50)
+    draw(1, bx, by)
+    check('the plugin picture is drawn at its own spot', pixel(bx + 1 + 100, by + 2 + 100), conv(left.getpixel((100, 100)), True))
+    run_panel()
+    check('panel still lists two gatehouse overlays', [s for s, _, _ in run_panel()][:2], ['large_gatehouse_left', 'large_gatehouse_right'])
+    click_save()
+    written = open(os.path.join(plugin, 'overlays.lua')).read()
+    check('Save writes the plugin overlay back into the plugin', ('large_gatehouse_right' in written, 'x = 1, y = 2' in written, 'large_gatehouse_left' in written), (True, True, False))
     put_building(1, 45, shown=0)
     draw(1, bx, by)
     check('nothing for a building that is not shown', count(), 0)

@@ -513,8 +513,14 @@ local pending = {}     -- plugin folders registered before enable finished
 
 ---Adds one overlay (an entry of overlay_list.lua or of a plugin's overlays.lua) to the table
 ---the hook walks. `folder` is where its picture lives.
-local function addOverlay(entry, folder, swap)
-  if #overlays >= MAX_OVERLAYS then
+local function addOverlay(entry, folder, swap, source)
+  local existing
+  for _, overlay in ipairs(overlays) do
+    if overlay.name == tostring(entry.name) then
+      existing = overlay
+    end
+  end
+  if existing == nil and #overlays >= MAX_OVERLAYS then
     log(WARNING, MODULE_NAME .. ": too many overlays; " .. tostring(entry.name) .. " skipped")
     return
   end
@@ -536,10 +542,22 @@ local function addOverlay(entry, folder, swap)
   local overlay = {
     name = tostring(entry.name), id = id, entrance = entry.entrance or "any",
     units = entry.units or "empty", gate = entry.gate or "any", picture = entry.picture,
-    x = entry.x or 0, y = entry.y or 0,
+    x = entry.x or 0, y = entry.y or 0, source = source,
   }
-  overlays[#overlays + 1] = overlay
-  local record = state.records + (#overlays - 1) * RECORD_SIZE
+  local record
+  if existing ~= nil then
+    -- An overlay of the same name (a plugin's version of one of ours) takes over its record.
+    for index, other in ipairs(overlays) do
+      if other == existing then
+        overlays[index] = overlay
+      end
+    end
+    record = existing.record
+    log(INFO, string.format("%s: %s now comes from %s", MODULE_NAME, overlay.name, folder))
+  else
+    overlays[#overlays + 1] = overlay
+    record = state.records + (#overlays - 1) * RECORD_SIZE
+  end
   overlay.record = record
   core.writeInteger(record + R_TYPE, id)
   core.writeInteger(record + R_UNITS, UNITS[overlay.units] or 0)
@@ -589,7 +607,7 @@ local function registerOverlaySource(self, path)
     return
   end
   for _, entry in ipairs(entries) do
-    addOverlay(entry, folder, false)
+    addOverlay(entry, folder, false, folder)
   end
   log(INFO, string.format("%s: %d overlay(s) in total after %s", MODULE_NAME, #overlays, folder))
 end
@@ -605,26 +623,48 @@ local function formatEntry(overlay)
     overlay.entrance, overlay.units, overlay.gate, overlay.x, overlay.y)
 end
 
-local function writeCalibration()
-  local lines = {
-    "-- Written by Building Overlays (the Save button). Copy it into a plugin as",
-    "-- resources/modsupport/building-overlays/overlays.lua, next to the PNGs it names.",
-    "return {",
-  }
-  for _, overlay in ipairs(overlays) do
-    overlay.x = core.readInteger(overlay.record + R_X)
-    overlay.y = core.readInteger(overlay.record + R_Y)
+local function writeEntries(path, header, entries)
+  local lines = { header, "return {" }
+  for _, overlay in ipairs(entries) do
     lines[#lines + 1] = formatEntry(overlay)
-    log(INFO, formatEntry(overlay))
   end
   lines[#lines + 1] = "}"
-  local ok, file = pcall(io.open, MODULE_FOLDERS[1] .. "calibration.lua", "wb")
+  local ok, file = pcall(io.open, path, "wb")
   if ok and file ~= nil then
     file:write(table.concat(lines, "\n"), "\n")
     file:close()
-    log(INFO, MODULE_NAME .. ": saved " .. MODULE_FOLDERS[1] .. "calibration.lua")
+    log(INFO, MODULE_NAME .. ": saved " .. path)
   else
-    log(WARNING, MODULE_NAME .. ": could not write calibration.lua; copy the lines above")
+    log(WARNING, MODULE_NAME .. ": could not write " .. path .. "; the entries are above")
+  end
+end
+
+---The Save button: a plugin's overlays go back into that plugin's own overlays.lua, the module's
+---own ones into calibration.lua in the module folder (which wins over overlay_list.lua).
+local function writeCalibration()
+  local bySource, sources, own = {}, {}, {}
+  for _, overlay in ipairs(overlays) do
+    overlay.x = core.readInteger(overlay.record + R_X)
+    overlay.y = core.readInteger(overlay.record + R_Y)
+    log(INFO, formatEntry(overlay))
+    if overlay.source ~= nil then
+      if bySource[overlay.source] == nil then
+        bySource[overlay.source] = {}
+        sources[#sources + 1] = overlay.source
+      end
+      table.insert(bySource[overlay.source], overlay)
+    else
+      own[#own + 1] = overlay
+    end
+  end
+  for _, source in ipairs(sources) do
+    writeEntries(source .. "overlays.lua", "-- Building Overlays: written by the Save button.",
+      bySource[source])
+  end
+  if #own > 0 then
+    writeEntries(MODULE_FOLDERS[1] .. "calibration.lua",
+      "-- Written by Building Overlays (the Save button). A plugin uses the same format as its\n"
+      .. "-- resources/modsupport/building-overlays/overlays.lua, next to the PNGs it names.", own)
   end
 end
 
@@ -914,8 +954,11 @@ local function enable(self, config)
   log(INFO, string.format("%s: %d overlay(s) active", MODULE_NAME, #overlays))
 end
 
+-- Plugins only see what is listed as public.
 return {
   enable = enable,
   disable = function(self, config) end,
   registerOverlaySource = registerOverlaySource,
+}, {
+  public = { "registerOverlaySource" },
 }

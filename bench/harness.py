@@ -99,6 +99,8 @@ class Host:
             self.m.write(sd, bytes([0xE9,0,0,0,0x73,0x90,0x90]))   # smarter-buildings
         os.chdir(G)   # io.open('ucp/modules/...') relative to the game folder
         self.mod = lua.eval(b'dofile')((MODULE + r'\init.lua').encode('mbcs'))
+        if isinstance(self.mod, tuple):     # init.lua may return (module, { public = ... })
+            self.mod, self.public = self.mod[0], self.mod[1]
         self.mod[b'enable'](self.mod, self.to_lua(config or {}))
 
     def to_lua(self, value):
