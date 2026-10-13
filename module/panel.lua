@@ -260,7 +260,7 @@ push COLOUR
 push 0
 push ecx
 push edx
-push SAVE_TEXT
+push dword [SAVE_LABEL]
 mov ecx,TEXT_MANAGER
 call SHADOWED_TEXT
 cmp byte [PICKED_SHOWN],0

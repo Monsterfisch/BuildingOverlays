@@ -634,9 +634,11 @@ local function writeEntries(path, header, entries)
     file:write(table.concat(lines, "\n"), "\n")
     file:close()
     log(INFO, MODULE_NAME .. ": saved " .. path)
-  else
-    log(WARNING, MODULE_NAME .. ": could not write " .. path .. "; the entries are above")
+    return true
   end
+  log(WARNING, MODULE_NAME .. ": could not write " .. path .. " (" .. tostring(file)
+    .. "); the entries are above")
+  return false
 end
 
 ---The Save button: a plugin's overlays go back into that plugin's own overlays.lua, the module's
@@ -657,15 +659,17 @@ local function writeCalibration()
       own[#own + 1] = overlay
     end
   end
+  local saved = true
   for _, source in ipairs(sources) do
-    writeEntries(source .. "overlays.lua", "-- Building Overlays: written by the Save button.",
-      bySource[source])
+    saved = writeEntries(source .. "overlays.lua", "-- Building Overlays: written by the Save button.",
+      bySource[source]) and saved
   end
   if #own > 0 then
-    writeEntries(MODULE_FOLDERS[1] .. "calibration.lua",
+    saved = writeEntries(MODULE_FOLDERS[1] .. "calibration.lua",
       "-- Written by Building Overlays (the Save button). A plugin uses the same format as its\n"
-      .. "-- resources/modsupport/building-overlays/overlays.lua, next to the PNGs it names.", own)
+      .. "-- resources/modsupport/building-overlays/overlays.lua, next to the PNGs it names.", own) and saved
   end
+  return saved
 end
 
 ---What a click on the panel tool does (the assembly has already taken the click away).
@@ -687,19 +691,24 @@ local function onClick(ui)
     core.writeInteger(record + R_Y, core.readInteger(record + R_Y) + dy)
   elseif kind == 3 then
     core.writeInteger(ui.STEP_INDEX, (core.readInteger(ui.STEP_INDEX) + 1) % #STEPS)
-  elseif kind == 4 then
-    writeCalibration()
+  end
+  -- Every move is saved at once (and Save saves again), so nothing is lost on quitting; the
+  -- label says whether the last write worked.
+  if kind == 2 or kind == 4 then
+    local ok, saved = pcall(writeCalibration)
+    if not ok then
+      log(WARNING, MODULE_NAME .. ": saving failed: " .. tostring(saved))
+    end
+    core.writeInteger(ui.SAVE_LABEL, (ok and saved) and ui.SAVED_TEXT or ui.FAILED_TEXT)
   end
 end
 
 ---A cdecl function with no arguments that runs `callback` in lua (UCP's own detour trick).
 local function luaFunction(purpose, callback)
   local pad = core.allocateCode({ 0x90, 0x90, 0x90, 0x90, 0x90, 0xC3 })
-  local reported = false
   core.detourCode(function(registers)
     local ok, message = pcall(callback)
-    if not ok and not reported then
-      reported = true
+    if not ok then
       log(WARNING, string.format("%s: %s failed: %s", MODULE_NAME, purpose, tostring(message)))
     end
     return registers
@@ -774,7 +783,9 @@ local function installPanel(v)
     ORIGIN = core.allocate(8, true),
     ARROW_PICTURES = core.allocate(4 * 8, true),
     STEP_TEXTS = core.allocate(#STEPS * 4, true),
-    SAVE_TEXT = storeString("Save"),
+    SAVE_LABEL = core.allocate(4, true),
+    SAVED_TEXT = storeString("Saved"),
+    FAILED_TEXT = storeString("Save failed - see ucp3.log"),
   }
   for index, name in ipairs(ARROW_NAMES) do
     local rect = ui.ARROW_BASE + (index - 1) * 16
@@ -789,6 +800,7 @@ local function installPanel(v)
         storeBlitPicture(ARROW_SIZE, ARROW_SIZE, arrowPixels(name, hovered == 1)))
     end
   end
+  core.writeInteger(ui.SAVE_LABEL, storeString("Save"))
   for index, step in ipairs(STEPS) do
     core.writeInteger(ui.STEP_TEXTS + (index - 1) * 4, storeString(string.format("Step: %d px", step)))
   end

@@ -211,6 +211,7 @@ def suite(ext):
     shown = run_panel()
     check('panel lists the gatehouse overlays and Save',
           [s for s, _, _ in shown], ['large_gatehouse_left', 'large_gatehouse_right', 'Save'])
+    check('Save label starts as Save', shown[-1][0], 'Save')
     check('first row where the list starts, moved with the panel', shown[0][1:], (20 + OX, 500 + OY))
     put_building(1, 47)
     check('no list for a building without overlays', run_panel(), [])
@@ -251,6 +252,7 @@ def suite(ext):
     check('the picked one starts at the default spot', saved()[1], (-107, -193))
     check('right arrow click taken', press('right'), True)
     check('right arrow moves it a pixel', saved()[1], (-106, -193))
+    check('the label says it was saved', [s for s, _, _ in run_panel()][2], 'Saved')
     press('down'); press('down')
     check('down arrow', saved()[1], (-106, -191))
     run_panel(); click(90, 573)
@@ -262,7 +264,7 @@ def suite(ext):
     check('the other overlay untouched', saved()[0], (-107, -193))
     run_panel()
     click(30, 521)
-    check('clicking the picked row again stops', [s for s, _, _ in run_panel()][-1], 'Save')
+    check('clicking the picked row again stops', [s for s, _, _ in run_panel()][-1], 'Saved')
     draw(1, bx, by)
     check('tool off: units hide it again', count(), 0)
     del h.cpu.hooks[units]
