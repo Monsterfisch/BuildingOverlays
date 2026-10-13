@@ -695,7 +695,7 @@ end
 
 ---Wraps the first every-frame item (clicks) and the work status line (drawing) in an item list.
 local function wrapItems(items, originals, wrappers)
-  local item, limit, frameDone = items, 4000, false
+  local item, limit, frameDone, renders = items, 4000, false, 0
   while core.readInteger(item + ITEM_TYPE) ~= TYPE_LAST and limit > 0 do
     local kind = core.readInteger(item + ITEM_TYPE)
     if not frameDone and kind == TYPE_EVERY_FRAME
@@ -704,10 +704,13 @@ local function wrapItems(items, originals, wrappers)
       frameDone = true
     elseif kind ~= TYPE_BLOCK and core.readInteger(item + ITEM_RENDER) == originals.render then
       setField(item, ITEM_RENDER, wrappers.render)
+      renders = renders + 1
     end
     item = item + ITEM_SIZE
     limit = limit - 1
   end
+  log(INFO, string.format("%s: panel items at %08X: click item %s, %d status line(s) wrapped",
+    MODULE_NAME, items, frameDone and "wrapped" or "not found", renders))
 end
 
 local function installPanel(v)
@@ -767,6 +770,18 @@ local function installPanel(v)
   w.STEP_X, w.STEP_Y, w.STEP_W = STEP_X, STEP_Y, STEP_W
   w.COLOUR, w.PICKED_COLOUR, w.FONT = COLOUR, PICKED_COLOUR, FONT
   w.LUA_CLICK = luaFunction("the overlay panel", function() onClick(ui) end)
+  -- Logged whenever the panel's selected building or the number of listed overlays changes.
+  w.DIAG = core.allocate(8, true)
+  core.writeInteger(w.DIAG, -2)
+  w.LUA_DIAG = luaFunction("the panel report", function()
+    local building = core.readInteger(w.DIAG)
+    local kind = -1
+    if building > 0 then
+      kind = core.readSmallInteger(v.BUILDINGS + building * BUILDING_SIZE + B_TYPE)
+    end
+    log(INFO, string.format("%s: panel drawn, selected building %d (type %d), %d overlay(s) listed",
+      MODULE_NAME, building, kind, core.readInteger(w.DIAG + 4)))
+  end)
 
   local originals = {
     render = core.readInteger(status + ITEM_RENDER),
@@ -791,6 +806,8 @@ local function installPanel(v)
     local menu = core.readInteger(constructorSite + 6)
     local function wrapLive()
       local items = core.readInteger(menu)
+      log(INFO, string.format("%s: building panel uses items at %08X (static %08X)", MODULE_NAME,
+        items, start))
       if items ~= 0 and items ~= start then
         wrapItems(items, originals, wrappers)
       end

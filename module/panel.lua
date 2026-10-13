@@ -280,6 +280,19 @@ inc ebx
 cmp ebx,4
 jb r_arrow
 r_done:
+mov eax,[SELECTED]
+cmp eax,[DIAG]
+jne r_report
+mov eax,[ROW_COUNT]
+cmp eax,[DIAG+4]
+je r_quiet
+r_report:
+mov eax,[SELECTED]
+mov [DIAG],eax
+mov eax,[ROW_COUNT]
+mov [DIAG+4],eax
+call LUA_DIAG
+r_quiet:
 pop ebp
 pop edi
 pop esi
