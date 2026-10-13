@@ -751,6 +751,8 @@ local F1_AOB = "83 EC 18 8B 4C 24 28 53 55 8B 6C 24 24 69 ED 2C 03 00 00"   -- r
 local F2_AOB = "51 8B 4C 24 08 53 55 56 8B F1 69 F6 2C 03 00 00 0F BF 86"   -- its second half
 local F1_ENTRY = [[
 push eax
+mov eax,[esp+12]
+mov [ANCHOR_X],eax
 mov eax,[esp+8]
 mov [CURRENT],eax
 mov dword [GATED],0
@@ -761,6 +763,8 @@ jmp RESUME
 ]]
 local F2_ENTRY = [[
 push eax
+mov eax,[esp+12]
+mov [ANCHOR_X],eax
 mov eax,[esp+8]
 mov [CURRENT],eax
 mov dword [GATED],0
@@ -772,10 +776,14 @@ jmp RESUME
 local R_SEEN = R_TYPE                    -- a pseudo record has no type: the frame it was drawn in
 local RENDER_GM_BLEND, RENDER_GM_ALPHA, RENDER_GM_ANIMATION_CALL = 0x90, 0x4B0, 0x7F
 local RENDER_GM_FIRST_FRAMES, RENDER_GM_WIDTHS = 0x0C, 0x43   -- operands inside renderGM
+local RENDER_GM_OFFSETS = 0x24          -- mov edx, [eax*4 + image offsets]
 local FIRST_TOWER, LAST_TOWER = 74, 78   -- lookout tower .. round tower
 -- Keeps (41..44) and gate buildings (45..49) and the towers lose their game overlay pictures in
 -- the V view, where the game lowers the buildings.
 local CASTLE_FIRST, CASTLE_LAST = 41, 49
+-- The game's own pictures drawn tile by tile: keeps from the manor house on, gate buildings and
+-- towers. Their cuts (strips per picture and phase) are made the first time they are drawn.
+local STRIP_FIRST, MAX_IMAGES = 40, 32768
 local B_ROOF = 0x60                      -- a tower's roof picture
 local STUB_SIZE, INFO_SIZE = 10, 0x20    -- push info / jmp COMMON; info per call
 local I_TARGET, I_XO, I_YO, I_RECORDS, I_PLAIN = 0, 4, 8, 0xC, 0x10
@@ -862,6 +870,57 @@ s_wall:
 cmp dword [GATED],0
 jne s_skip
 s_draw:
+mov eax,TILE_STRIPS
+test eax,eax
+je s_whole
+cmp dword [ecx+I_PLAIN],0
+je s_whole
+mov eax,[esp]
+movzx eax,word [eax+BTYPE]
+cmp eax,STRIP_FIRST
+jb s_whole
+cmp eax,CASTLE_LAST
+jbe s_strip
+cmp eax,FIRST_TOWER
+jb s_whole
+cmp eax,LAST_TOWER
+ja s_whole
+s_strip:
+mov eax,[esp+0x18]
+mov eax,[FIRST_FRAMES+eax*4]
+add eax,[esp+0x1C]
+dec eax
+cmp eax,MAX_IMAGES
+jae s_whole
+mov [CUT_IMAGE],eax
+mov edx,[ANCHOR_X]
+sub edx,[esp+0x20]
+and edx,15
+mov [CUT_PHASE],edx
+shl eax,4
+add eax,edx
+mov edx,[CUTS+eax*4]
+test edx,edx
+jne s_have_cut
+push eax
+call LUA_CUT
+pop eax
+mov edx,[CUTS+eax*4]
+s_have_cut:
+cmp edx,-1
+je s_whole
+test edx,edx
+je s_whole
+mov eax,[esp+0x20]
+mov [SX],eax
+mov eax,[esp+0x24]
+mov [SY],eax
+mov eax,[CURRENT]
+mov [SCRATCH+16],eax
+mov ecx,edx
+call REMEMBER_AT
+jmp s_skip
+s_whole:
 add esp,4
 s_go:
 mov eax,[ecx+I_TARGET]
@@ -959,6 +1018,19 @@ local function bytesOf(value)
   return value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF, (value >> 24) & 0xFF
 end
 
+---A cdecl function with no arguments that runs `callback` in lua (UCP's own detour trick).
+local function luaFunction(purpose, callback)
+  local pad = core.allocateCode({ 0x90, 0x90, 0x90, 0x90, 0x90, 0xC3 })
+  core.detourCode(function(registers)
+    local ok, message = pcall(callback)
+    if not ok then
+      log(WARNING, string.format("%s: %s failed: %s", MODULE_NAME, purpose, tostring(message)))
+    end
+    return registers
+  end, pad, 5)
+  return pad
+end
+
 ---The game's code section (from the PE header in memory).
 local function textSection()
   local base = 0x400000
@@ -1035,6 +1107,23 @@ local function installSites(tail, renderGm, values)
   values.WIDTHS = core.readInteger(renderGm + RENDER_GM_WIDTHS)
   values.FIRST_TOWER, values.LAST_TOWER, values.B_ROOF = FIRST_TOWER, LAST_TOWER, B_ROOF
   values.CASTLE_FIRST, values.CASTLE_LAST = CASTLE_FIRST, CASTLE_LAST
+  values.STRIP_FIRST, values.MAX_IMAGES = STRIP_FIRST, MAX_IMAGES
+  values.ANCHOR_X = core.allocate(4, true)
+  values.CUT_IMAGE, values.CUT_PHASE = core.allocate(4, true), core.allocate(4, true)
+  values.GM_OFFSETS = core.readInteger(renderGm + RENDER_GM_OFFSETS)
+  if values.TILE_STRIPS == 1 then
+    values.CUTS = core.allocate(MAX_IMAGES * 16 * 4, true)
+    values.LUA_CUT = luaFunction("cutting a game picture", function()
+      local image, phase = core.readInteger(values.CUT_IMAGE), core.readInteger(values.CUT_PHASE)
+      local cut = strips.cutGame(values, image, phase, store)
+      if cut == 0 then
+        cut = -1     -- not cuttable: drawn whole from now on (the asm tests for 0 only)
+      end
+      core.writeInteger(values.CUTS + (image * 16 + phase) * 4, cut)
+    end)
+  else
+    values.CUTS, values.LUA_CUT, values.SX, values.SY, values.REMEMBER_AT = 0, 0, 0, 0, 0
+  end
   values.I_TARGET, values.I_XO, values.I_YO, values.I_RECORDS, values.I_PLAIN =
     I_TARGET, I_XO, I_YO, I_RECORDS, I_PLAIN
   values.TYPE_COUNT, values.R_SEEN = TYPE_COUNT, R_SEEN
@@ -1070,6 +1159,7 @@ local function installSites(tail, renderGm, values)
   end
   for _, entry in ipairs({ { f1, F1_ENTRY, 7 }, { f2, F2_ENTRY, 5 } }) do
     local hook = core.allocateAssembly(entry[2], { CURRENT = values.CURRENT, GATED = values.GATED,
+      ANCHOR_X = values.ANCHOR_X,
       RESUME = entry[1] + entry[3] })
     local code = { 0xE9, bytesOf(hook - (entry[1] + 5)) }
     for _ = 6, entry[3] do
@@ -1378,18 +1468,6 @@ local function onClick(ui)
   end
 end
 
----A cdecl function with no arguments that runs `callback` in lua (UCP's own detour trick).
-local function luaFunction(purpose, callback)
-  local pad = core.allocateCode({ 0x90, 0x90, 0x90, 0x90, 0x90, 0xC3 })
-  core.detourCode(function(registers)
-    local ok, message = pcall(callback)
-    if not ok then
-      log(WARNING, string.format("%s: %s failed: %s", MODULE_NAME, purpose, tostring(message)))
-    end
-    return registers
-  end, pad, 5)
-  return pad
-end
 
 -- writeCodeInteger: the static item table lies in the exe image.
 local function setField(item, offset, value)
@@ -1706,6 +1784,7 @@ local function enable(self, config)
       values.R_STRIPS, values.R_STRIP_COUNT, values.R_PHASE = strips.R_STRIPS, strips.R_STRIP_COUNT, strips.R_PHASE
       values.CAMERA = assemble(strips.CAMERA_SCRIPT, values)
       values.DRAW_STRIP = assemble(strips.DRAW_STRIP_SCRIPT, values)
+      values.REMEMBER_AT = assemble(strips.REMEMBER_AT_SCRIPT, values)
       values.REMEMBER = assemble(strips.REMEMBER_SCRIPT, values)
       local tileHook = assemble(strips.TILE_SCRIPT, values)
       core.writeCode(piece + strips.TILE_HOOK,

@@ -609,7 +609,49 @@ def strips_suite(ext):
     clear()
     corner(bx, by)
     check('the front corner draws nothing more', columns(), set())
+    # the game's own picture on a square tower, from real (fake) image data
+    first_frames = struct.unpack('<I', E.data[E.va2off(render_gm) + 0x0C:][:4])[0]
+    widths = struct.unpack('<I', E.data[E.va2off(render_gm) + 0x43:][:4])[0]
+    offsets = struct.unpack('<I', E.data[E.va2off(render_gm) + 0x24:][:4])[0]
+    IMAGE = 500
+    h.put32(first_frames + 0x36 * 4, IMAGE)        # gm 0x36 frame 1 -> image 500
+    data = 0x6E000000
+    h.put32(core + 0x78, data)
+    h.put32(offsets + IMAGE * 4, 0)
+    h.m.write(widths + IMAGE * 16, struct.pack('<HH', 40, 10))
+    row = bytes([0x1F]) + struct.pack('<H', 0x1234) * 32 + bytes([0x07]) + struct.pack('<H', 0x1234) * 8 + bytes([0x80])
+    h.m.write(data, row * 10)
+    t2 = buildings + 2 * STRIDE
+    h.m.write(t2, bytes(STRIDE))
+    h.put32(t2 + 0x34, 1); h.put32(t2 + 0x38, 1); h.put16(t2 + 0xD2, 77)
+    h.put16(t2 + 0xEE, 20); h.put16(t2 + 0xF0, 20); h.put32(t2 + 0xF8, 2)
+
+    def tower_pixels():
+        n = 0
+        for y in range(0, 600):
+            row_ = h.m.read(SURFACE + y * PITCH, 1000 * 2)
+            n += sum(1 for i in range(0, len(row_), 2) if row_[i] == 0x34 and row_[i + 1] == 0x12)
+        return n
+
+    def tower_corner():
+        h.run(func, stack=[2, 566, 450, 0], limit=3_000_000)
+
+    def tower_piece(x):
+        h.put32(tile_x, x)
+        h.run(piece + 0x27, until=piece + 0x2C, regs={'ebx': VIEW, 'esi': 2})
+    h.put32(VIEW + 0x78, 0)
+    clear(); new_frame(); tower_corner()
+    check('a game picture on a tower: drawn whole the first frame', tower_pixels(), 400)
+    new_frame(); clear()
+    tower_piece(566 - 32)
+    check('next frame: the first piece of the tower draws it', tower_pixels(), 400)
+    clear()
+    tower_corner()
+    check('... and the front corner does not draw it again', tower_pixels(), 0)
+
     # the camera moved one tile column right since the last frame: the strips move with it
+    for _ in range(2):
+        new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
     new_frame(); clear()
     h.put32(VIEW + 0x78, 32)
     piece_drawn(bx - 64 - 32)

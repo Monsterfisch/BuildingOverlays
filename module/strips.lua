@@ -20,7 +20,7 @@ strips.R_STRIPS, strips.R_STRIP_COUNT, strips.R_PHASE = 0x34, 0x38, 0x3C
 -- neighbours drawn after it cover them too.
 -- PENDING, per building: stamp[2], count[2], then two sets (by frame parity) of up to 4 entries
 -- (see REMEMBER_SCRIPT).
-strips.SLOT_SIZE, strips.ENTRY_SIZE, strips.ENTRIES_SIZE, strips.MAX_ENTRIES = 0x150, 40, 0xA0, 4
+strips.SLOT_SIZE, strips.ENTRY_SIZE, strips.ENTRIES_SIZE, strips.MAX_ENTRIES = 0x290, 40, 0x140, 8
 strips.AOB_TILE_PIECE = "03 05 ? ? ? ? 52 8B 15 ? ? ? ? 2B 15 ? ? ? ? 2B D1 03 15 ? ? ? ? B9 ? ? ? ? "
   .. "52 50 E8 ? ? ? ? 83 7C 24 24 00"
 strips.TILE_X_OPERAND, strips.TILE_HOOK, strips.TILE_HOOK_SIZE = 2, 0x27, 5
@@ -88,14 +88,22 @@ ret
 -- Entry: { record, map x, map y, drawn by pieces this frame[3], covered by pieces the frame
 -- before[3], frame its overhang was drawn }.
 strips.REMEMBER_SCRIPT = [[
-pushad
-mov dword [OLD],0
+push eax
 mov eax,edi
 add eax,[ecx+R_X]
 mov [SX],eax
 mov eax,esi
 add eax,[ecx+R_Y]
 mov [SY],eax
+pop eax
+jmp REMEMBER_AT
+]]
+
+-- The same with the picture's place on screen already in [SX] / [SY] (the game's own pictures,
+-- ecx = their cut, which is laid out like a record: R_H, R_STRIPS, R_STRIP_COUNT, R_PHASE).
+strips.REMEMBER_AT_SCRIPT = [[
+pushad
+mov dword [OLD],0
 mov ebp,[SCRATCH+16]
 cmp ebp,MAX_BUILDINGS
 jae m_all
@@ -277,6 +285,98 @@ jmp TILE_RESUME
 
 ---Cuts a picture into strips one tile column wide, where the tile columns fall for an overlay
 ---at x (see "Tile by tile"): strip j covers columns [phase + 16 (j - 1), phase + 16 j).
+---Decodes one of the game's TGX pictures from memory into words (nil = see-through), w x h.
+local function decodeGame(data, w, h)
+  local words, row, column, at = {}, 0, 0, data
+  local limit = w * h * 3 + h * 4 + 64
+  while row < h and limit > 0 do
+    limit = limit - 1
+    local token = core.readByte(at) & 0xFF
+    at = at + 1
+    local n, kind = (token & 0x1F) + 1, token & 0xE0
+    if kind == 0x00 then
+      for _ = 1, n do
+        if column < w then words[row * w + column + 1] = core.readSmallInteger(at) & 0xFFFF end
+        at = at + 2
+        column = column + 1
+      end
+    elseif kind == 0x20 then
+      column = column + n
+    elseif kind == 0x40 then
+      local word = core.readSmallInteger(at) & 0xFFFF
+      at = at + 2
+      for _ = 1, n do
+        if column < w then words[row * w + column + 1] = word end
+        column = column + 1
+      end
+    else
+      row = row + 1
+      column = 0
+    end
+  end
+  return words
+end
+
+---TGX for raw words (already in the screen's pixel format), as packTgx does for pixels.
+local function packWords(w, h, words, from, width)
+  local out = {}
+  for y = 0, h - 1 do
+    local x = 0
+    while x < width do
+      local solid = words[y * w + from + x + 1] ~= nil
+      local n = 1
+      while x + n < width and n < 32 and (words[y * w + from + x + n + 1] ~= nil) == solid do
+        n = n + 1
+      end
+      if solid then
+        out[#out + 1] = n - 1
+        for k = 0, n - 1 do
+          local word = words[y * w + from + x + k + 1]
+          out[#out + 1] = word & 0xFF
+          out[#out + 1] = word >> 8
+        end
+      else
+        out[#out + 1] = 0x20 | (n - 1)
+      end
+      x = x + n
+    end
+    out[#out + 1] = 0x80
+  end
+  return out
+end
+
+---Cuts one of the game's pictures (image number `image`) into strips for the given phase and
+---returns its cut, laid out like a record. v: GM_OFFSETS, RENDER_CORE, WIDTHS, RECORD_SIZE.
+function strips.cutGame(v, image, phase, store)
+  local data = (core.readInteger(v.GM_OFFSETS + image * 4) + core.readInteger(v.RENDER_CORE + 0x78))
+    & 0xFFFFFFFF
+  local w = core.readSmallInteger(v.WIDTHS + image * 16) & 0xFFFF
+  local h = core.readSmallInteger(v.WIDTHS + image * 16 + 2) & 0xFFFF
+  if data == 0 or w == 0 or h == 0 or w > 2048 or h > 2048 then
+    return 0
+  end
+  local words = decodeGame(data, w, h)
+  local count = (w - phase + 15) // 16 + 1
+  local table_ = core.allocate(count * 16, true)
+  for j = 0, count - 1 do
+    local from = math.max(0, phase + 16 * (j - 1))
+    local to = math.min(w, phase + 16 * j)
+    if to > from then
+      local strip = store(packWords(w, h, words, from, to - from))
+      core.writeInteger(table_ + j * 16, strip)
+      core.writeInteger(table_ + j * 16 + 4, strip)
+      core.writeInteger(table_ + j * 16 + 8, from)
+      core.writeInteger(table_ + j * 16 + 12, to - from)
+    end
+  end
+  local cut = core.allocate(v.RECORD_SIZE, true)
+  core.writeInteger(cut + v.R_H, h)
+  core.writeInteger(cut + strips.R_STRIPS, table_)
+  core.writeInteger(cut + strips.R_STRIP_COUNT, count)
+  core.writeInteger(cut + strips.R_PHASE, phase)
+  return cut
+end
+
 function strips.cut(record, picture, x, packTgx, store)
   local width, height, pixels = picture.width, picture.height, picture.pixels
   local phase = (-x) % 16
