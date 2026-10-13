@@ -178,7 +178,8 @@ ret
 
 -- The building panel's work status line (a shared item, drawn for every building before the
 -- panel's own items), cdecl, one parameter. Draws the line, then - for a selected building
--- that has overlays - the list of its overlays (the picked one in yellow), "Save" and, once
+-- without overlays a line naming its building type (to put in an overlays.lua), for one
+-- with overlays - the list of its overlays (the picked one in yellow), "Save" and, once
 -- an overlay is picked, the step size and the four arrow buttons. Remembers what it drew
 -- for the click handler (ROWS, ROW_COUNT, SHOWN, PICKED_SHOWN).
 templates.render = [[
@@ -246,7 +247,26 @@ jmp r_next
 r_list_done:
 mov [ROW_COUNT],ebx
 test ebx,ebx
-je r_done
+jne r_listed
+cmp ebp,TYPE_COUNT
+jae r_done
+mov ecx,[ORIGIN+4]
+add ecx,LIST_Y
+mov edx,[ORIGIN]
+add edx,LIST_X
+push 0
+push 0
+push FONT
+push 0
+push COLOUR
+push 0
+push ecx
+push edx
+push dword [NO_OVERLAY_TEXTS+ebp*4]
+mov ecx,TEXT_MANAGER
+call SHADOWED_TEXT
+jmp r_done
+r_listed:
 mov byte [SHOWN],1
 mov ecx,[ORIGIN+4]
 add ecx,SAVE_Y

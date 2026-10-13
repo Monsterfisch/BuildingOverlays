@@ -20,7 +20,8 @@ An overlay goes away while any unit stands on the building - except the lord, wh
 stands on his keep and would otherwise hide a keep's overlay for good. With "Only hide the
 overlays while the mouse is on the building" switched on, towers, gatehouses and keeps keep
 their battlements drawn whoever stands on them, and only drop them while you point the mouse
-at the building (the game's own tower and keep overlays too).
+at the building (this module's overlays and the game's own roofs on the lookout and square
+towers).
 
 ## Moving overlays in the game
 

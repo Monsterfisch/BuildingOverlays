@@ -240,7 +240,7 @@ def suite(ext):
     check('Save label starts as Save', shown[-1][0], 'Save')
     check('first row where the list starts, moved with the panel', shown[0][1:], (20 + OX, 500 + OY))
     put_building(1, 47)
-    check('no list for a building without overlays', run_panel(), [])
+    check('a building without overlays names its type', [s for s, _, _ in run_panel()], ['No overlays yet (building 47)'])
     put_building(1, 45, variation=0x50)
     run_panel()
     check('a click beside the list is left to the game', click(300, 300), False)
@@ -358,6 +358,7 @@ def hover_suite(ext):
     E = h.E
     tail = E.find('0F B7 85 ? ? ? ? 0F BF C0 8B 04 85 ? ? ? ? 33 C9 3B C1 89 4C 24 30 89 4C 24 34 89 44 24 24')[0]
     check('13 of the games own overlay checks changed', any('(13 checks changed)' in l for l in h.logs), True)
+    STRIDE_ = STRIDE
     t_off = E.va2off(tail)
     buildings = struct.unpack('<I', E.data[t_off + 3:][:4])[0] - 0xD2
     start = E.find("8B 0D ? ? ? ? 8B 93 80 00 00 00 89 4B 74 03 15 ? ? ? ? 8B 8B 84 00 00 00 03 D2 01 53 74 03 0D ? ? ? ? 8B 43 74 69 C9 B0 1F 00 00 03 C8 BA 01 00 00 00 89 4B 74 89 73 1C 89 73 28")[0]
@@ -378,8 +379,11 @@ def hover_suite(ext):
     check('the keep checks are calls now', len(site) >= 7, True)
     thunk = site[0] + 5 + struct.unpack('<i', h.m.read(site[0] + 1, 4))[0]
 
+    b3 = buildings + 3 * STRIDE
+    h.put16(b3 + 0xD2, 77)
+
     def zf():
-        cpu = h.run(thunk, regs={'ebp': 3 * STRIDE, 'esi': 0, 'edi': 0})
+        cpu = h.run(thunk, regs={'ebp': 3 * STRIDE, 'esi': 0, 'edi': 0, 'edx': 0})
         return int(cpu.zf)
     new_frame(0)
     check('not hovered: the game sees an empty tower', zf(), 1)
@@ -390,6 +394,11 @@ def hover_suite(ext):
     new_frame(0)
     h.put32(VIEW + 0x1C, 3)
     check('hovered earlier in this frame counts as well', zf(), 0)
+    h.put16(b3 + 0xD2, 41)
+    h.put32(b3 + 0xB0, 1)
+    check('a keep keeps the games own rule: occupied', zf(), 0)
+    h.put32(b3 + 0xB0, 0)
+    check('a keep keeps the games own rule: empty even under the mouse', zf(), 1)
 
     # this module's overlays
     SURFACE = 0x40000000

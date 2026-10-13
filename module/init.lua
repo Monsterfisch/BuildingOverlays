@@ -107,12 +107,25 @@ local B_X, B_Y, B_SIZE, B_UID = 0xEE, 0xF0, 0xF8, 0xD8
 
 -- The game's own tower and keep overlays: `cmp dword [reg + building +0xB0], edx / 0` before
 -- each, in renderGmOverlayBuilding and renderGmOverlayBuilding2 (the 0x3000 bytes before the
--- tail). In "only while the mouse is on it" mode each becomes a call that answers "empty"
--- unless the mouse is on that building.
+-- tail). In "only while the mouse is on it" mode each becomes a call that, for a lookout or
+-- square tower, answers "empty" unless the mouse is on that building, and otherwise runs the
+-- original compare.
 local VANILLA_SEARCH = 0x3000
+-- Only the towers whose game overlay is a roof over the walkway follow the mouse; every other
+-- building with a game overlay (keeps, the other towers) keeps the game's own "anyone on it" rule.
+local LOOKOUT_TOWER, SQUARE_TOWER = 74, 77
 local REGISTERS = { [0] = "eax", "ecx", "edx", "ebx", nil, "ebp", "esi", "edi" }
 local VANILLA_THUNK = [[
 push eax
+movzx eax,word [REG+TYPE_FIELD]
+cmp eax,LOOKOUT_TOWER
+je v_roof
+cmp eax,SQUARE_TOWER
+je v_roof
+pop eax
+ORIGINAL
+ret
+v_roof:
 mov eax,[LAST_HOVER]
 imul eax,eax,BUILDING_SIZE
 cmp eax,REG
@@ -279,6 +292,7 @@ local ARROW_SIZE = 24
 local ARROW_PLACES = { { 368, 503 }, { 368, 559 }, { 340, 531 }, { 396, 531 } }   -- up down left right
 local ARROW_NAMES = { "up", "down", "left", "right" }
 local STEPS = { 1, 5, 20 }
+local TYPE_COUNT = 128                   -- building types the "no overlays" line can name
 local COLOUR = 0xB8EEFB                  -- the panel's own beige (BGR)
 local PICKED_COLOUR = 0x00FFFF           -- yellow
 local FONT = 0x12
@@ -1020,6 +1034,11 @@ local function installPanel(v)
     end
   end
   core.writeInteger(ui.SAVE_LABEL, storeString("Save"))
+  ui.NO_OVERLAY_TEXTS = core.allocate(TYPE_COUNT * 4, true)
+  for kind = 0, TYPE_COUNT - 1 do
+    core.writeInteger(ui.NO_OVERLAY_TEXTS + kind * 4,
+      storeString(string.format("No overlays yet (building %d)", kind)))
+  end
   for index, step in ipairs(STEPS) do
     core.writeInteger(ui.STEP_TEXTS + (index - 1) * 4, storeString(string.format("Step: %d px", step)))
   end
@@ -1045,7 +1064,7 @@ local function installPanel(v)
   if core.readInteger(blend + BLEND_TOP_OPERAND) ~= w.BLEND_TABLES + 32 * BLEND_LEVEL_SIZE then
     error(MODULE_NAME .. ": the game's blend tables are not the ones this module knows")
   end
-  w.BUILDING_SIZE, w.MAX_ROWS = BUILDING_SIZE, MAX_ROWS
+  w.BUILDING_SIZE, w.MAX_ROWS, w.TYPE_COUNT = BUILDING_SIZE, MAX_ROWS, TYPE_COUNT
   w.LIST_X, w.LIST_Y, w.LIST_W, w.LINE = LIST_X, LIST_Y, LIST_W, LINE
   w.SAVE_X, w.SAVE_Y, w.SAVE_W = SAVE_X, SAVE_Y, SAVE_W
   w.STEP_X, w.STEP_Y, w.STEP_W = STEP_X, STEP_Y, STEP_W
@@ -1123,7 +1142,14 @@ local function patchVanillaOverlays(tail, values)
     end
     local register = size and REGISTERS[modrm & 7]
     if register ~= nil and (core.readInteger(address + 2) & 0xFFFFFFFF) == field then
-      local thunk = core.allocateAssembly((VANILLA_THUNK:gsub("REG", register)), {
+      local bytes = {}
+      for offset = 0, size - 1 do
+        bytes[#bytes + 1] = string.format("0x%02X", core.readByte(address + offset) & 0xFF)
+      end
+      local script = VANILLA_THUNK:gsub("REG", register):gsub("ORIGINAL", "db " .. table.concat(bytes, ","))
+      local thunk = core.allocateAssembly(script, {
+        TYPE_FIELD = (values.BUILDINGS + B_TYPE) & 0xFFFFFFFF,
+        LOOKOUT_TOWER = LOOKOUT_TOWER, SQUARE_TOWER = SQUARE_TOWER,
         LAST_HOVER = values.LAST_HOVER, VIEWPORT = values.VIEWPORT, VP_HOVER = VP_HOVER,
         BUILDING_SIZE = BUILDING_SIZE,
       })
@@ -1236,7 +1262,7 @@ local function enable(self, config)
   core.writeCode(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
 
   if values.HOVER_ONLY == 1 then
-    log(INFO, string.format("%s: the game's own tower and keep overlays hide only under the mouse "
+    log(INFO, string.format("%s: the game's own lookout and square tower roofs hide only under the mouse "
       .. "(%d checks changed)", MODULE_NAME, patchVanillaOverlays(tail, values)))
   end
 
