@@ -24,6 +24,13 @@ at the building. That covers this module's overlays and the roofs of the game's 
 tower's crenellations and every other game overlay keep the game's own rules. An overlay with
 `units = "any"` is always drawn - use that for crenellations that should cover the troops.
 
+## Buildings in front cover the overlays
+
+The game draws overlays in one piece at a building's front corner, so they show through towers
+and walls standing right next to it. This module draws its own pictures in narrow strips
+together with the building's tiles instead, so whatever stands in front covers them. Can be
+switched off in the settings ("Let buildings in front cover the overlays").
+
 ## Moving overlays in the game
 
 Select any building. Its panel lists its overlays on the left: this module's, and the game's

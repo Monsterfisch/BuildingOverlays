@@ -31,6 +31,7 @@
 local png = require("png")
 local list = require("overlay_list")
 local panel = require("panel")
+local strips = require("strips")
 
 local MODULE_NAME = "building-overlays"
 local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this to the active version
@@ -38,6 +39,7 @@ local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this t
 local DEFAULTS = {
   large_gatehouse = { enabled = true, swap_sides = false },
   editor = { enabled = true },
+  drawing = { tile_by_tile = true },
   mouse = { hover_only = false },
 }
 
@@ -84,11 +86,13 @@ local B_GATE_STATE = 0x2A2               -- 0 open, 1 closing, 2 closed, 3 openi
 local VARIATION_X = 0x50
 
 -- One record per overlay, read by the assembly.
-local RECORD_SIZE = 0x34
+local RECORD_SIZE = 0x40
 local R_TYPE, R_UNITS, R_ENTRANCE, R_GATE, R_X, R_Y, R_W, R_H, R_DATA565, R_DATA555 =
   0, 4, 8, 0xC, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24
 local R_OUT565, R_OUT555 = 0x28, 0x2C      -- the frame drawn round the picked overlay
 local R_NAME = 0x30                        -- its name, for the panel list
+-- The picture cut into strips one tile column wide (strips.lua): a table of
+-- { data565, data555, x, width } per strip, their number, and where the cuts fall.
 
 -- The game's own "are there units on this building's tiles" test: thiscall on the buildings
 -- state (building array - 0x14), one argument, `ret 4`.
@@ -149,6 +153,7 @@ local FRAME_START_MOUSE_X, FRAME_START_MOUSE_Y = 17, 34
 local FRAME_START_HOOK, FRAME_START_SIZE = 57, 6
 local VP_HOVER, VP_MOUSE_X, VP_MOUSE_Y = 0x1C, 0x80, 0x84
 local FRAME_START_SCRIPT = [[
+inc dword [FRAME]
 push eax
 mov eax,[ebx+VP_HOVER]
 mov [LAST_HOVER],eax
@@ -366,12 +371,19 @@ pop ecx
 test al,1
 je skip
 draw:
+mov eax,TILE_STRIPS
+test eax,eax
+je whole_picture
+call REMEMBER
+jmp picture_done
+whole_picture:
 cmp dword [PIXEL_FORMAT],0x565
 mov eax,[ecx+R_DATA565]
 je picture_ready
 mov eax,[ecx+R_DATA555]
 picture_ready:
 call drawit
+picture_done:
 call picked_here
 jne skip
 cmp dword [PIXEL_FORMAT],0x565
@@ -1175,6 +1187,8 @@ local function addOverlay(entry, folder, swap, source)
   core.writeInteger(record + R_OUT565, store(packTgx(picture.width, picture.height, frame, true)))
   core.writeInteger(record + R_OUT555, store(packTgx(picture.width, picture.height, frame, false)))
   core.writeInteger(record + R_NAME, storeString(entry.label or shortLabel(overlay.name)))
+  overlay.picture_ = picture
+  strips.cut(record, picture, overlay.x, packTgx, store)
   -- Last, so the hook never sees a half written record.
   core.writeInteger(state.block, #overlays)
 end
@@ -1344,6 +1358,11 @@ local function onClick(ui)
     if arg == 0 then dy = -step elseif arg == 1 then dy = step
     elseif arg == 2 then dx = -step else dx = step end
     core.writeInteger(record + R_X, core.readInteger(record + R_X) + dx)
+    for _, overlay in ipairs(overlays) do
+      if overlay.record == record and dx ~= 0 then
+        strips.cut(record, overlay.picture_, core.readInteger(record + R_X), packTgx, store)
+      end
+    end
     core.writeInteger(record + R_Y, core.readInteger(record + R_Y) + dy)
   elseif kind == 3 then
     core.writeInteger(ui.STEP_INDEX, (core.readInteger(ui.STEP_INDEX) + 1) % #STEPS)
@@ -1658,17 +1677,43 @@ local function enable(self, config)
   values.UNIT_PASSAGE = unitBase + U_PASSAGE
   local script = SCRIPT:gsub("%f[%w_]ORIGINAL%f[^%w_]", "db " .. table.concat(original, ","))
   values.UNITS_HERE = assemble(UNITS_SCRIPT, values)
+  values.FRAME = core.allocate(4, true)
+  local start = scan(AOB_FRAME_START, "the start of the map drawing")
+  values.MOUSE_X = core.readInteger(start + FRAME_START_MOUSE_X)
+  values.MOUSE_Y = core.readInteger(start + FRAME_START_MOUSE_Y)
+  values.FRAME_RESUME = start + FRAME_START_HOOK + FRAME_START_SIZE
+  local frameHook = assemble(FRAME_START_SCRIPT, values)
+  core.writeCode(start + FRAME_START_HOOK,
+    { 0xE9, core.itob(core.getRelativeAddress(start + FRAME_START_HOOK, frameHook, -5)), 0x90 })
   if values.HOVER_ONLY == 1 then
-    local start = scan(AOB_FRAME_START, "the start of the map drawing")
-    values.MOUSE_X = core.readInteger(start + FRAME_START_MOUSE_X)
-    values.MOUSE_Y = core.readInteger(start + FRAME_START_MOUSE_Y)
-    values.FRAME_RESUME = start + FRAME_START_HOOK + FRAME_START_SIZE
-    local frameHook = assemble(FRAME_START_SCRIPT, values)
-    core.writeCode(start + FRAME_START_HOOK,
-      { 0xE9, core.itob(core.getRelativeAddress(start + FRAME_START_HOOK, frameHook, -5)), 0x90 })
     values.HOVERED = assemble(HOVER_SCRIPT, values)
   else
     values.HOVERED = 0
+  end
+  values.TILE_STRIPS = 0
+  values.REMEMBER = 0
+  if setting(config, "drawing", "tile_by_tile") then
+    local ok, problem = pcall(function()
+      local piece = scan(strips.AOB_TILE_PIECE, "where the map draws a building piece")
+      values.TILE_X = core.readInteger(piece + strips.TILE_X_OPERAND)
+      values.TILE_RESUME = piece + strips.TILE_HOOK + strips.TILE_HOOK_SIZE
+      values.CAM = core.allocate(8, true)
+      values.SX, values.SY = core.allocate(4, true), core.allocate(4, true)
+      values.PENDING = core.allocate(MAX_BUILDINGS * strips.SLOT_SIZE, true)
+      values.MAX_BUILDINGS, values.SLOT_SIZE, values.ENTRY_SIZE = MAX_BUILDINGS, strips.SLOT_SIZE, strips.ENTRY_SIZE
+      values.ENTRIES_SIZE, values.MAX_ENTRIES = strips.ENTRIES_SIZE, strips.MAX_ENTRIES
+      values.R_STRIPS, values.R_STRIP_COUNT, values.R_PHASE = strips.R_STRIPS, strips.R_STRIP_COUNT, strips.R_PHASE
+      values.CAMERA = assemble(strips.CAMERA_SCRIPT, values)
+      values.DRAW_STRIP = assemble(strips.DRAW_STRIP_SCRIPT, values)
+      values.REMEMBER = assemble(strips.REMEMBER_SCRIPT, values)
+      local tileHook = assemble(strips.TILE_SCRIPT, values)
+      core.writeCode(piece + strips.TILE_HOOK,
+        { 0xE9, core.itob(core.getRelativeAddress(piece + strips.TILE_HOOK, tileHook, -5)) })
+      values.TILE_STRIPS = 1
+    end)
+    if not ok then
+      log(WARNING, MODULE_NAME .. ": overlays are drawn in one piece: " .. tostring(problem))
+    end
   end
   local blob = assemble(script, values)
 

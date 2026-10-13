@@ -533,7 +533,81 @@ def foreign_suite(ext):
     check('the numbering stays at 162 with redirected calls', any('162 of the game' in l for l in h.logs), True)
 
 
+def strips_suite(ext):
+    print('=== tile by tile, %s' % ('Extreme' if ext else 'vanilla'))
+    fresh_work()
+    h = Host(extreme=ext, config={}, foreign_patches=False, aic=False)
+    E = h.E
+    v_flag = struct.unpack('<I', E.data[E.va2off(E.find('6A 03 B9 ? ? ? ? E8 ? ? ? ? 89 2D ? ? ? ? E9')[0]) + 3:][:4])[0] + 0x5548C4
+    h.put32(v_flag, 1)
+    tail = E.find('0F B7 85 ? ? ? ? 0F BF C0 8B 04 85 ? ? ? ? 33 C9 3B C1 89 4C 24 30 89 4C 24 34 89 44 24 24')[0]
+    t_off = E.va2off(tail)
+    buildings = struct.unpack('<I', E.data[t_off + 3:][:4])[0] - 0xD2
+    core = struct.unpack('<I', E.data[t_off - 9:][:4])[0]
+    func = E.find('83 EC 18 8B 4C 24 28 53 55 8B 6C 24 24 69 ED 2C 03 00 00')[0]
+    render_gm = tail + struct.unpack('<i', E.data[t_off - 4:t_off])[0]
+    blit = render_gm + 0x53 + 5 + struct.unpack('<i', E.data[E.va2off(render_gm) + 0x54:][:4])[0]
+    surface_ptr = struct.unpack('<I', E.data[E.va2off(blit) + 0x50:][:4])[0]
+    pix_fmt = struct.unpack('<I', E.data[E.va2off(E.find('81 3D ? ? ? 00 65 05 00 00 75 40')[0]) + 2:][:4])[0]
+    start = E.find("8B 0D ? ? ? ? 8B 93 80 00 00 00 89 4B 74 03 15 ? ? ? ? 8B 8B 84 00 00 00 03 D2 01 53 74 03 0D ? ? ? ? 8B 43 74 69 C9 B0 1F 00 00 03 C8 BA 01 00 00 00 89 4B 74 89 73 1C 89 73 28")[0]
+    piece = E.find("03 05 ? ? ? ? 52 8B 15 ? ? ? ? 2B 15 ? ? ? ? 2B D1 03 15 ? ? ? ? B9 ? ? ? ? 52 50 E8 ? ? ? ? 83 7C 24 24 00")[0]
+    tile_x = struct.unpack('<I', E.data[E.va2off(piece) + 2:][:4])[0]
+    check('piece hook in place', h.m.read(piece + 0x27, 1), bytes([0xE9]))
+    VIEW = 0x50000000
+    h.m.write(VIEW, bytes(0x100))
+    SURFACE, PITCH = 0x40000000, 0x1FB0
+
+    def new_frame():
+        h.run(start + 57, until=start + 63, regs={'ebx': VIEW, 'esi': 0})
+
+    def clear():
+        for off in range(0, PITCH * 700, 4096):
+            h.m.write(SURFACE + off, bytes(4096))
+        h.put32(surface_ptr, SURFACE); h.put32(core + 4, 1); h.put32(core + 0x58, 0)
+        h.put32(core + 0x5C, 600); h.put32(core + 0x54, 0); h.put32(pix_fmt, 0x565)
+
+    def corner(x, y):
+        h.run(func, stack=[1, x, y, 0], limit=3_000_000)
+
+    def piece_drawn(x):
+        h.put32(tile_x, x)
+        h.run(piece + 0x27, until=piece + 0x2C, regs={'ebx': VIEW, 'esi': 1})
+
+    def columns():
+        cols = set()
+        for y in range(0, 600):
+            row = h.m.read(SURFACE + y * PITCH, 800 * 2)
+            for i in range(0, len(row), 2):
+                if row[i] or row[i + 1]:
+                    cols.add(i // 2)
+        return cols
+
+    b = buildings + STRIDE
+    h.m.write(b, bytes(STRIDE))
+    h.put32(b + 0x34, 1); h.put32(b + 0x38, 1); h.put16(b + 0xD2, 45); h.put16(b + 0x102, 0x50)
+    h.put16(b + 0xEE, 10); h.put16(b + 0xF0, 10); h.put32(b + 0xF8, 3)
+    bx, by = 406, 450                       # a front corner as the game places them (x = 6 mod 16)
+    left_edge = bx - 107
+    clear(); new_frame(); corner(bx, by)
+    full = columns()
+    check('first frame: the whole picture at the front corner', (min(full), max(full)), (left_edge, left_edge + 214))
+    new_frame(); clear()
+    piece_drawn(bx - 64)
+    cols = columns()
+    check('a piece draws only the strips over its own 32 px', (min(cols) >= bx - 64, max(cols) < bx - 32), (True, True))
+    piece_drawn(bx - 32)
+    corner(bx, by)
+    check('the front corner adds what no piece drew', columns(), full)
+    # the camera moved one tile column right since the last frame: the strips move with it
+    new_frame(); clear()
+    h.put32(VIEW + 0x78, 32)
+    piece_drawn(bx - 64 - 32)
+    cols = columns()
+    check('the camera is followed', (min(cols) >= bx - 96, max(cols) < bx - 64), (True, True))
+
+
 for which in (sys.argv[1:] or ['van', 'ext']):
+    strips_suite(which == 'ext')
     foreign_suite(which == 'ext')
     suite(which == 'ext')
     hover_suite(which == 'ext')

@@ -51,3 +51,18 @@ options:
     contents:
       type: boolean
       value: false
+
+- display: GroupBox
+  category: [Building Overlays]
+  header: '{{drawing_group}}'
+  text: '{{drawing_group_descr}}'
+  hasHeader: true
+  children:
+  - url: building-overlays.drawing.tile_by_tile
+    name: building-overlays-drawing-tile-by-tile
+    text: '{{tile_by_tile}}'
+    tooltip: '{{tile_by_tile_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
