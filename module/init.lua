@@ -599,7 +599,14 @@ local function registerOverlaySource(self, path)
   if folder:sub(-1) ~= "/" then
     folder = folder .. "/"
   end
-  local text = readFile(folder, "overlays.lua")
+  -- Spots saved while the plugin folder could not be written win over the plugin's own file.
+  local spare = "ucp/building-overlays-" .. (folder:match("plugins/([^/]+)/") or "module") .. ".lua"
+  local text = readFile("", spare)
+  if text ~= nil then
+    log(INFO, MODULE_NAME .. ": using the spots saved in " .. spare)
+  else
+    text = readFile(folder, "overlays.lua")
+  end
   local chunk = text and load(text, "overlays", "t", {})
   local ok, entries = pcall(chunk or function() end)
   if not ok or type(entries) ~= "table" then
@@ -636,9 +643,27 @@ local function writeEntries(path, header, entries)
     log(INFO, MODULE_NAME .. ": saved " .. path)
     return true
   end
-  log(WARNING, MODULE_NAME .. ": could not write " .. path .. " (" .. tostring(file)
-    .. "); the entries are above")
-  return false
+  -- UCP refuses to write inside extension folders: write next to the ucp folder instead, then
+  -- try to move the file into place. If that fails too the copy in ucp/ is kept (and read back
+  -- by registerOverlaySource), and the log says where it is.
+  local spare = "ucp/building-overlays-" .. (path:match("plugins/([^/]+)/") or "module") .. ".lua"
+  local opened, handle = pcall(io.open, spare, "wb")
+  if not opened or handle == nil then
+    log(WARNING, MODULE_NAME .. ": could not write " .. path .. " nor " .. spare
+      .. "; the entries are above")
+    return false
+  end
+  handle:write(table.concat(lines, "\n"), "\n")
+  handle:close()
+  pcall(os.remove, path)
+  local moved = select(2, pcall(os.rename, spare, path))
+  if moved then
+    log(INFO, MODULE_NAME .. ": saved " .. path)
+  else
+    log(WARNING, MODULE_NAME .. ": UCP does not allow writing " .. path .. "; saved to " .. spare
+      .. " instead - copy it over the plugin's overlays.lua")
+  end
+  return true
 end
 
 ---The Save button: a plugin's overlays go back into that plugin's own overlays.lua, the module's
