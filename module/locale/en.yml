@@ -1,0 +1,21 @@
+large_gatehouse_group: Large gatehouse
+large_gatehouse_group_descr: |
+  A picture drawn over the towers of a large gatehouse while nobody is standing on it, so
+  the walls look closed up instead of showing the empty walkway.
+large_gatehouse_enabled: Draw the closed-up look on empty large gatehouses
+large_gatehouse_enabled_tooltip: |
+  Large gatehouses with no troops on them get a picture over their towers. As soon as
+  troops step onto the gatehouse the picture goes away and they are shown as usual.
+large_gatehouse_swap_sides: Swap the left and right pictures
+large_gatehouse_swap_sides_tooltip: |
+  Use this if the picture meant for a gatehouse looking to the lower left shows up on one
+  looking to the lower right (and the other way round).
+
+calibration_group: Lining pictures up
+calibration_group_descr: |
+  Helps when you make or move an overlay picture.
+calibration_keys: Alt + arrow keys move the overlay pictures
+calibration_keys_tooltip: |
+  In a game, hold Alt and press PageUp or PageDown to pick which overlay to move, then
+  Alt + the arrow keys to nudge it one pixel at a time. Alt + End saves the new spots so
+  they are used from then on. What you picked and where it sits is written to ucp3.log.

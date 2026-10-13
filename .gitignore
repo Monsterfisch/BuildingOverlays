@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.zip
+*.sig
+failed_script.asm
+bench/fasm_cache/
+run_*.txt

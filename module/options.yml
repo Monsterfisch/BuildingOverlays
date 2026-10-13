@@ -1,0 +1,38 @@
+options:
+- display: GroupBox
+  category: [Building Overlays]
+  header: '{{large_gatehouse_group}}'
+  text: '{{large_gatehouse_group_descr}}'
+  hasHeader: true
+  children:
+  - url: building-overlays.large_gatehouse.enabled
+    name: building-overlays-large-gatehouse-enabled
+    text: '{{large_gatehouse_enabled}}'
+    tooltip: '{{large_gatehouse_enabled_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+  - url: building-overlays.large_gatehouse.swap_sides
+    name: building-overlays-large-gatehouse-swap-sides
+    text: '{{large_gatehouse_swap_sides}}'
+    tooltip: '{{large_gatehouse_swap_sides_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: false
+
+- display: GroupBox
+  category: [Building Overlays]
+  header: '{{calibration_group}}'
+  text: '{{calibration_group_descr}}'
+  hasHeader: true
+  children:
+  - url: building-overlays.calibration.keys
+    name: building-overlays-calibration-keys
+    text: '{{calibration_keys}}'
+    tooltip: '{{calibration_keys_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
