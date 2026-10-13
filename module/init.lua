@@ -92,12 +92,15 @@ local AOB_UNITS_ON_BUILDING = "8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B
   .. "33 DB 85 F6 57 7E"
 -- Its operands are what this module's own test reads: it walks the same footprint, but walks
 -- every unit on a tile (unit +0x2A2 is the next one on the same tile) and leaves out the lord,
--- who always stands on his keep.
+-- who always stands on his keep, and units walking through a gatehouse's passage.
 local UNITS_TRANSLATE = { 0x2D, { 0x8D, 0x3C, 0xBD } }   -- lea edi, [edi*4 + tile rows]
 local UNITS_TILES = { 0x3A, { 0x8D, 0x14, 0x55 } }       -- lea edx, [edx*2 + unit per tile]
 local UNITS_OWNER = { 0x4E, { 0x0F, 0xBF, 0x80 } }       -- movsx eax, word [eax + unit owner]
 local UNITS_PLAYERS = { 0x55, { 0x83, 0x3C, 0x85 } }     -- cmp [eax*4 + player ids], -1
 local UNIT_SIZE, U_OWNER, U_TYPE, U_NEXT, LORD = 0x490, 0x96, 0x8E, 0x2A2, 55
+-- Non-zero while a unit on a gatehouse is drawn walking through the passage rather than on the
+-- roof (see smarter-gatehouses): those are hidden by the gatehouse anyway.
+local U_PASSAGE = 0x402
 local B_X, B_Y, B_SIZE, B_UID = 0xEE, 0xF0, 0xF8, 0xD8
 
 -- The building under the mouse (the one the game shows the health bar of): its index and uid,
@@ -360,6 +363,8 @@ je u_next_tile
 imul eax,eax,UNIT_SIZE
 cmp word [eax+UNIT_TYPE],LORD
 je u_next_unit
+cmp byte [eax+UNIT_PASSAGE],0
+jne u_next_unit
 mov [SCRATCH+24],eax
 movsx eax,word [eax+UNIT_OWNER]
 cmp dword [eax*4+PLAYER_IDS],-1
@@ -1106,6 +1111,7 @@ local function enable(self, config)
   }
   local unitBase = values.UNIT_OWNER - U_OWNER
   values.UNIT_TYPE, values.UNIT_NEXT = unitBase + U_TYPE, unitBase + U_NEXT
+  values.UNIT_PASSAGE = unitBase + U_PASSAGE
   local script = SCRIPT:gsub("%f[%w_]ORIGINAL%f[^%w_]", "db " .. table.concat(original, ","))
   values.UNITS_HERE = assemble(UNITS_SCRIPT, values)
   local blob = assemble(script, values)
