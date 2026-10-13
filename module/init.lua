@@ -5,6 +5,7 @@
   tower walkways: a picture that hides the empty walkway and goes away when troops step
   onto the building. Which pictures, for which building, entrance direction, occupancy and
   gate state, and where they sit is listed in overlay_list.lua; the PNGs live in overlays/.
+  Plugins add their own through registerOverlaySource.
 
   How it works
     * `renderGmOverlayBuilding` draws a building's extra sprites, then every path of it ends
@@ -12,14 +13,16 @@
       into this module's assembly runs once per building and frame, after the game's own
       overlays, so the pictures land over the units standing on the building.
     * The assembly walks a small table, one record per overlay, tests the building against
-      it (type, anyone on it, entrance direction on screen, gate state) and calls the
+      it (type, anyone on its tiles, entrance direction on screen, gate state) and calls the
       game's own picture routine (the one `renderGM` uses for its 16 bit pictures) with a
       picture packed in the game's TGX format. That routine does the clipping and the
       zoomed-out drawing, so the pictures behave like the game's own.
     * The PNGs are packed twice, in RGB565 and RGB555, and the right copy is picked from the
       game's pixel format on every draw.
-    * Alt + arrow keys / PageUp / PageDown / End (the free Alt keys of WM_SYSKEYDOWN) line
-      the pictures up in a running game.
+    * The line-up tool lives in the building panel: two shared items of the panel's item
+      table (the ones smarter-buildings wraps as well; whoever comes second calls the first)
+      draw a list of the selected building's overlays with arrow buttons and take the clicks
+      on them. Clicks are handed to lua, which moves the picked overlay and saves.
 
   Every address is found by pattern scan or read out of the instruction that uses it, so the
   module runs on Stronghold Crusader.exe and Stronghold_Crusader_Extreme.exe alike.
@@ -27,23 +30,14 @@
 
 local png = require("png")
 local list = require("overlay_list")
+local panel = require("panel")
 
 local MODULE_NAME = "building-overlays"
 local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this to the active version
 
 local DEFAULTS = {
   large_gatehouse = { enabled = true, swap_sides = false },
-  editor = { enabled = true, key = "letter_o" },
-}
-
--- Alt + key that switches the line-up tool on and off; only keys that do nothing in the
--- game's WM_SYSKEYDOWN table (the same list resource-grid-overlay offers).
-local VIRTUAL_KEY_CODES = {
-  letter_a = 0x41, letter_b = 0x42, letter_f = 0x46, letter_g = 0x47, letter_i = 0x49,
-  letter_j = 0x4A, letter_l = 0x4C, letter_m = 0x4D, letter_n = 0x4E, letter_o = 0x4F,
-  letter_p = 0x50, letter_s = 0x53, letter_w = 0x57, letter_y = 0x59, letter_z = 0x5A,
-  f1 = 0x70, f2 = 0x71, f3 = 0x72, f4 = 0x73, f5 = 0x74, f6 = 0x75, f7 = 0x76, f8 = 0x77,
-  f9 = 0x78, insert = 0x2D, delete_key = 0x2E, home = 0x24,
+  editor = { enabled = true },
 }
 
 -- Overlays a plugin may add on top of the ones in overlay_list.lua.
@@ -57,7 +51,8 @@ local BUILDINGS = {
 }
 
 -- The tail every path of `renderGmOverlayBuilding` ends in, preceded by the `mov ecx, core
--- / call renderGM` that closes the last case. Unique in both executables.
+-- / call renderGM` that closes the last case. Unique in both executables. +0x46 compares the
+-- building with the selected one: `cmp edx, [selectedBuilding]`.
 local AOB_TAIL = "0F B7 85 ? ? ? ? 0F BF C0 8B 04 85 ? ? ? ? 33 C9 3B C1 89 4C 24 30 "
   .. "89 4C 24 34 89 44 24 24"
 local TAIL_SIZE = 7                      -- the `movzx` the jump replaces
@@ -65,6 +60,7 @@ local TYPE_DISPLACEMENT_OPERAND = 3
 local CORE_OPERAND = -9                  -- mov ecx, <texture render core>
 local RENDER_GM_REL_OPERAND = -4         -- call renderGM
 local RENDER_GM_BLIT_CALL = 0x53         -- inside renderGM: call <the TGX picture routine>
+local TAIL_SELECTED = { 0x46, { 0x3B, 0x15 } }
 
 local AOB_PIXEL_FORMAT = "81 3D ? ? ? 00 65 05 00 00 75 40"
 local PIXEL_FORMAT_OPERAND = 2
@@ -72,28 +68,22 @@ local AOB_MAP_ORIENTATION = "A1 ? ? ? ? 85 C0 53 55 56 57 8B E9 BF 08 00 00 00 7
   .. "83 F8 06 75 07 BF 18 3A 01 00 EB 16 83 F8 04 75 07 BF 28 74 02 00"
 local MAP_ORIENTATION_OPERAND = 1
 
--- WM_SYSKEYDOWN dispatcher: the 7 byte `jmp [eax*4 + table]` at +36.
-local AOB_SYS_KEY = "8B 74 24 64 8D 46 F3 3D D1 00 00 00 BD 01 00 00 00 89 2D ? ? ? ? "
-  .. "0F 87 ? ? ? ? 0F B6 80 ? ? ? ? FF 24 85 ? ? ? ?"
-local SYS_KEY_JUMP = 36
-local SYS_KEY_JUMP_SIZE = 7
-local VK = { prior = 0x21, next = 0x22, finish = 0x23, left = 0x25, up = 0x26, right = 0x27,
-  down = 0x28 }
-
 -- Building fields (the building struct is 0x32C bytes, same in both executables).
+local BUILDING_SIZE = 0x32C
 local B_SHOWN = 0x34                     -- displayOwnerFlag
 local B_FRAMES = { 0x38, 0x3C, 0x40, 0x44 }   -- the game's own overlay frames; none = not built
 local B_TYPE = 0xD2
-local B_OCCUPIED = 0xB0                  -- 1 while troops stand on it (picks the tile art)
+local B_OCCUPIED = 0xB0                  -- 1 while troops stand on a tower (picks the tile art)
 local B_VARIATION = 0x102                -- 0x50: entrance runs along x
 local B_GATE_STATE = 0x2A2               -- 0 open, 1 closing, 2 closed, 3 opening
 local VARIATION_X = 0x50
 
 -- One record per overlay, read by the assembly.
-local RECORD_SIZE = 0x30
+local RECORD_SIZE = 0x34
 local R_TYPE, R_UNITS, R_ENTRANCE, R_GATE, R_X, R_Y, R_W, R_H, R_DATA565, R_DATA555 =
   0, 4, 8, 0xC, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24
 local R_OUT565, R_OUT555 = 0x28, 0x2C      -- the frame drawn round the picked overlay
+local R_NAME = 0x30                        -- its name, for the panel list
 
 -- The game's own "are there units on this building's tiles" test: thiscall on the buildings
 -- state (building array - 0x14), one argument, `ret 4`.
@@ -101,27 +91,61 @@ local AOB_UNITS_ON_BUILDING = "8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B
   .. "33 DB 85 F6 57 7E"
 local BUILDINGS_STATE_BEFORE_ARRAY = 0x14
 
--- The mouse state (`isMouseInsideBox` is called on it): +0x10 / +0x14 the mouse x / y on the
--- screen. Read from the menu item handler, the same pattern smarter-recruits uses.
-local AOB_MOUSE = "8B 56 10 8B 46 4C 8B 4E 0C 52 8B 50 08 03 56 08 8B 40 04 03 46 04 51 52 50 "
-  .. "B9 ? ? ? ? E8"
-local MOUSE_OPERAND = 26
-local MOUSE_X, MOUSE_Y = 0x10, 0x14
--- The one call of GetAsyncKeyState in the exe; the operand is its import slot.
-local AOB_ASYNC_KEY = "6A 28 FF 15 ? ? ? ? 66 85 C0"
-local ASYNC_KEY_OPERAND = 4
-local ZOOMED_OUT = 0x54                  -- in the texture render core: 1 while zoomed out
-
--- The four arrow buttons next to the picked overlay: up and down on its right, left and
--- right under it. Sizes in pixels.
-local ARROW_SIZE = 24
-local ARROW_GAP = 8
-local ARROW_NAMES = { "up", "down", "left", "right" }
-
 local UNITS = { empty = 0, occupied = 1, any = 2 }
 local ENTRANCES = { any = 0, left = 1, right = 2 }
 -- A bit per gate state (0 open, 1 closing, 2 closed, 3 opening).
 local GATES = { any = 0xF, open = 0x1, closing = 0x2, closed = 0x4, opening = 0x8 }
+
+---------------------------------------------------------------------------------------
+-- The building panel
+---------------------------------------------------------------------------------------
+
+-- MenuItem layout (0x50 bytes) and the panel's item table: found through the tower Repair
+-- button (type 3 at 340, 466, 100 x 28), walking back to the end marker of the table before.
+local ITEM_SIZE = 0x50
+local ITEM_TYPE, ITEM_X, ITEM_Y, ITEM_ACTION, ITEM_RENDER = 0x00, 0x04, 0x08, 0x14, 0x1C
+local TYPE_EVERY_FRAME, TYPE_BLOCK, TYPE_LAST = 0x00, 0x64, 0x66
+local AOB_REPAIR_ITEM = "03 00 00 00 54 01 00 00 D2 01 00 00 64 00 00 00 1C 00 00 00"
+local STATUS_LINE = { 25, 570 }          -- the shared work status line every building shows
+
+-- handleMenuElementsCallbacks: the mouse and its "is the mouse in this box" test.
+local AOB_MENU_ITEM = "8B 56 10 8B 46 4C 8B 4E 0C 52 8B 50 08 03 56 08 8B 40 04 03 46 04 51 52 50 "
+  .. "B9 ? ? ? ? E8"
+local MENU_ITEM_MOUSE = { 0x19, { 0xB9 } }
+local MENU_ITEM_IS_INSIDE = 0x1E
+local MOUSE_LEFT_CLICK = 0x34            -- set for the frame in which the left button went down
+
+-- The Save dialog's file name box renderer: the pencil and the text drawing.
+local AOB_NAME_BOX = "A1 ? ? ? ? 8B 0D ? ? ? ? 8B 15 ? ? ? ? 56 57 6A 05 03 C8 51 8B 0D ? ? ? ? 03 "
+  .. "D1 52 50 51 B9 ? ? ? ?"
+local NAME_BOX_PENCIL = { 0x23, { 0xB9 } }
+local NAME_BOX_DRAW_COLOUR_BOX = 0x69
+local NAME_BOX_TEXT_MANAGER = { 0x9C, { 0xB9 } }
+local NAME_BOX_SHADOWED_TEXT = 0xA1      -- call renderInGameTextWithShadow
+local DRAW_COLOUR_BOX_SURFACE = 0x03     -- call setupPencilSurface
+local DRAW_COLOUR_BOX_CLIP = 0x23        -- call setupPencil
+
+-- The game's sprite fading tables, which the button blit mixes soft edges with.
+local AOB_BLEND = "66 83 3D ? ? ? ? 00 75 05 E8 ? ? ? ? 8B C3 C1 E0 09 BA ? ? ? ? 2B D0 83 3D ? ? ? ? 00 8D 88"
+local BLEND_READY_OPERAND = 3
+local BLEND_BUILD_CALL = 0x0A
+local BLEND_TABLES_OPERAND = 0x24
+local BLEND_TOP_OPERAND = 0x15
+local BLEND_LEVEL_SIZE = 0x200
+
+-- Where the tool sits in the panel (800 x 600 interface coordinates). The list runs down the
+-- left, clear of the gate buttons (200, 535); the arrows sit right of the Repair button and
+-- left of the minimap (571).
+local LIST_X, LIST_Y, LIST_W, LINE, MAX_ROWS = 30, 440, 160, 16, 6
+local SAVE_X, SAVE_Y, SAVE_W = 30, 560, 60
+local STEP_X, STEP_Y, STEP_W = 100, 560, 90
+local ARROW_SIZE = 24
+local ARROW_PLACES = { { 493, 474 }, { 493, 530 }, { 465, 502 }, { 521, 502 } }   -- up down left right
+local ARROW_NAMES = { "up", "down", "left", "right" }
+local STEPS = { 1, 5, 20 }
+local COLOUR = 0xB8EEFB                  -- the panel's own beige (BGR)
+local PICKED_COLOUR = 0x00FFFF           -- yellow
+local FONT = 0x12
 
 local SCRIPT = [[
 pushfd
@@ -162,11 +186,8 @@ next:
 mov eax,[SCRATCH]
 cmp eax,[ecx+R_TYPE]
 jne skip
-cmp dword [STATE+4],0
-je normal
-cmp ecx,[STATE+8]
+call picked_here
 je draw
-normal:
 mov eax,[ecx+R_UNITS]
 cmp eax,2
 je units_ok
@@ -214,9 +235,7 @@ je picture_ready
 mov eax,[ecx+R_DATA555]
 picture_ready:
 call drawit
-cmp dword [STATE+4],0
-je skip
-cmp ecx,[STATE+8]
+call picked_here
 jne skip
 cmp dword [PIXEL_FORMAT],0x565
 mov eax,[ecx+R_OUT565]
@@ -224,7 +243,6 @@ je frame_ready
 mov eax,[ecx+R_OUT555]
 frame_ready:
 call drawit
-ARROW_CALLS
 skip:
 add ecx,RECORD_SIZE
 dec edx
@@ -234,6 +252,17 @@ popad
 popfd
 ORIGINAL
 jmp RESUME
+picked_here:
+cmp dword [STATE+4],0
+je not_picked
+cmp ecx,[STATE+8]
+jne not_picked
+mov eax,[SCRATCH+16]
+cmp eax,[SELECTED]
+ret
+not_picked:
+or eax,1
+ret
 drawit:
 push edx
 push ecx
@@ -253,153 +282,6 @@ pop ecx
 pop edx
 ret
 ]]
-
--- One arrow button, its own assembly (UCP gives FASM 64 KB for source, symbols and output).
--- In: eax / ebp its top left on the map surface, [SCRATCH+28] which arrow (0 up, 1 down,
--- 2 left, 3 right), ecx the picked overlay's record. Tests the mouse against it (halved when
--- zoomed out), moves the overlay while the left button is held on it (one step at once,
--- then after a pause one every few frames, faster after a while) and draws it.
-local ARROW_SCRIPT = [[
-push ebx
-push ecx
-push edx
-mov [SCRATCH+20],eax
-mov [SCRATCH+24],ebp
-mov [SCRATCH+44],ecx
-mov edx,ARROW_SIZE
-cmp dword [ZOOMED_OUT],0
-je full_size
-sar eax,1
-sar ebp,1
-mov edx,ARROW_HALF
-full_size:
-xor ebx,ebx
-mov ecx,[MOUSE_X]
-sub ecx,eax
-cmp ecx,edx
-jae pointer_away
-mov ecx,[MOUSE_Y]
-sub ecx,ebp
-cmp ecx,edx
-jae pointer_away
-mov ebx,1
-pointer_away:
-push 1
-call dword [ASYNC_KEY]
-test ah,0x80
-jne button_down
-mov dword [STATE+12],0
-mov ecx,[SCRATCH+44]
-mov eax,[ecx+R_X]
-mov [STATE+16],eax
-mov eax,[ecx+R_Y]
-mov [STATE+20],eax
-jmp pressed
-button_down:
-test ebx,ebx
-je pressed
-mov eax,[STATE+12]
-inc dword [STATE+12]
-test eax,eax
-je one_step
-cmp eax,18
-jb pressed
-cmp eax,90
-jae fast
-test al,3
-jne pressed
-jmp one_step
-fast:
-test al,1
-jne pressed
-mov dword [SCRATCH+48],3
-jmp apply
-one_step:
-mov dword [SCRATCH+48],1
-apply:
-mov ecx,[SCRATCH+44]
-mov eax,[SCRATCH+48]
-mov edx,[SCRATCH+28]
-test edx,edx
-je go_up
-cmp edx,1
-je go_down
-cmp edx,2
-je go_left
-add [ecx+R_X],eax
-jmp pressed
-go_up:
-sub [ecx+R_Y],eax
-jmp pressed
-go_down:
-add [ecx+R_Y],eax
-jmp pressed
-go_left:
-sub [ecx+R_X],eax
-pressed:
-mov eax,[SCRATCH+28]
-add eax,eax
-add eax,ebx
-shl eax,3
-lea edx,[eax+ARROWS]
-cmp dword [PIXEL_FORMAT],0x565
-mov eax,[edx]
-je arrow_ready
-mov eax,[edx+4]
-arrow_ready:
-push eax
-push ARROW_SIZE
-push ARROW_SIZE
-push dword [SCRATCH+24]
-push dword [SCRATCH+20]
-mov ecx,RENDER_CORE
-mov eax,BLIT
-call eax
-pop edx
-pop ecx
-pop ebx
-ret
-]]
-
--- Where the four arrows sit, as asm for the picked overlay (ecx): right of it, above and
--- below its middle, and under it, left and right of its middle. They stay put while the
--- button is held (else the overlay would slide out from under the mouse) and catch up with
--- the overlay when it is let go.
-local function arrowCalls()
-  local lines = {}
-  local half = ARROW_SIZE + 2
-  local function add(text)
-    lines[#lines + 1] = text
-  end
-  for k = 0, 3 do
-    add("mov eax,[STATE+16]")
-    add("add eax,edi")
-    add("mov ebp,[STATE+20]")
-    add("add ebp,esi")
-    if k < 2 then
-      add("add eax,[ecx+R_W]")
-      add("add eax," .. ARROW_GAP)
-      add("push eax")
-      add("mov eax,[ecx+R_H]")
-      add("shr eax,1")
-      add("add ebp,eax")
-      add(k == 0 and ("sub ebp," .. half) or "add ebp,2")
-      add("pop eax")
-    else
-      add("push ebp")
-      add("mov ebp,[ecx+R_W]")
-      add("shr ebp,1")
-      add("add eax,ebp")
-      add(k == 2 and ("sub eax," .. half) or "add eax,2")
-      add("pop ebp")
-      add("add ebp,[ecx+R_H]")
-      add("add ebp," .. ARROW_GAP)
-    end
-    add("mov dword [SCRATCH+28]," .. k)
-    add("call ARROW")
-  end
-  return table.concat(lines, "\n")
-end
 
 local function log(level, text)
   if _G.log ~= nil then
@@ -427,6 +309,24 @@ local function scan(pattern, purpose)
   return address
 end
 
+local function expectBytes(address, bytes, purpose)
+  for index, byte in ipairs(bytes) do
+    if (core.readByte(address + index - 1) & 0xFF) ~= byte then
+      error(string.format("%s: %s is not the code this module knows", MODULE_NAME, purpose))
+    end
+  end
+end
+
+local function readOperand(base, site, purpose)
+  expectBytes(base + site[1], site[2], purpose)
+  return core.readInteger(base + site[1] + #site[2])
+end
+
+local function readCallTarget(base, offset, purpose)
+  expectBytes(base + offset, { 0xE8 }, purpose)
+  return base + offset + 5 + core.readInteger(base + offset + 1)
+end
+
 local function readFile(folder, name)
   local file = io.open(folder .. name, "rb")
   if file == nil then
@@ -435,6 +335,17 @@ local function readFile(folder, name)
   local data = file:read("a")
   file:close()
   return data
+end
+
+---FASM gets a fixed 64 KB for source, symbols and output: only pass what a script uses.
+local function assemble(script, values)
+  local used = {}
+  for name, value in pairs(values) do
+    if script:find("%f[%w_]" .. name .. "%f[^%w_]") then
+      used[name] = value
+    end
+  end
+  return core.allocateAssembly(script, used)
 end
 
 ---------------------------------------------------------------------------------------
@@ -490,7 +401,7 @@ local function framePixels(width, height)
   return pixels
 end
 
----A chevron arrow, ARROW_SIZE square, pointing the given way, as pixels for packTgx.
+---A chevron arrow button, ARROW_SIZE square, pointing the given way.
 local function arrowPixels(direction, hovered)
   local size = ARROW_SIZE
   local a, b, c               -- the two strokes: a to b and b to c
@@ -512,11 +423,12 @@ local function arrowPixels(direction, hovered)
   end
   local fill = hovered and { 255, 220, 0, 255 } or { 40, 90, 255, 255 }
   local edge = { 10, 10, 50, 255 }
+  local back = { 60, 50, 40, 160 }
   local pixels = {}
   for y = 0, size - 1 do
     for x = 0, size - 1 do
       local d = math.min(distance(x + 0.5, y + 0.5, a, b), distance(x + 0.5, y + 0.5, b, c))
-      pixels[y * size + x + 1] = d <= 1.7 and fill or d <= 2.7 and edge or { 0, 0, 0, 0 }
+      pixels[y * size + x + 1] = d <= 1.7 and fill or d <= 2.7 and edge or back
     end
   end
   return pixels
@@ -525,6 +437,38 @@ end
 local function store(bytes)
   local address = core.allocate(#bytes, true)
   core.writeBytes(address, bytes)
+  return address
+end
+
+---A picture in the layout the panel's blit reads: +0 width, +4 height, +8 RGB565, +0xC RGB555,
+---+0x10 one alpha byte per pixel.
+local function storeBlitPicture(width, height, pixels)
+  local count = width * height
+  local base = core.allocate(0x14 + count * 5, true)
+  local rgb565, rgb555, mask = {}, {}, {}
+  for index = 1, count do
+    local p = pixels[index]
+    local r, g, b = p[1], p[2], p[3]
+    local value565 = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
+    local value555 = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3)
+    rgb565[index * 2 - 1], rgb565[index * 2] = value565 & 0xFF, value565 >> 8
+    rgb555[index * 2 - 1], rgb555[index * 2] = value555 & 0xFF, value555 >> 8
+    mask[index] = p[4]
+  end
+  core.writeInteger(base, width)
+  core.writeInteger(base + 4, height)
+  core.writeInteger(base + 8, base + 0x14)
+  core.writeInteger(base + 0xC, base + 0x14 + count * 2)
+  core.writeInteger(base + 0x10, base + 0x14 + count * 4)
+  core.writeBytes(base + 0x14, rgb565)
+  core.writeBytes(base + 0x14 + count * 2, rgb555)
+  core.writeBytes(base + 0x14 + count * 4, mask)
+  return base
+end
+
+local function storeString(text)
+  local address = core.allocate(#text + 1, true)
+  core.writeString(address, text)
   return address
 end
 
@@ -540,7 +484,7 @@ local function loadPicture(folder, name)
   return { width = width, height = height, pixels = pixels }
 end
 
----Spots saved by Alt + End: a list of overlay entries, used for x and y by name.
+---Spots saved with the Save button: a list of overlay entries, used for x and y by name.
 local function loadCalibration()
   local text = readFile(MODULE_FOLDERS[1], "calibration.lua")
   local chunk = text and load(text, "calibration", "t", {})
@@ -587,7 +531,7 @@ local function addOverlay(entry, folder, swap)
     entrance = 3 - entrance
   end
   local overlay = {
-    name = entry.name, id = id, entrance = entry.entrance or "any",
+    name = tostring(entry.name), id = id, entrance = entry.entrance or "any",
     units = entry.units or "empty", gate = entry.gate or "any", picture = entry.picture,
     x = entry.x or 0, y = entry.y or 0,
   }
@@ -609,12 +553,13 @@ local function addOverlay(entry, folder, swap)
     store(packTgx(picture.width, picture.height, picture.pixels, false)))
   core.writeInteger(record + R_OUT565, store(packTgx(picture.width, picture.height, frame, true)))
   core.writeInteger(record + R_OUT555, store(packTgx(picture.width, picture.height, frame, false)))
+  core.writeInteger(record + R_NAME, storeString(overlay.name))
   -- Last, so the hook never sees a half written record.
   core.writeInteger(state.block, #overlays)
 end
 
----A plugin hands over a folder holding overlays.lua (the file Alt + End writes) and the PNGs
----it names. Called from the plugin's own enable, after this module's.
+---A plugin hands over a folder holding overlays.lua (the file the Save button writes) and the
+---PNGs it names. Called from the plugin's own enable, after this module's.
 ---e.g. modules["building-overlays"]:registerOverlaySource(
 ---  "ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
 local function registerOverlaySource(self, path)
@@ -647,7 +592,7 @@ local function registerOverlaySource(self, path)
 end
 
 ---------------------------------------------------------------------------------------
--- The line-up tool: Alt + <key> switches it on, then Alt + arrows move the picked overlay
+-- The line-up tool in the building panel
 ---------------------------------------------------------------------------------------
 
 local function formatEntry(overlay)
@@ -659,7 +604,7 @@ end
 
 local function writeCalibration()
   local lines = {
-    "-- Written by Building Overlays (Alt + End). Copy it into a plugin as",
+    "-- Written by Building Overlays (the Save button). Copy it into a plugin as",
     "-- resources/modsupport/building-overlays/overlays.lua, next to the PNGs it names.",
     "return {",
   }
@@ -680,55 +625,182 @@ local function writeCalibration()
   end
 end
 
-local function pick(index)
-  state.selected = index
-  core.writeInteger(state.block + 8, overlays[index].record)
-  core.writeInteger(state.block + 16, core.readInteger(overlays[index].record + R_X))
-  core.writeInteger(state.block + 20, core.readInteger(overlays[index].record + R_Y))
-  log(INFO, string.format("%s: picked %s (%d of %d)", MODULE_NAME, overlays[index].name,
-    index, #overlays))
+---What a click on the panel tool does (the assembly has already taken the click away).
+local function onClick(ui)
+  local kind = core.readInteger(ui.CLICK_KIND)
+  local arg = core.readInteger(ui.CLICK_ARG)
+  if kind == 1 then
+    local on = not (core.readInteger(state.block + 4) ~= 0
+      and core.readInteger(state.block + 8) == arg)
+    core.writeInteger(state.block + 8, arg)
+    core.writeInteger(state.block + 4, on and 1 or 0)
+  elseif kind == 2 then
+    local record = core.readInteger(state.block + 8)
+    local step = STEPS[core.readInteger(ui.STEP_INDEX) + 1]
+    local dx, dy = 0, 0
+    if arg == 0 then dy = -step elseif arg == 1 then dy = step
+    elseif arg == 2 then dx = -step else dx = step end
+    core.writeInteger(record + R_X, core.readInteger(record + R_X) + dx)
+    core.writeInteger(record + R_Y, core.readInteger(record + R_Y) + dy)
+  elseif kind == 3 then
+    core.writeInteger(ui.STEP_INDEX, (core.readInteger(ui.STEP_INDEX) + 1) % #STEPS)
+  elseif kind == 4 then
+    writeCalibration()
+  end
 end
 
-local function installKeys(dispatch, toggleKey)
+---A cdecl function with no arguments that runs `callback` in lua (UCP's own detour trick).
+local function luaFunction(purpose, callback)
+  local pad = core.allocateCode({ 0x90, 0x90, 0x90, 0x90, 0x90, 0xC3 })
+  local reported = false
   core.detourCode(function(registers)
-    local key = registers.ESI
-    if #overlays == 0 then
-      return registers
-    end
-    if key == toggleKey then
-      local on = core.readInteger(state.block + 4) == 0
-      core.writeInteger(state.block + 4, on and 1 or 0)
-      if on then
-        pick(state.selected)
-      end
-      log(INFO, MODULE_NAME .. ": line-up tool " .. (on and "on" or "off"))
-      return registers
-    end
-    if core.readInteger(state.block + 4) == 0 then
-      return registers
-    end
-    local dx, dy = 0, 0
-    if key == VK.prior then
-      pick((state.selected - 2) % #overlays + 1)
-    elseif key == VK.next then
-      pick(state.selected % #overlays + 1)
-    elseif key == VK.finish then
-      writeCalibration()
-    elseif key == VK.left then dx = -1
-    elseif key == VK.right then dx = 1
-    elseif key == VK.up then dy = -1
-    elseif key == VK.down then dy = 1
-    end
-    if dx ~= 0 or dy ~= 0 then
-      local overlay = overlays[state.selected]
-      local x = core.readInteger(overlay.record + R_X) + dx
-      local y = core.readInteger(overlay.record + R_Y) + dy
-      core.writeInteger(overlay.record + R_X, x)
-      core.writeInteger(overlay.record + R_Y, y)
-      log(INFO, string.format("%s: %s x = %d, y = %d", MODULE_NAME, overlay.name, x, y))
+    local ok, message = pcall(callback)
+    if not ok and not reported then
+      reported = true
+      log(WARNING, string.format("%s: %s failed: %s", MODULE_NAME, purpose, tostring(message)))
     end
     return registers
-  end, dispatch + SYS_KEY_JUMP, SYS_KEY_JUMP_SIZE)
+  end, pad, 5)
+  return pad
+end
+
+-- writeCodeInteger: the static item table lies in the exe image.
+local function setField(item, offset, value)
+  if core.readInteger(item + offset) ~= value then
+    core.writeCodeInteger(item + offset, value)
+  end
+end
+
+---The building panel's item table, its first every-frame item and its work status line.
+local function findBuildingMenu()
+  local repairItem = scan(AOB_REPAIR_ITEM, "the building panel's Repair button")
+  local start, limit = repairItem, 400
+  while core.readInteger(start - ITEM_SIZE + ITEM_TYPE) ~= TYPE_LAST and limit > 0 do
+    start = start - ITEM_SIZE
+    limit = limit - 1
+  end
+  if limit == 0 or core.readInteger(start + ITEM_TYPE) ~= TYPE_EVERY_FRAME then
+    error(MODULE_NAME .. ": the building panel is not the one this module knows")
+  end
+  local item = start
+  while core.readInteger(item + ITEM_TYPE) ~= TYPE_BLOCK do
+    if core.readInteger(item + ITEM_TYPE) == 3 and core.readInteger(item + ITEM_X) == STATUS_LINE[1]
+        and core.readInteger(item + ITEM_Y) == STATUS_LINE[2] then
+      return start, item
+    end
+    item = item + ITEM_SIZE
+  end
+  error(MODULE_NAME .. ": the building panel's status line is not where this module expects it")
+end
+
+---Wraps the first every-frame item (clicks) and the work status line (drawing) in an item list.
+local function wrapItems(items, originals, wrappers)
+  local item, limit, frameDone = items, 4000, false
+  while core.readInteger(item + ITEM_TYPE) ~= TYPE_LAST and limit > 0 do
+    local kind = core.readInteger(item + ITEM_TYPE)
+    if not frameDone and kind == TYPE_EVERY_FRAME
+        and core.readInteger(item + ITEM_ACTION) == originals.frame then
+      setField(item, ITEM_ACTION, wrappers.frame)
+      frameDone = true
+    elseif kind ~= TYPE_BLOCK and core.readInteger(item + ITEM_RENDER) == originals.render then
+      setField(item, ITEM_RENDER, wrappers.render)
+    end
+    item = item + ITEM_SIZE
+    limit = limit - 1
+  end
+end
+
+local function installPanel(v)
+  local start, status = findBuildingMenu()
+  local nameBox = scan(AOB_NAME_BOX, "the game's text drawing")
+  local menuItem = scan(AOB_MENU_ITEM, "the menu item handler")
+  local drawColourBox = readCallTarget(nameBox, NAME_BOX_DRAW_COLOUR_BOX, "the box drawing")
+  local blend = scan(AOB_BLEND, "the game's sprite fading")
+
+  local data = core.allocate(64, true)
+  local ui = {
+    SHOWN = data, PICKED_SHOWN = data + 1, ROW_COUNT = data + 4, CLICK_KIND = data + 8,
+    CLICK_ARG = data + 12, STEP_INDEX = data + 16, ORIGINAL_RENDER = data + 20,
+    ORIGINAL_FRAME = data + 24,
+    ROWS = core.allocate(MAX_ROWS * 4, true),
+    ARROW_RECTS = core.allocate(4 * 16, true),
+    ARROW_PICTURES = core.allocate(4 * 8, true),
+    STEP_TEXTS = core.allocate(#STEPS * 4, true),
+    SAVE_TEXT = storeString("Save"),
+  }
+  for index, name in ipairs(ARROW_NAMES) do
+    local rect = ui.ARROW_RECTS + (index - 1) * 16
+    core.writeInteger(rect, ARROW_PLACES[index][1])
+    core.writeInteger(rect + 4, ARROW_PLACES[index][2])
+    core.writeInteger(rect + 8, ARROW_SIZE)
+    core.writeInteger(rect + 12, ARROW_SIZE)
+    for hovered = 0, 1 do
+      core.writeInteger(ui.ARROW_PICTURES + (index - 1) * 8 + hovered * 4,
+        storeBlitPicture(ARROW_SIZE, ARROW_SIZE, arrowPixels(name, hovered == 1)))
+    end
+  end
+  for index, step in ipairs(STEPS) do
+    core.writeInteger(ui.STEP_TEXTS + (index - 1) * 4, storeString(string.format("Step: %d px", step)))
+  end
+
+  local w = {}
+  for key, value in pairs(v) do w[key] = value end
+  for key, value in pairs(ui) do w[key] = value end
+  w.SCRATCH = core.allocate(64, true)
+  w.PENCIL = readOperand(nameBox, NAME_BOX_PENCIL, "the pencil")
+  w.TEXT_MANAGER = readOperand(nameBox, NAME_BOX_TEXT_MANAGER, "the text drawing")
+  w.SHADOWED_TEXT = readCallTarget(nameBox, NAME_BOX_SHADOWED_TEXT, "the text drawing")
+  w.SETUP_SURFACE = readCallTarget(drawColourBox, DRAW_COLOUR_BOX_SURFACE, "the drawing surface")
+  w.SETUP_PENCIL = readCallTarget(drawColourBox, DRAW_COLOUR_BOX_CLIP, "the clipping")
+  w.MOUSE = readOperand(menuItem, MENU_ITEM_MOUSE, "the mouse")
+  w.IS_INSIDE = readCallTarget(menuItem, MENU_ITEM_IS_INSIDE, "the mouse test")
+  w.LEFT_CLICK = MOUSE_LEFT_CLICK
+  w.BLEND_READY = core.readInteger(blend + BLEND_READY_OPERAND)
+  w.BUILD_BLEND = readCallTarget(blend, BLEND_BUILD_CALL, "the blend tables")
+  w.BLEND_TABLES = core.readInteger(blend + BLEND_TABLES_OPERAND)
+  if core.readInteger(blend + BLEND_TOP_OPERAND) ~= w.BLEND_TABLES + 32 * BLEND_LEVEL_SIZE then
+    error(MODULE_NAME .. ": the game's blend tables are not the ones this module knows")
+  end
+  w.BUILDING_SIZE, w.MAX_ROWS = BUILDING_SIZE, MAX_ROWS
+  w.LIST_X, w.LIST_Y, w.LIST_W, w.LINE = LIST_X, LIST_Y, LIST_W, LINE
+  w.SAVE_X, w.SAVE_Y, w.SAVE_W = SAVE_X, SAVE_Y, SAVE_W
+  w.STEP_X, w.STEP_Y, w.STEP_W = STEP_X, STEP_Y, STEP_W
+  w.COLOUR, w.PICKED_COLOUR, w.FONT = COLOUR, PICKED_COLOUR, FONT
+  w.LUA_CLICK = luaFunction("the overlay panel", function() onClick(ui) end)
+
+  local originals = {
+    render = core.readInteger(status + ITEM_RENDER),
+    frame = core.readInteger(start + ITEM_ACTION),
+  }
+  core.writeInteger(ui.ORIGINAL_RENDER, originals.render)
+  core.writeInteger(ui.ORIGINAL_FRAME, originals.frame)
+  w.BLIT = assemble(panel.blit, w)
+  w.DRAW_BUTTON = assemble(panel.drawButton, w)
+  local wrappers = {
+    render = assemble(panel.render, w),
+    frame = assemble(panel.click, w),
+  }
+
+  wrapItems(start, originals, wrappers)
+  local startBytes = {}
+  for _, byte in ipairs(core.itob(start)) do
+    startBytes[#startBytes + 1] = string.format("%02X", byte & 0xFF)
+  end
+  local found, constructorSite = pcall(core.AOBScan, "68 " .. table.concat(startBytes, " ") .. " B9")
+  if found and constructorSite ~= nil then
+    local menu = core.readInteger(constructorSite + 6)
+    local function wrapLive()
+      local items = core.readInteger(menu)
+      if items ~= 0 and items ~= start then
+        wrapItems(items, originals, wrappers)
+      end
+    end
+    wrapLive()
+    hooks.registerHookCallback("afterInit", wrapLive)
+  else
+    log(WARNING, MODULE_NAME .. ": could not find the building panel itself; the overlay tool "
+      .. "relies on its item table")
+  end
 end
 
 ---------------------------------------------------------------------------------------
@@ -747,6 +819,7 @@ local function enable(self, config)
   local unitsOnBuilding = scan(AOB_UNITS_ON_BUILDING, "the units-on-building test")
   local typeDisplacement = core.readInteger(tail + TYPE_DISPLACEMENT_OPERAND)
   local renderCore = core.readInteger(tail + CORE_OPERAND)
+  local selected = readOperand(tail, TAIL_SELECTED, "the selected building")
   local renderGm = tail + RENDER_GM_REL_OPERAND + 4 + core.readInteger(tail + RENDER_GM_REL_OPERAND)
   if (core.readByte(tail - 10) & 0xFF) ~= 0xB9 or (core.readByte(tail - 5) & 0xFF) ~= 0xE8
       or (core.readByte(renderGm + RENDER_GM_BLIT_CALL) & 0xFF) ~= 0xE8 then
@@ -757,55 +830,28 @@ local function enable(self, config)
   local buildings = (typeDisplacement - B_TYPE) & 0xFFFFFFFF
 
   state = {
-    block = core.allocate(24, true),   -- +0 count, +4 tool on, +8 picked record, +12 frames held,
-                                       -- +16 / +20 where the arrows sit (the picked spot)
+    block = core.allocate(16, true),           -- +0 overlay count, +4 tool on, +8 picked record
     records = core.allocate(MAX_OVERLAYS * RECORD_SIZE, true),
-    selected = 1,
-    arrows = core.allocate(#ARROW_NAMES * 2 * 8, true),   -- per arrow and hover state: 565, 555
   }
-  for index, name in ipairs(ARROW_NAMES) do
-    for hovered = 0, 1 do
-      local pixels = arrowPixels(name, hovered == 1)
-      local entry = state.arrows + ((index - 1) * 2 + hovered) * 8
-      core.writeInteger(entry, store(packTgx(ARROW_SIZE, ARROW_SIZE, pixels, true)))
-      core.writeInteger(entry + 4, store(packTgx(ARROW_SIZE, ARROW_SIZE, pixels, false)))
-    end
-  end
 
   local original = {}
   for offset = 0, TAIL_SIZE - 1 do
     original[#original + 1] = string.format("0x%02X", core.readByte(tail + offset) & 0xFF)
   end
-  local script = SCRIPT:gsub("%f[%w_]ORIGINAL%f[^%w_]", "db " .. table.concat(original, ","))
-  script = script:gsub("%f[%w_]ARROW_CALLS%f[^%w_]", arrowCalls())
-  local mouse = core.readInteger(scan(AOB_MOUSE, "the mouse state") + MOUSE_OPERAND)
-  local asyncKey = core.readInteger(scan(AOB_ASYNC_KEY, "the key state call") + ASYNC_KEY_OPERAND)
   local values = {
-    BUILDINGS = buildings, BSHOWN = B_SHOWN, STATE = state.block,
+    BUILDINGS = buildings, BSHOWN = B_SHOWN, STATE = state.block, SELECTED = selected,
     FRAME0 = B_FRAMES[1], FRAME1 = B_FRAMES[2], FRAME2 = B_FRAMES[3], FRAME3 = B_FRAMES[4],
     BTYPE = B_TYPE, OCCUPIED = B_OCCUPIED, VARIATION = B_VARIATION, VARIATION_X = VARIATION_X,
-    GATE_STATE = B_GATE_STATE, SCRATCH = core.allocate(64, true), MAP_ORIENTATION = orientation,
+    GATE_STATE = B_GATE_STATE, SCRATCH = core.allocate(32, true), MAP_ORIENTATION = orientation,
     PIXEL_FORMAT = pixelFormat, RECORDS = state.records, RECORD_SIZE = RECORD_SIZE,
     RENDER_CORE = renderCore, BLIT = blit, RESUME = tail + TAIL_SIZE,
     BUILDINGS_STATE = buildings - BUILDINGS_STATE_BEFORE_ARRAY, UNITS_ON_BUILDING = unitsOnBuilding,
     R_TYPE = R_TYPE, R_UNITS = R_UNITS, R_ENTRANCE = R_ENTRANCE, R_GATE = R_GATE, R_X = R_X,
     R_Y = R_Y, R_W = R_W, R_H = R_H, R_DATA565 = R_DATA565, R_DATA555 = R_DATA555,
-    R_OUT565 = R_OUT565, R_OUT555 = R_OUT555, ARROWS = state.arrows,
-    MOUSE_X = mouse + MOUSE_X, MOUSE_Y = mouse + MOUSE_Y, ASYNC_KEY = asyncKey,
-    ZOOMED_OUT = renderCore + ZOOMED_OUT, ARROW_SIZE = ARROW_SIZE, ARROW_HALF = ARROW_SIZE // 2,
+    R_OUT565 = R_OUT565, R_OUT555 = R_OUT555, R_NAME = R_NAME,
   }
-  -- FASM gets a fixed 64 KB for source, symbols and output: only pass what a script uses.
-  local function assemble(text)
-    local used = {}
-    for name, value in pairs(values) do
-      if text:find("%f[%w_]" .. name .. "%f[^%w_]") then
-        used[name] = value
-      end
-    end
-    return core.allocateAssembly(text, used)
-  end
-  values.ARROW = assemble(ARROW_SCRIPT)
-  local blob = assemble(script)
+  local script = SCRIPT:gsub("%f[%w_]ORIGINAL%f[^%w_]", "db " .. table.concat(original, ","))
+  local blob = assemble(script, values)
 
   -- The module's own list first; the count stays 0 until the first record is complete.
   local swap = setting(config, "large_gatehouse", "swap_sides")
@@ -827,17 +873,10 @@ local function enable(self, config)
   core.writeCode(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
 
   if setting(config, "editor", "enabled") then
-    local ok, dispatch = pcall(core.AOBScan, AOB_SYS_KEY)
-    local keyName = setting(config, "editor", "key")
-    local toggleKey = VIRTUAL_KEY_CODES[keyName]
-    if toggleKey == nil then
-      log(WARNING, string.format("%s: unknown key '%s', using Alt + O", MODULE_NAME, tostring(keyName)))
-      toggleKey = VIRTUAL_KEY_CODES[DEFAULTS.editor.key]
-    end
-    if ok and dispatch ~= nil then
-      installKeys(dispatch, toggleKey)
-    else
-      log(WARNING, MODULE_NAME .. ": could not find the Alt key handler; the line-up tool is off")
+    local ok, message = pcall(installPanel, values)
+    if not ok then
+      log(WARNING, MODULE_NAME .. ": the overlay tool in the building panel is off: "
+        .. tostring(message))
     end
   end
 

@@ -43,16 +43,10 @@ def conv(p, is565):
     return ((r >> 3) << 11 | (g >> 2) << 5 | b >> 3) if is565 else ((r >> 3) << 10 | (g >> 3) << 5 | b >> 3)
 
 
-class KeyHost(Host):
-    def detour(self, fn, address, size):
-        self.keyfn = fn
-        super().detour(fn, address, size)
-
-
 def suite(ext):
     print('=== %s' % ('Extreme' if ext else 'vanilla'))
     fresh_work()
-    h = KeyHost(extreme=ext, config={}, foreign_patches=False, aic=False)
+    h = Host(extreme=ext, config={}, foreign_patches=False, aic=False)
     for line in h.logs:
         print('  log', line)
     E = h.E
@@ -152,94 +146,116 @@ def suite(ext):
     check('picture is back when the units leave', count() > 20000, True)
     del h.cpu.hooks[units]
 
-    # the line-up tool: Alt + O switches it on, the picked overlay is shown whatever stands there
-    def key(vk):
-        regs = h.lua.table()
-        regs[b'ESI'] = vk
-        h.keyfn(regs)
+    # the line-up tool in the building panel
+    start = E.find('03 00 00 00 54 01 00 00 D2 01 00 00 64 00 00 00 1C 00 00 00')[0]
+    while h.u32(start - 0x50) != 0x66:
+        start -= 0x50
+    status = start
+    while not (h.u32(status) == 3 and h.u32(status + 4) == 25 and h.u32(status + 8) == 570):
+        status += 0x50
+    render, frame = h.u32(status + 0x1C), h.u32(start + 0x14)
+    check('status line render wrapped', render != struct.unpack('<I', E.data[E.va2off(status) + 0x1C:][:4])[0], True)
+    check('first every-frame action wrapped', frame != struct.unpack('<I', E.data[E.va2off(start) + 0x14:][:4])[0], True)
+    orig_render = struct.unpack('<I', E.data[E.va2off(status) + 0x1C:][:4])[0]
+    orig_frame = struct.unpack('<I', E.data[E.va2off(start) + 0x14:][:4])[0]
+    h.stub(orig_render, 0)
+    h.stub(orig_frame, 0)
+    name_box = E.find('A1 ? ? ? ? 8B 0D ? ? ? ? 8B 15 ? ? ? ? 56 57 6A 05 03 C8 51 8B 0D ? ? ? ? 03 D1 52 50 51 B9 ? ? ? ?')[0]
+    text_fn = name_box + 0xA1 + 5 + struct.unpack('<i', E.data[E.va2off(name_box) + 0xA2:][:4])[0]
+    texts = []
+    h.stub(text_fn, 0, ret_bytes=0x24, record=texts)
+    colour_box = name_box + 0x69 + 5 + struct.unpack('<i', E.data[E.va2off(name_box) + 0x6A:][:4])[0]
+    clip_fn = colour_box + 0x23 + 5 + struct.unpack('<i', E.data[E.va2off(colour_box) + 0x24:][:4])[0]
+    h.stub(clip_fn, 0, ret_bytes=0x14)      # nothing of the buttons reaches a surface here
     mouse = struct.unpack('<I', E.data[E.va2off(E.find('8B 56 10 8B 46 4C 8B 4E 0C 52 8B 50 08 03 56 08 8B 40 04 03 46 04 51 52 50 B9 ? ? ? ? E8')[0]) + 26:][:4])[0]
-    slot = struct.unpack('<I', E.data[E.va2off(E.find('6A 28 FF 15 ? ? ? ? 66 85 C0')[0]) + 4:][:4])[0]
-    fake = 0x7E000000
-    h.put32(slot, fake)
-    state = {'down': 0}
-    h.cpu.hooks[fake] = lambda cpu: (cpu.r.__setitem__('eax', state['down']), setattr(cpu, 'eip', cpu.pop()), cpu.r.__setitem__('esp', (cpu.r['esp'] + 4) & MASK))
+    selected = struct.unpack('<I', E.data[E.va2off(tail) + 0x48:][:4])[0]
 
-    h.put32(mouse + 0x10, 5)
-    h.put32(mouse + 0x14, 5)
-    h.stub(units, result=1, ret_bytes=4)
+    def string_at(a):
+        out = b''
+        while True:
+            c = h.m.read(a + len(out), 1)
+            if c == bytes(1):
+                return out.decode()
+            out += c
+
+    def panel():
+        del texts[:]
+        h.run(render, stack=[0])
+        return [(string_at(args[0]), args[1], args[2], args[4]) for _, args in
+                [(c, [h.u32(0x70100000 - 4 + 0)] ) for c in []]] or texts_now()
+
+    def texts_now():
+        return list(texts)
+
+    def run_panel():
+        del texts[:]
+        h.run(render, stack=[0])
+        return [(string_at(r[1][0]), r[1][1], r[1][2]) for r in texts]
+
+    def click(x, y):
+        h.put32(mouse + 0x10, x)
+        h.put32(mouse + 0x14, y)
+        h.put32(mouse + 0x34, 1)
+        h.run(frame)
+        return h.u32(mouse + 0x34) == 0
+
+    h.put32(selected, 1)
     put_building(1, 45, variation=0x50)
-    key(0x4F)
+    shown = run_panel()
+    check('panel lists the gatehouse overlays and Save',
+          [s for s, _, _ in shown], ['large_gatehouse_left', 'large_gatehouse_right', 'Save'])
+    check('first row where the list starts', shown[0][1:], (30, 440))
+    put_building(1, 47)
+    check('no list for a building without overlays', run_panel(), [])
+    put_building(1, 45, variation=0x50)
+    run_panel()
+    check('a click beside the list is left to the game', click(300, 300), False)
+    run_panel()
+    check('a click on the second row is taken', click(40, 461), True)
+    shown = run_panel()
+    check('picked: step size and the picked row in yellow',
+          ([s for s, _, _ in shown][-1], texts[1][1][4]), ('Step: 1 px', 0x00FFFF))
+    h.stub(units, result=1, ret_bytes=4)
     draw(1, bx, by)
-    first = count()
-    check('tool on: picked overlay shown and framed with units on it', first > 27358, True)
+    check('picked overlay shown on the selected building with units on it', count() > 27000, True)
     check('frame is magenta', pixel(bx + spot[0], by + spot[1]), 0xF81F)
-    key(0x27); key(0x27); key(0x28)
+    h.put32(selected, 2)
     draw(1, bx, by)
-    check('arrows move it', pixel(bx + spot[0] + 2, by + spot[1] + 1), 0xF81F)
-    key(0x22)
-    put_building(1, 45, variation=0x51)
-    draw(1, bx, by)
-    check('page down picks the other overlay', pixel(bx + spot[0], by + spot[1]), 0xF81F)
-    key(0x23)
-    saved = open(os.path.join(WORK, 'ucp', 'modules', 'building-overlays', 'calibration.lua')).read()
-    check('Alt + End saves both overlays', saved.count('building = 45'), 2)
-    check('the moved spot is saved', 'x = -105, y = -192' in saved, True)
-    # arrow buttons next to the picked overlay, clicked with the mouse
+    check('not on another building', count(), 0)
+    h.put32(selected, 1)
+
     def saved():
-        key(0x23)
+        click_save()
         text = open(os.path.join(WORK, 'ucp', 'modules', 'building-overlays', 'calibration.lua')).read()
         import re
         return [tuple(map(int, m)) for m in re.findall(r'x = (-?\d+), y = (-?\d+) }', text)]
 
-    ox, oy = bx + spot[0], by + spot[1]     # the picked overlay is now the left one, unmoved
-    first = saved()[1]
-    check('the left overlay is at its default spot', first, (-107, -193))
-    arrows = {'up': (ox + 215 + 8, oy + 73 - 26), 'down': (ox + 215 + 8, oy + 73 + 2),
-              'left': (ox + 107 - 26, oy + 147 + 8), 'right': (ox + 107 + 2, oy + 147 + 8)}
-    draw(1, bx, by)
-    for name, (ax, ay) in arrows.items():
-        blue = sum(1 for yy in range(24) for xx in range(24) if pixel(ax + xx, ay + yy) == (0x2D5F if False else pixel(ax + xx, ay + yy)) and pixel(ax + xx, ay + yy) not in (0,))
-        check('arrow %s is drawn' % name, blue > 40, True)
+    def click_save():
+        run_panel()
+        click(35, 563)
 
-    def press(name, frames=1, down=1):
-        ax, ay = arrows[name]
-        h.put32(mouse + 0x10, ax + 12)
-        h.put32(mouse + 0x14, ay + 12)
-        state['down'] = 0x8000 * down
-        for _ in range(frames):
-            draw(1, bx, by)
+    arrows = {'up': (493, 474), 'down': (493, 530), 'left': (465, 502), 'right': (521, 502)}
 
-    press('right', 1)
-    check('click on the right arrow moves it one pixel', saved()[1], (-106, -193))
-    press('right', 3)
-    check('holding does not repeat at once', saved()[1], (-106, -193))
-    press('right', 1, down=0)
-    press('right', 1)
-    check('released and pressed again moves again', saved()[1], (-105, -193))
-    press('left', 1, down=0)
-    press('left', 1)
-    check('left arrow', saved()[1], (-106, -193))
-    press('up', 1, down=0)
-    press('up', 1)
-    check('up arrow', saved()[1], (-106, -194))
-    press('down', 1, down=0)
-    press('down', 1)
-    check('down arrow', saved()[1], (-106, -193))
-    press('down', 1, down=0)
-    press('down', 120)
-    check('holding repeats after a pause, and keeps going under a still mouse', saved()[1][1] > -193 + 30, True)
-    h.put32(mouse + 0x10, 5)
-    h.put32(mouse + 0x14, 5)
-    before = saved()[1]
-    state['down'] = 0x8000
-    draw(1, bx, by)
-    check('mouse away from the arrows does nothing', saved()[1], before)
-    state['down'] = 0
-    h.put32(core + 0x54, 1)
-    draw(1, bx, by)
-    h.put32(core + 0x54, 0)
+    def press(name):
+        run_panel()
+        return click(arrows[name][0] + 12, arrows[name][1] + 12)
 
-    key(0x4F)
+    check('Save writes both overlays', len(saved()), 2)
+    check('the picked one starts at the default spot', saved()[1], (-107, -193))
+    check('right arrow click taken', press('right'), True)
+    check('right arrow moves it a pixel', saved()[1], (-106, -193))
+    press('down'); press('down')
+    check('down arrow', saved()[1], (-106, -191))
+    run_panel(); click(110, 563)
+    check('Step now 5', run_panel()[-1][0], 'Step: 5 px')
+    press('left')
+    check('left arrow by 5', saved()[1], (-111, -191))
+    press('up')
+    check('up arrow by 5', saved()[1], (-111, -196))
+    check('the other overlay untouched', saved()[0], (-107, -193))
+    run_panel()
+    click(40, 461)
+    check('clicking the picked row again stops', [s for s, _, _ in run_panel()][-1], 'Save')
     draw(1, bx, by)
     check('tool off: units hide it again', count(), 0)
     del h.cpu.hooks[units]

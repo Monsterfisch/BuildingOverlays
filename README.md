@@ -20,16 +20,18 @@ What the module does, in plain English, is in `module/locale/description-en.md`.
 
 1. Edit under `module/`; run `python bench/test_overlays.py` until it is green.
 2. `python tools/publish.py --bump`, then F5 and apply in the UCP GUI.
-3. Lining pictures up in game: Alt + O (setting) toggles the tool, Alt + PageUp / PageDown picks an
-   overlay (shown and framed whatever the conditions) with clickable arrow buttons beside it (held = repeat;
-   Alt + arrows also nudge), Alt + End writes
-   `calibration.lua` - every overlay as an entry, ready to be a plugin's `overlays.lua`.
+3. Lining pictures up in game: select the building - its panel lists its overlays (left), a click
+   picks one (shown and framed on that building whatever stands there), blue arrows move it by
+   the Step size (1 / 5 / 20), Save writes `calibration.lua` - every overlay as an entry, ready to
+   be a plugin's `overlays.lua`.
 4. Plugins: `modules["building-overlays"]:registerOverlaySource(folder)` loads `overlays.lua` and the
    PNGs from `resources/modsupport/building-overlays/` of the plugin.
 
 ## How it works
 
 * One hook at the shared tail of `renderGmOverlayBuilding`, after the game's own overlays.
+* The tool wraps two shared building-panel items (first every-frame item = clicks, work status
+  line = drawing), the same two smarter-buildings wraps; each chains to whatever was there.
 * A record table (type, occupancy, entrance direction on screen, gate state, offset, picture)
   walked in assembly; pictures are PNGs packed as TGX (RGB565 and RGB555) and drawn through the
   game's own picture routine, so clipping and the zoomed-out view come for free.

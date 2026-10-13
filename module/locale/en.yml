@@ -14,13 +14,10 @@ large_gatehouse_swap_sides_tooltip: |
 editor_group: Moving overlays in the game
 editor_group_descr: |
   A tool to line overlay pictures up by eye and save the result.
-editor_enabled: Allow the line-up tool
+editor_enabled: Show the overlay tool in the building panel
 editor_enabled_tooltip: |
-  Turns the tool on or off completely. With it off, the key below does nothing.
-editor_key: Key that switches the tool on and off
-editor_key_tooltip: |
-  Hold Alt and press this key in a game to start moving overlays. The picked overlay gets a
-  magenta frame and is shown whatever is standing on the building, with blue arrow buttons
-  next to it: click one to move the picture a pixel, hold it to keep moving. Alt + PageUp /
-  PageDown picks another overlay, Alt + End saves every overlay to calibration.lua in the
-  module folder (ready to go into a plugin as overlays.lua). Press the key again to stop.
+  Select a building that has overlays: its panel lists them. Click one to pick it - it is
+  then shown on that building whatever stands there, with a magenta frame - and use the
+  blue arrows to move it (Step switches between 1, 5 and 20 pixels). Click the picked
+  overlay again to stop. Save writes every overlay's spot to calibration.lua in the module
+  folder, ready to go into a plugin as overlays.lua.
