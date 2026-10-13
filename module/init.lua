@@ -119,6 +119,8 @@ local MOUSE_LEFT_CLICK = 0x34            -- set for the frame in which the left 
 local AOB_NAME_BOX = "A1 ? ? ? ? 8B 0D ? ? ? ? 8B 15 ? ? ? ? 56 57 6A 05 03 C8 51 8B 0D ? ? ? ? 03 "
   .. "D1 52 50 51 B9 ? ? ? ?"
 local NAME_BOX_PENCIL = { 0x23, { 0xB9 } }
+local NAME_BOX_ITEM_X = { 0x18, { 0x8B, 0x0D } }   -- ButtonX: where the item being drawn sits
+local NAME_BOX_ITEM_Y = { 0x00, { 0xA1 } }
 local NAME_BOX_DRAW_COLOUR_BOX = 0x69
 local NAME_BOX_TEXT_MANAGER = { 0x9C, { 0xB9 } }
 local NAME_BOX_SHADOWED_TEXT = 0xA1      -- call renderInGameTextWithShadow
@@ -133,14 +135,15 @@ local BLEND_TABLES_OPERAND = 0x24
 local BLEND_TOP_OPERAND = 0x15
 local BLEND_LEVEL_SIZE = 0x200
 
--- Where the tool sits in the panel (800 x 600 interface coordinates). The list runs down the
--- left, clear of the gate buttons (200, 535); the arrows sit right of the Repair button and
--- left of the minimap (571).
-local LIST_X, LIST_Y, LIST_W, LINE, MAX_ROWS = 30, 440, 160, 16, 6
-local SAVE_X, SAVE_Y, SAVE_W = 30, 560, 60
-local STEP_X, STEP_Y, STEP_W = 100, 560, 90
+-- Where the tool sits in the panel (800 x 600 layout, the game shifts it with the panel). The
+-- list runs down the left under the building's name, clear of the gate buttons (200, 535);
+-- the arrows sit between the gate buttons and the help button, under the Repair button
+-- (340, 466) and left of the health display.
+local LIST_X, LIST_Y, LIST_W, LINE, MAX_ROWS = 20, 500, 170, 16, 4
+local SAVE_X, SAVE_Y, SAVE_W = 20, 570, 50
+local STEP_X, STEP_Y, STEP_W = 80, 570, 100
 local ARROW_SIZE = 24
-local ARROW_PLACES = { { 493, 474 }, { 493, 530 }, { 465, 502 }, { 521, 502 } }   -- up down left right
+local ARROW_PLACES = { { 368, 503 }, { 368, 559 }, { 340, 531 }, { 396, 531 } }   -- up down left right
 local ARROW_NAMES = { "up", "down", "left", "right" }
 local STEPS = { 1, 5, 20 }
 local COLOUR = 0xB8EEFB                  -- the panel's own beige (BGR)
@@ -727,12 +730,16 @@ local function installPanel(v)
     ORIGINAL_FRAME = data + 24,
     ROWS = core.allocate(MAX_ROWS * 4, true),
     ARROW_RECTS = core.allocate(4 * 16, true),
+    ARROW_BASE = core.allocate(4 * 16, true),
+    ORIGIN = core.allocate(8, true),
     ARROW_PICTURES = core.allocate(4 * 8, true),
     STEP_TEXTS = core.allocate(#STEPS * 4, true),
     SAVE_TEXT = storeString("Save"),
   }
   for index, name in ipairs(ARROW_NAMES) do
-    local rect = ui.ARROW_RECTS + (index - 1) * 16
+    local rect = ui.ARROW_BASE + (index - 1) * 16
+    core.writeInteger(ui.ARROW_RECTS + (index - 1) * 16 + 8, ARROW_SIZE)
+    core.writeInteger(ui.ARROW_RECTS + (index - 1) * 16 + 12, ARROW_SIZE)
     core.writeInteger(rect, ARROW_PLACES[index][1])
     core.writeInteger(rect + 4, ARROW_PLACES[index][2])
     core.writeInteger(rect + 8, ARROW_SIZE)
@@ -751,6 +758,9 @@ local function installPanel(v)
   for key, value in pairs(ui) do w[key] = value end
   w.SCRATCH = core.allocate(64, true)
   w.PENCIL = readOperand(nameBox, NAME_BOX_PENCIL, "the pencil")
+  w.BUTTON_X = readOperand(nameBox, NAME_BOX_ITEM_X, "the item position")
+  w.BUTTON_Y = readOperand(nameBox, NAME_BOX_ITEM_Y, "the item position")
+  w.STATUS_X, w.STATUS_Y = STATUS_LINE[1], STATUS_LINE[2]
   w.TEXT_MANAGER = readOperand(nameBox, NAME_BOX_TEXT_MANAGER, "the text drawing")
   w.SHADOWED_TEXT = readCallTarget(nameBox, NAME_BOX_SHADOWED_TEXT, "the text drawing")
   w.SETUP_SURFACE = readCallTarget(drawColourBox, DRAW_COLOUR_BOX_SURFACE, "the drawing surface")

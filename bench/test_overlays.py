@@ -187,14 +187,20 @@ def suite(ext):
     def texts_now():
         return list(texts)
 
+    button_x = struct.unpack('<I', E.data[E.va2off(name_box) + 0x1A:][:4])[0]
+    button_y = struct.unpack('<I', E.data[E.va2off(name_box) + 1:][:4])[0]
+    OX, OY = 283, 168      # the panel as the game places it at a bigger resolution
+
     def run_panel():
         del texts[:]
+        h.put32(button_x, 25 + OX)
+        h.put32(button_y, 570 + OY)
         h.run(render, stack=[0])
         return [(string_at(r[1][0]), r[1][1], r[1][2]) for r in texts]
 
     def click(x, y):
-        h.put32(mouse + 0x10, x)
-        h.put32(mouse + 0x14, y)
+        h.put32(mouse + 0x10, x + OX)
+        h.put32(mouse + 0x14, y + OY)
         h.put32(mouse + 0x34, 1)
         h.run(frame)
         return h.u32(mouse + 0x34) == 0
@@ -204,14 +210,14 @@ def suite(ext):
     shown = run_panel()
     check('panel lists the gatehouse overlays and Save',
           [s for s, _, _ in shown], ['large_gatehouse_left', 'large_gatehouse_right', 'Save'])
-    check('first row where the list starts', shown[0][1:], (30, 440))
+    check('first row where the list starts, moved with the panel', shown[0][1:], (20 + OX, 500 + OY))
     put_building(1, 47)
     check('no list for a building without overlays', run_panel(), [])
     put_building(1, 45, variation=0x50)
     run_panel()
     check('a click beside the list is left to the game', click(300, 300), False)
     run_panel()
-    check('a click on the second row is taken', click(40, 461), True)
+    check('a click on the second row is taken', click(30, 521), True)
     shown = run_panel()
     check('picked: step size and the picked row in yellow',
           ([s for s, _, _ in shown][-1], texts[1][1][4]), ('Step: 1 px', 0x00FFFF))
@@ -232,9 +238,9 @@ def suite(ext):
 
     def click_save():
         run_panel()
-        click(35, 563)
+        click(25, 573)
 
-    arrows = {'up': (493, 474), 'down': (493, 530), 'left': (465, 502), 'right': (521, 502)}
+    arrows = {'up': (368, 503), 'down': (368, 559), 'left': (340, 531), 'right': (396, 531)}
 
     def press(name):
         run_panel()
@@ -246,7 +252,7 @@ def suite(ext):
     check('right arrow moves it a pixel', saved()[1], (-106, -193))
     press('down'); press('down')
     check('down arrow', saved()[1], (-106, -191))
-    run_panel(); click(110, 563)
+    run_panel(); click(90, 573)
     check('Step now 5', run_panel()[-1][0], 'Step: 5 px')
     press('left')
     check('left arrow by 5', saved()[1], (-111, -191))
@@ -254,7 +260,7 @@ def suite(ext):
     check('up arrow by 5', saved()[1], (-111, -196))
     check('the other overlay untouched', saved()[0], (-107, -193))
     run_panel()
-    click(40, 461)
+    click(30, 521)
     check('clicking the picked row again stops', [s for s, _, _ in run_panel()][-1], 'Save')
     draw(1, bx, by)
     check('tool off: units hide it again', count(), 0)

@@ -182,6 +182,12 @@ ret
 -- an overlay is picked, the step size and the four arrow buttons. Remembers what it drew
 -- for the click handler (ROWS, ROW_COUNT, SHOWN, PICKED_SHOWN).
 templates.render = [[
+mov eax,[BUTTON_X]
+sub eax,STATUS_X
+mov [ORIGIN],eax
+mov eax,[BUTTON_Y]
+sub eax,STATUS_Y
+mov [ORIGIN+4],eax
 push dword [esp+4]
 call dword [ORIGINAL_RENDER]
 add esp,4
@@ -218,6 +224,9 @@ r_colour:
 mov ecx,ebx
 imul ecx,ecx,LINE
 add ecx,LIST_Y
+add ecx,[ORIGIN+4]
+mov edx,[ORIGIN]
+add edx,LIST_X
 push 0
 push 0
 push FONT
@@ -225,7 +234,7 @@ push 0
 push eax
 push 0
 push ecx
-push LIST_X
+push edx
 push dword [esi+R_NAME]
 mov ecx,TEXT_MANAGER
 call SHADOWED_TEXT
@@ -239,31 +248,52 @@ mov [ROW_COUNT],ebx
 test ebx,ebx
 je r_done
 mov byte [SHOWN],1
+mov ecx,[ORIGIN+4]
+add ecx,SAVE_Y
+mov edx,[ORIGIN]
+add edx,SAVE_X
 push 0
 push 0
 push FONT
 push 0
 push COLOUR
 push 0
-push SAVE_Y
-push SAVE_X
+push ecx
+push edx
 push SAVE_TEXT
 mov ecx,TEXT_MANAGER
 call SHADOWED_TEXT
 cmp byte [PICKED_SHOWN],0
 je r_done
 mov eax,[STEP_INDEX]
+mov ecx,[ORIGIN+4]
+add ecx,STEP_Y
+mov edx,[ORIGIN]
+add edx,STEP_X
 push 0
 push 0
 push FONT
 push 0
 push COLOUR
 push 0
-push STEP_Y
-push STEP_X
+push ecx
+push edx
 push dword [STEP_TEXTS+eax*4]
 mov ecx,TEXT_MANAGER
 call SHADOWED_TEXT
+xor ebx,ebx
+r_place:
+mov eax,ebx
+shl eax,4
+mov ecx,[ARROW_BASE+eax]
+add ecx,[ORIGIN]
+mov [ARROW_RECTS+eax],ecx
+mov ecx,[ARROW_BASE+eax+4]
+add ecx,[ORIGIN+4]
+mov [ARROW_RECTS+eax+4],ecx
+inc ebx
+cmp ebx,4
+jb r_place
 xor ebx,ebx
 r_arrow:
 mov eax,ebx
@@ -318,10 +348,13 @@ jae c_save
 mov eax,ebx
 imul eax,eax,LINE
 add eax,LIST_Y
+add eax,[ORIGIN+4]
+mov edx,[ORIGIN]
+add edx,LIST_X
 push LINE
 push LIST_W
 push eax
-push LIST_X
+push edx
 mov ecx,MOUSE
 call IS_INSIDE
 test eax,eax
@@ -334,10 +367,14 @@ c_row_next:
 inc ebx
 jmp c_row
 c_save:
+mov eax,[ORIGIN+4]
+add eax,SAVE_Y
+mov edx,[ORIGIN]
+add edx,SAVE_X
 push LINE
 push SAVE_W
-push SAVE_Y
-push SAVE_X
+push eax
+push edx
 mov ecx,MOUSE
 call IS_INSIDE
 test eax,eax
@@ -347,10 +384,14 @@ jmp c_hit
 c_step:
 cmp byte [PICKED_SHOWN],0
 je c_none
+mov eax,[ORIGIN+4]
+add eax,STEP_Y
+mov edx,[ORIGIN]
+add edx,STEP_X
 push LINE
 push STEP_W
-push STEP_Y
-push STEP_X
+push eax
+push edx
 mov ecx,MOUSE
 call IS_INSIDE
 test eax,eax
