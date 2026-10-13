@@ -73,7 +73,29 @@ def suite(ext):
         h.put16(b + 0xD2, btype)
         h.put32(b + 0xB0, occupied)
         h.put16(b + 0x102, variation)
+        h.put16(b + 0xEE, 10)          # footprint 10..12 x 10..12 (the tile rows are all 0 here,
+        h.put16(b + 0xF0, 10)          # so a tile's index is its x)
+        h.put32(b + 0xF8, 3)
         return b
+
+    ufn = E.find('8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B0 0C 01 00 00 33 DB 85 F6 57 7E')[0]
+    uop = lambda off: struct.unpack('<I', E.data[E.va2off(ufn) + off:][:4])[0]
+    unit_tiles, unit_base = uop(0x3D), uop(0x51) - 0x96
+
+    def place_units(*types):
+        """Units on tile 11 of the footprint, chained through unit +0x2A2."""
+        clear_units()
+        previous = 0
+        for n, kind in reversed(list(enumerate(types, start=5))):
+            u = unit_base + n * 0x490
+            h.put16(u + 0x8E, kind)
+            h.put16(u + 0x96, 1)
+            h.put16(u + 0x2A2, previous)
+            previous = n
+        h.put16(unit_tiles + 11 * 2, previous)
+
+    def clear_units():
+        h.put16(unit_tiles + 11 * 2, 0)
 
     def draw(index, x, y, is565=True, orientation=0):
         h.m.write(SURFACE, b'\0' * 0)          # surface pages appear on first write
@@ -134,18 +156,20 @@ def suite(ext):
 
     put_building(1, 45, occupied=1)
     draw(1, bx, by)
-    check('nothing while the game marks it occupied (+0xB0)', count(), 0)
-    units = E.find('8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B0 0C 01 00 00 33 DB 85 F6 57 7E')[0]
-    seen = []
-    h.stub(units, result=1, ret_bytes=4, record=seen)
+    check('the game flag +0xB0 alone does not hide it (keeps always have it set)', count() > 20000, True)
     put_building(1, 45)
+    place_units(24)
     draw(1, bx, by)
-    check('nothing while units stand on its tiles', count(), 0)
-    check('units test gets the building state and index', (seen[0][0], seen[0][1][0]), (buildings - 0x14, 1))
-    h.stub(units, result=0, ret_bytes=4)
+    check('nothing while a unit stands on its tiles', count(), 0)
+    place_units(55)
+    draw(1, bx, by)
+    check('the lord alone does not hide it', count() > 20000, True)
+    place_units(55, 24)
+    draw(1, bx, by)
+    check('a unit behind the lord on the same tile does', count(), 0)
+    clear_units()
     draw(1, bx, by)
     check('picture is back when the units leave', count() > 20000, True)
-    del h.cpu.hooks[units]
 
     # the line-up tool in the building panel
     start = E.find('03 00 00 00 54 01 00 00 D2 01 00 00 64 00 00 00 1C 00 00 00')[0]
@@ -223,7 +247,7 @@ def suite(ext):
     shown = run_panel()
     check('picked: step size and the picked row in yellow',
           ([s for s, _, _ in shown][-1], texts[1][1][4]), ('Step: 1 px', 0x00FFFF))
-    h.stub(units, result=1, ret_bytes=4)
+    place_units(24)
     draw(1, bx, by)
     check('picked overlay shown on the selected building with units on it', count() > 27000, True)
     check('frame is magenta', pixel(bx + spot[0], by + spot[1]), 0xF81F)
@@ -267,7 +291,7 @@ def suite(ext):
     check('clicking the picked row again stops', [s for s, _, _ in run_panel()][-1], 'Saved')
     draw(1, bx, by)
     check('tool off: units hide it again', count(), 0)
-    del h.cpu.hooks[units]
+    clear_units()
 
     # a plugin's overlays.lua
     plugin = os.path.join(WORK, 'plugin')
@@ -307,7 +331,36 @@ def suite(ext):
     check('nothing for another building', count(), 0)
 
 
+def hover_suite(ext):
+    print('=== hover mode, %s' % ('Extreme' if ext else 'vanilla'))
+    fresh_work()
+    h = Host(extreme=ext, config={'mouse': {'hover_only': True}}, foreign_patches=False, aic=False)
+    E = h.E
+    tail = E.find('0F B7 85 ? ? ? ? 0F BF C0 8B 04 85 ? ? ? ? 33 C9 3B C1 89 4C 24 30 89 4C 24 34 89 44 24 24')[0]
+    check('13 of the games own overlay checks changed', any('(13 checks changed)' in l for l in h.logs), True)
+    t_off = E.va2off(tail)
+    hover_index = struct.unpack('<I', E.data[t_off + 0x54:][:4])[0]
+    hover_uid = struct.unpack('<I', E.data[t_off + 0x60:][:4])[0]
+    buildings = struct.unpack('<I', E.data[t_off + 3:][:4])[0] - 0xD2
+    # a tower check: the 6 byte cmp at the stone keep case is now a call
+    site = [a for a in range(tail - 0x3000, tail) if h.m.read(a, 1) == bytes([0xE8])
+            and E.data[E.va2off(a):E.va2off(a) + 2] == bytes([0x39, 0x95])]
+    check('the keep checks are calls now', len(site) >= 7, True)
+    thunk = site[0] + 5 + struct.unpack('<i', h.m.read(site[0] + 1, 4))[0]
+    b = buildings + 3 * STRIDE
+    h.put32(b + 0xD8, 777)
+    def zf(index, uid):
+        h.put32(hover_index, index)
+        h.put32(hover_uid, uid)
+        cpu = h.run(thunk, regs={'ebp': 3 * STRIDE, 'esi': 0, 'edi': 0})
+        return int(cpu.zf)
+    check('not hovered: the game sees an empty tower', zf(0, 0), 1)
+    check('hovered: the game sees an occupied tower', zf(3, 777), 0)
+    check('another building under the mouse: empty', zf(4, 777), 1)
+
+
 for which in (sys.argv[1:] or ['van', 'ext']):
     suite(which == 'ext')
+    hover_suite(which == 'ext')
 print('FAILED: %s' % fails if fails else 'all green')
 sys.exit(1 if fails else 0)

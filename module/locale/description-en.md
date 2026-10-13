@@ -14,6 +14,14 @@ An empty large gatehouse gets a picture over its towers (one for a gatehouse who
 looks to the lower left, one for the lower right). When troops go onto the gatehouse the
 picture goes away. Can be switched off in the settings.
 
+## Troops on the building
+
+An overlay goes away while any unit stands on the building - except the lord, who always
+stands on his keep and would otherwise hide a keep's overlay for good. With "Only hide the
+overlays while the mouse is on the building" switched on, towers, gatehouses and keeps keep
+their battlements drawn whoever stands on them, and only drop them while you point the mouse
+at the building (the game's own tower and keep overlays too).
+
 ## Moving overlays in the game
 
 Select a building that has overlays (for example a large gatehouse). Its panel lists them on

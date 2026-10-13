@@ -36,3 +36,18 @@ options:
     contents:
       type: boolean
       value: true
+
+- display: GroupBox
+  category: [Building Overlays]
+  header: '{{mouse_group}}'
+  text: '{{mouse_group_descr}}'
+  hasHeader: true
+  children:
+  - url: building-overlays.mouse.hover_only
+    name: building-overlays-mouse-hover-only
+    text: '{{hover_only}}'
+    tooltip: '{{hover_only_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: false

@@ -21,3 +21,12 @@ editor_enabled_tooltip: |
   blue arrows to move it (Step switches between 1, 5 and 20 pixels). Click the picked
   overlay again to stop. Save writes every overlay's spot to calibration.lua in the module
   folder, ready to go into a plugin as overlays.lua.
+
+mouse_group: Seeing troops on towers, gatehouses and keeps
+mouse_group_descr: |
+  Normally a building's overlay goes away while troops stand on it.
+hover_only: Only hide the overlays while the mouse is on the building
+hover_only_tooltip: |
+  Towers, gatehouses and keeps keep their walls and crenellations drawn even with troops on
+  them, so the troops stand behind the battlements. Point the mouse at the building to see
+  who is up there. Covers the game's own tower and keep overlays as well as this module's.

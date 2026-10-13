@@ -38,6 +38,7 @@ local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this t
 local DEFAULTS = {
   large_gatehouse = { enabled = true, swap_sides = false },
   editor = { enabled = true },
+  mouse = { hover_only = false },
 }
 
 -- Overlays a plugin may add on top of the ones in overlay_list.lua.
@@ -47,7 +48,7 @@ local MAX_OVERLAYS = 64
 local BUILDINGS = {
   large_gatehouse = 45, small_gatehouse = 46,
   tower1 = 74, tower2 = 75, tower3 = 76, tower4 = 77, tower5 = 78,
-  stone_keep = 41, stronghold = 42, keep_four = 43, keep_five = 44,
+  manor_house = 40, stone_keep = 41, stronghold = 42, keep_four = 43, keep_five = 44,
 }
 
 -- The tail every path of `renderGmOverlayBuilding` ends in, preceded by the `mov ecx, core
@@ -89,7 +90,44 @@ local R_NAME = 0x30                        -- its name, for the panel list
 -- state (building array - 0x14), one argument, `ret 4`.
 local AOB_UNITS_ON_BUILDING = "8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B0 0C 01 00 00 "
   .. "33 DB 85 F6 57 7E"
-local BUILDINGS_STATE_BEFORE_ARRAY = 0x14
+-- Its operands are what this module's own test reads: it walks the same footprint, but walks
+-- every unit on a tile (unit +0x2A2 is the next one on the same tile) and leaves out the lord,
+-- who always stands on his keep.
+local UNITS_TRANSLATE = { 0x2D, { 0x8D, 0x3C, 0xBD } }   -- lea edi, [edi*4 + tile rows]
+local UNITS_TILES = { 0x3A, { 0x8D, 0x14, 0x55 } }       -- lea edx, [edx*2 + unit per tile]
+local UNITS_OWNER = { 0x4E, { 0x0F, 0xBF, 0x80 } }       -- movsx eax, word [eax + unit owner]
+local UNITS_PLAYERS = { 0x55, { 0x83, 0x3C, 0x85 } }     -- cmp [eax*4 + player ids], -1
+local UNIT_SIZE, U_OWNER, U_TYPE, U_NEXT, LORD = 0x490, 0x96, 0x8E, 0x2A2, 55
+local B_X, B_Y, B_SIZE, B_UID = 0xEE, 0xF0, 0xF8, 0xD8
+
+-- The building under the mouse (the one the game shows the health bar of): its index and uid,
+-- compared at +0x52 and +0x5E of the tail.
+local TAIL_HOVER_INDEX = { 0x52, { 0x3B, 0x05 } }
+local TAIL_HOVER_UID = { 0x5E, { 0x8B, 0x0D } }
+
+-- The game's own tower and keep overlays: `cmp dword [reg + building +0xB0], edx / 0` before
+-- each, in renderGmOverlayBuilding and renderGmOverlayBuilding2 (the 0x3000 bytes before the
+-- tail). In "only while the mouse is on it" mode each becomes a call that answers "empty"
+-- unless the mouse is on that building.
+local VANILLA_SEARCH = 0x3000
+local REGISTERS = { [0] = "eax", "ecx", "edx", "ebx", nil, "ebp", "esi", "edi" }
+local VANILLA_THUNK = [[
+push eax
+mov eax,[HOVER_INDEX]
+imul eax,eax,BUILDING_SIZE
+cmp eax,REG
+jne v_show
+mov eax,[HOVER_UID]
+cmp eax,[REG+UID_FIELD]
+jne v_show
+pop eax
+test esp,esp
+ret
+v_show:
+pop eax
+cmp esp,esp
+ret
+]]
 
 local UNITS = { empty = 0, occupied = 1, any = 2 }
 local ENTRANCES = { any = 0, left = 1, right = 2 }
@@ -196,20 +234,23 @@ cmp eax,2
 je units_ok
 cmp dword [SCRATCH+4],-1
 jne occupancy_known
-push ecx
-push edx
-push dword [SCRATCH+16]
-mov ecx,BUILDINGS_STATE
-mov eax,UNITS_ON_BUILDING
-call eax
-pop edx
-pop ecx
+mov eax,HOVER_ONLY
 test eax,eax
-setne al
-movzx eax,al
-cmp dword [ebx+OCCUPIED],0
-je occupancy_set
+jne by_mouse
+call UNITS_HERE
+jmp occupancy_set
+by_mouse:
+xor eax,eax
+push edx
+mov edx,[SCRATCH+16]
+cmp edx,[HOVER_INDEX]
+jne hover_done
+mov edx,[ebx+B_UID]
+cmp edx,[HOVER_UID]
+jne hover_done
 mov eax,1
+hover_done:
+pop edx
 occupancy_set:
 mov [SCRATCH+4],eax
 occupancy_known:
@@ -283,6 +324,67 @@ mov eax,BLIT
 call eax
 pop ecx
 pop edx
+ret
+]]
+
+-- "Is anyone but the lord on this building?" (ebx = the building), its own assembly: UCP gives
+-- FASM 64 KB for source, symbols and output, and the main script is close to that already.
+local UNITS_SCRIPT = [[
+push esi
+push edi
+push ebp
+push ecx
+push edx
+xor eax,eax
+mov esi,[ebx+B_SIZE]
+test esi,esi
+jle u_out
+mov [SCRATCH+20],esi
+movsx ebp,word [ebx+B_X]
+movsx edi,word [ebx+B_Y]
+lea edi,[edi+edi*2]
+lea edi,[edi*4+TRANSLATE]
+u_row:
+mov edx,[edi]
+add edx,ebp
+lea edx,[edx*2+UNIT_TILES]
+mov ecx,esi
+u_column:
+movsx eax,word [edx]
+mov dword [SCRATCH+28],64
+u_chain:
+test eax,eax
+je u_next_tile
+dec dword [SCRATCH+28]
+je u_next_tile
+imul eax,eax,UNIT_SIZE
+cmp word [eax+UNIT_TYPE],LORD
+je u_next_unit
+mov [SCRATCH+24],eax
+movsx eax,word [eax+UNIT_OWNER]
+cmp dword [eax*4+PLAYER_IDS],-1
+jne u_found
+mov eax,[SCRATCH+24]
+u_next_unit:
+movsx eax,word [eax+UNIT_NEXT]
+jmp u_chain
+u_next_tile:
+add edx,2
+dec ecx
+jne u_column
+add edi,12
+dec dword [SCRATCH+20]
+jne u_row
+xor eax,eax
+jmp u_out
+u_found:
+mov eax,1
+u_out:
+pop edx
+pop ecx
+pop ebp
+pop edi
+pop esi
 ret
 ]]
 
@@ -908,6 +1010,46 @@ local function installPanel(v)
 end
 
 ---------------------------------------------------------------------------------------
+-- The game's own tower and keep overlays, in "only while the mouse is on it" mode
+---------------------------------------------------------------------------------------
+
+---Every `cmp dword [reg + building +0xB0], edx` (39 /r, 6 bytes) or `cmp dword [reg + that], 0`
+---(83 /7 ib, 7 bytes) in the two overlay functions becomes a call that sets the flags as
+---"empty" unless the mouse is on that building. Returns how many were changed.
+local function patchVanillaOverlays(tail, values)
+  local field = (values.BUILDINGS + B_OCCUPIED) & 0xFFFFFFFF
+  local count = 0
+  local address = tail - VANILLA_SEARCH
+  while address < tail do
+    local opcode = core.readByte(address) & 0xFF
+    local modrm = core.readByte(address + 1) & 0xFF
+    local size
+    if opcode == 0x39 and (modrm & 0xC0) == 0x80 then
+      size = 6
+    elseif opcode == 0x83 and (modrm & 0xF8) == 0xB8 and (core.readByte(address + 6) & 0xFF) == 0 then
+      size = 7
+    end
+    local register = size and REGISTERS[modrm & 7]
+    if register ~= nil and (core.readInteger(address + 2) & 0xFFFFFFFF) == field then
+      local thunk = core.allocateAssembly((VANILLA_THUNK:gsub("REG", register)), {
+        HOVER_INDEX = values.HOVER_INDEX, HOVER_UID = values.HOVER_UID,
+        BUILDING_SIZE = BUILDING_SIZE, UID_FIELD = (values.BUILDINGS + B_UID) & 0xFFFFFFFF,
+      })
+      local code = { 0xE8, core.itob(core.getRelativeAddress(address, thunk, -5)) }
+      for _ = 6, size do
+        code[#code + 1] = 0x90
+      end
+      core.writeCode(address, code)
+      count = count + 1
+      address = address + size
+    else
+      address = address + 1
+    end
+  end
+  return count
+end
+
+---------------------------------------------------------------------------------------
 -- Enable
 ---------------------------------------------------------------------------------------
 
@@ -920,7 +1062,7 @@ local function enable(self, config)
     + PIXEL_FORMAT_OPERAND)
   local orientation = core.readInteger(scan(AOB_MAP_ORIENTATION, "the map orientation")
     + MAP_ORIENTATION_OPERAND)
-  local unitsOnBuilding = scan(AOB_UNITS_ON_BUILDING, "the units-on-building test")
+  local unitsTest = scan(AOB_UNITS_ON_BUILDING, "the units-on-building test")
   local typeDisplacement = core.readInteger(tail + TYPE_DISPLACEMENT_OPERAND)
   local renderCore = core.readInteger(tail + CORE_OPERAND)
   local selected = readOperand(tail, TAIL_SELECTED, "the selected building")
@@ -949,12 +1091,23 @@ local function enable(self, config)
     GATE_STATE = B_GATE_STATE, SCRATCH = core.allocate(32, true), MAP_ORIENTATION = orientation,
     PIXEL_FORMAT = pixelFormat, RECORDS = state.records, RECORD_SIZE = RECORD_SIZE,
     RENDER_CORE = renderCore, BLIT = blit, RESUME = tail + TAIL_SIZE,
-    BUILDINGS_STATE = buildings - BUILDINGS_STATE_BEFORE_ARRAY, UNITS_ON_BUILDING = unitsOnBuilding,
+    HOVER_ONLY = setting(config, "mouse", "hover_only") and 1 or 0,
+    HOVER_INDEX = readOperand(tail, TAIL_HOVER_INDEX, "the building under the mouse"),
+    HOVER_UID = readOperand(tail, TAIL_HOVER_UID, "the building under the mouse"),
+    TRANSLATE = readOperand(unitsTest, UNITS_TRANSLATE, "the tile rows"),
+    UNIT_TILES = readOperand(unitsTest, UNITS_TILES, "the units on the tiles"),
+    UNIT_OWNER = readOperand(unitsTest, UNITS_OWNER, "the unit owner"),
+    PLAYER_IDS = readOperand(unitsTest, UNITS_PLAYERS, "the players"),
+    UNIT_SIZE = UNIT_SIZE, LORD = LORD, B_X = B_X, B_Y = B_Y, B_SIZE = B_SIZE, B_UID = B_UID,
+    BUILDING_SIZE = BUILDING_SIZE,
     R_TYPE = R_TYPE, R_UNITS = R_UNITS, R_ENTRANCE = R_ENTRANCE, R_GATE = R_GATE, R_X = R_X,
     R_Y = R_Y, R_W = R_W, R_H = R_H, R_DATA565 = R_DATA565, R_DATA555 = R_DATA555,
     R_OUT565 = R_OUT565, R_OUT555 = R_OUT555, R_NAME = R_NAME,
   }
+  local unitBase = values.UNIT_OWNER - U_OWNER
+  values.UNIT_TYPE, values.UNIT_NEXT = unitBase + U_TYPE, unitBase + U_NEXT
   local script = SCRIPT:gsub("%f[%w_]ORIGINAL%f[^%w_]", "db " .. table.concat(original, ","))
+  values.UNITS_HERE = assemble(UNITS_SCRIPT, values)
   local blob = assemble(script, values)
 
   -- The module's own list first; the count stays 0 until the first record is complete.
@@ -975,6 +1128,11 @@ local function enable(self, config)
   end
 
   core.writeCode(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
+
+  if values.HOVER_ONLY == 1 then
+    log(INFO, string.format("%s: the game's own tower and keep overlays hide only under the mouse "
+      .. "(%d checks changed)", MODULE_NAME, patchVanillaOverlays(tail, values)))
+  end
 
   if setting(config, "editor", "enabled") then
     local ok, message = pcall(installPanel, values)
