@@ -203,8 +203,8 @@ function png.decode(data)
   if interlace ~= 0 then error("interlaced PNG files are not supported, save it without interlacing") end
   local channels = CHANNELS[colourType]
   if channels == nil then error("unknown PNG colour type " .. tostring(colourType)) end
-  if width < 1 or height < 1 or width > 256 or height > 256 then
-    error("the picture must be between 1x1 and 256x256 pixels")
+  if width < 1 or height < 1 or width > 1024 or height > 1024 then
+    error("the picture must be between 1x1 and 1024x1024 pixels")
   end
 
   local stream = table.concat(compressed)

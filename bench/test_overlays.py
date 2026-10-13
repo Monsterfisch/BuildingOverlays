@@ -307,6 +307,17 @@ def suite(ext):
     draw(1, bx, by)
     check('module overlays still work after registering', count() > 27000, True)
 
+    # pictures bigger than 256 px (the keep picture is 348 x 309)
+    from PIL import Image
+    Image.new('RGBA', (348, 309), (200, 150, 100, 255)).save(os.path.join(plugin, 'big.png'))
+    open(os.path.join(plugin, 'overlays.lua'), 'w').write(
+        'return { { name = "keep", building = "stronghold", picture = "big", x = 0, y = 0 } }')
+    h.mod[b'registerOverlaySource'](h.mod, plugin.encode())
+    check('a 348 x 309 picture loads', any('skipped' in l and 'big' in l for l in h.logs), False)
+    put_building(4, 42)
+    draw(4, bx, by)
+    check('the stronghold overlay is drawn (rows 450-599 inside the test clip)', count(), 348 * 150)
+
     # a plugin overlay with one of the module's names takes its place; Save writes it back
     open(os.path.join(plugin, 'overlays.lua'), 'w').write(
         'return { { name = "large_gatehouse_right", building = 45, picture = "a", entrance = "right", x = 1, y = 2 } }')
