@@ -65,6 +65,10 @@ local TAIL_SELECTED = { 0x46, { 0x3B, 0x15 } }
 
 local AOB_PIXEL_FORMAT = "81 3D ? ? ? 00 65 05 00 00 75 40"
 local PIXEL_FORMAT_OPERAND = 2
+-- The V view (the editor's and game's "lower the buildings" key): the flag renderMap reads,
+-- command object +0x5548C4 - zero while the V view is on. Object from the key handler.
+local AOB_V_VIEW = "6A 03 B9 ? ? ? ? E8 ? ? ? ? 89 2D ? ? ? ? E9"
+local V_VIEW_OBJECT, V_VIEW_FIELD = 3, 0x5548C4
 local AOB_MAP_ORIENTATION = "A1 ? ? ? ? 85 C0 53 55 56 57 8B E9 BF 08 00 00 00 74 22 "
   .. "83 F8 06 75 07 BF 18 3A 01 00 EB 16 83 F8 04 75 07 BF 28 74 02 00"
 local MAP_ORIENTATION_OPERAND = 1
@@ -289,6 +293,8 @@ local SCRIPT = [[
 pushfd
 pushad
 cmp dword [STATE],0
+je done
+cmp dword [V_VIEW],0
 je done
 lea ebx,[ebp+BUILDINGS]
 cmp dword [ebx+BSHOWN],0
@@ -755,6 +761,9 @@ local R_SEEN = R_TYPE                    -- a pseudo record has no type: the fra
 local RENDER_GM_BLEND, RENDER_GM_ALPHA, RENDER_GM_ANIMATION_CALL = 0x90, 0x4B0, 0x7F
 local RENDER_GM_FIRST_FRAMES, RENDER_GM_WIDTHS = 0x0C, 0x43   -- operands inside renderGM
 local FIRST_TOWER, LAST_TOWER = 74, 78   -- lookout tower .. round tower
+-- Keeps (41..44) and gate buildings (45..49) and the towers lose their game overlay pictures in
+-- the V view, where the game lowers the buildings.
+local CASTLE_FIRST, CASTLE_LAST = 41, 49
 local B_ROOF = 0x60                      -- a tower's roof picture
 local STUB_SIZE, INFO_SIZE = 10, 0x20    -- push info / jmp COMMON; info per call
 local I_TARGET, I_XO, I_YO, I_RECORDS, I_PLAIN = 0, 4, 8, 0xC, 0x10
@@ -794,6 +803,21 @@ mov ebx,[edx+R_Y]
 mov eax,[ecx+I_YO]
 add [esp+eax],ebx
 pop ebx
+cmp dword [V_VIEW],0
+jne s_normal_view
+cmp dword [ecx+I_PLAIN],0
+je s_normal_view
+mov eax,[esp]
+movzx eax,word [eax+BTYPE]
+cmp eax,CASTLE_FIRST
+jb s_normal_view
+cmp eax,CASTLE_LAST
+jbe s_skip
+cmp eax,FIRST_TOWER
+jb s_normal_view
+cmp eax,LAST_TOWER
+jbe s_skip
+s_normal_view:
 mov eax,HOVER_ONLY
 test eax,eax
 je s_draw
@@ -998,6 +1022,7 @@ local function installSites(tail, renderGm, values)
   values.FIRST_FRAMES = core.readInteger(renderGm + RENDER_GM_FIRST_FRAMES)
   values.WIDTHS = core.readInteger(renderGm + RENDER_GM_WIDTHS)
   values.FIRST_TOWER, values.LAST_TOWER, values.B_ROOF = FIRST_TOWER, LAST_TOWER, B_ROOF
+  values.CASTLE_FIRST, values.CASTLE_LAST = CASTLE_FIRST, CASTLE_LAST
   values.I_TARGET, values.I_XO, values.I_YO, values.I_RECORDS, values.I_PLAIN =
     I_TARGET, I_XO, I_YO, I_RECORDS, I_PLAIN
   values.TYPE_COUNT, values.R_SEEN = TYPE_COUNT, R_SEEN
@@ -1615,6 +1640,7 @@ local function enable(self, config)
     HOVER_ONLY = setting(config, "mouse", "hover_only") and 1 or 0,
     LAST_HOVER = core.allocate(4, true), VIEWPORT = core.allocate(4, true),
     GATED = core.allocate(4, true), MOUSE_X = 0, MOUSE_Y = 0,
+    V_VIEW = core.readInteger(scan(AOB_V_VIEW, "the V view flag") + V_VIEW_OBJECT) + V_VIEW_FIELD,
     VP_HOVER = VP_HOVER, VP_MOUSE_X = VP_MOUSE_X, VP_MOUSE_Y = VP_MOUSE_Y,
     ZOOMED_OUT = renderCore + 0x54,
     TRANSLATE = readOperand(unitsTest, UNITS_TRANSLATE, "the tile rows"),

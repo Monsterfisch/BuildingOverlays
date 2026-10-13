@@ -47,6 +47,8 @@ def suite(ext):
     print('=== %s' % ('Extreme' if ext else 'vanilla'))
     fresh_work()
     h = Host(extreme=ext, config={}, foreign_patches=False, aic=False)
+    v_flag = struct.unpack('<I', h.E.data[h.E.va2off(h.E.find('6A 03 B9 ? ? ? ? E8 ? ? ? ? 89 2D ? ? ? ? E9')[0]) + 3:][:4])[0] + 0x5548C4
+    h.put32(v_flag, 1)                 # the ordinary view (zero = V view)
     for line in h.logs:
         print('  log', line)
     E = h.E
@@ -172,6 +174,10 @@ def suite(ext):
     clear_units()
     draw(1, bx, by)
     check('picture is back when the units leave', count() > 20000, True)
+    h.put32(v_flag, 0)
+    draw(1, bx, by)
+    check('V view: no overlay', count(), 0)
+    h.put32(v_flag, 1)
 
     # the line-up tool in the building panel
     start = E.find('03 00 00 00 54 01 00 00 D2 01 00 00 64 00 00 00 1C 00 00 00')[0]
@@ -391,6 +397,8 @@ def hover_suite(ext):
     print('=== hover mode, %s' % ('Extreme' if ext else 'vanilla'))
     fresh_work()
     h = Host(extreme=ext, config={'mouse': {'hover_only': True}}, foreign_patches=False, aic=False)
+    v_flag = struct.unpack('<I', h.E.data[h.E.va2off(h.E.find('6A 03 B9 ? ? ? ? E8 ? ? ? ? 89 2D ? ? ? ? E9')[0]) + 3:][:4])[0] + 0x5548C4
+    h.put32(v_flag, 1)
     E = h.E
     tail = E.find('0F B7 85 ? ? ? ? 0F BF C0 8B 04 85 ? ? ? ? 33 C9 3B C1 89 4C 24 30 89 4C 24 34 89 44 24 24')[0]
     check('13 of the games own overlay checks changed', any('(13 checks changed)' in l for l in h.logs), True)
@@ -471,6 +479,9 @@ def hover_suite(ext):
     h.put16(b3 + 0xD2, 41)
     h.put32(b3 + 0xB0, 0)
     check('a keep draws its picture as in the game', frames(), [5])
+    h.put32(v_flag, 0)
+    check('V view: the game keep and tower pictures are gone', frames(), [])
+    h.put32(v_flag, 1)
     del h.cpu.hooks[t_render_gm]
 
     # this module's overlays
