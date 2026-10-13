@@ -218,7 +218,11 @@ add esi,RECORD_SIZE
 dec edi
 jmp r_next
 r_sites:
-mov esi,SITES
+cmp ebp,TYPE_COUNT
+jae r_list_done
+mov esi,ebp
+imul esi,esi,RECORD_SIZE
+add esi,SITES
 mov edi,SITE_COUNT
 r_site:
 test edi,edi
@@ -229,7 +233,7 @@ cmp eax,[PANEL_FRAME]
 jb r_site_skip
 call r_row
 r_site_skip:
-add esi,RECORD_SIZE
+add esi,SITE_STRIDE
 dec edi
 jmp r_site
 r_list_done:

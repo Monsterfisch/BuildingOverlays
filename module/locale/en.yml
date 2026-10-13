@@ -30,5 +30,5 @@ hover_only: Only hide the overlays while the mouse is on the building
 hover_only_tooltip: |
   Towers, gatehouses and keeps keep their walls and crenellations drawn even with troops on
   them, so the troops stand behind the battlements. Point the mouse at the building to see
-  who is up there. Covers this module's overlays and the game's own overlays that normally hide when troops
-  are on a tower or keep. All other game overlays keep the game's own rules.
+  who is up there. Covers this module's overlays and the roofs of the game's towers. A tower's crenellations
+  and every other game overlay keep the game's own rules.

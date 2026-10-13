@@ -7,7 +7,8 @@
     picture   a PNG in the overlays folder, without ".png"
     entrance  "left", "right" or "any": which way the building's entrance faces on screen
               (left = it looks to the lower left, right = to the lower right)
-    units     "empty" (nobody stands on it), "occupied" or "any"
+    units     "empty" (hidden while troops - or with the mouse setting, the mouse - are on it),
+              "occupied", or "any" (always drawn: crenellations that cover the troops)
     gate      gates only: "any", "open" or "closed"
     x, y      where the picture's top left corner sits, measured from the building's
               anchor point on screen (the point the game puts its own tower pictures at)

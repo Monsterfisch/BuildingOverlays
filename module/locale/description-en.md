@@ -20,8 +20,9 @@ An overlay goes away while any unit stands on the building - except the lord, wh
 stands on his keep and would otherwise hide a keep's overlay for good. With "Only hide the
 overlays while the mouse is on the building" switched on, towers, gatehouses and keeps keep
 their battlements drawn whoever stands on them, and only drop them while you point the mouse
-at the building (this module's overlays and the game's own overlays that normally hide when
-troops are on a tower or keep; every other game overlay keeps the game's own rules).
+at the building. That covers this module's overlays and the roofs of the game's towers; a
+tower's crenellations and every other game overlay keep the game's own rules. An overlay with
+`units = "any"` is always drawn - use that for crenellations that should cover the troops.
 
 ## Moving overlays in the game
 

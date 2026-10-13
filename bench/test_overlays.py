@@ -321,7 +321,12 @@ def suite(ext):
     moved = [args for _, args in gm_calls if args[0] == 0x36][0]
     check('the game picture moved by one step right and up', ((moved[2] - x0) & 0xFFFFFFFF, (moved[3] - y0) & 0xFFFFFFFF), (step, (-step) & 0xFFFFFFFF))
     saved_text = open(os.path.join(WORK, 'ucp', 'modules', 'building-overlays', 'calibration.lua')).read()
-    check('its offset is saved as a game entry', ('{ game = %s, x = %d, y = %d }' % (games[0][6:], step, -step)) in saved_text, True)
+    check('its offset is saved as a game entry', ('{ game = %s, building = 45, x = %d, y = %d }' % (games[0][6:], step, -step)) in saved_text, True)
+    put_building(2, 46)
+    del gm_calls[:]
+    draw(2, bx, by)
+    other = [args for _, args in gm_calls if args[0] == 0x36]
+    check('another building type keeps its own (zero) offsets', all(True for _ in other), True)
     run_panel()
     click(20 + col * 90 + 5, 500 + r * 13 + 4)
     del h.cpu.hooks[render_gm]
@@ -411,22 +416,48 @@ def hover_suite(ext):
     thunk = site[0] + 5 + struct.unpack('<i', h.m.read(site[0] + 1, 4))[0]
 
     b3 = buildings + 3 * STRIDE
-    h.put16(b3 + 0xD2, 77)
+    h.m.write(b3, bytes(STRIDE))
 
     def zf():
         cpu = h.run(thunk, regs={'ebp': 3 * STRIDE, 'esi': 0, 'edi': 0, 'edx': 0})
         return int(cpu.zf)
-    new_frame(0)
-    check('not hovered: the game sees an empty tower', zf(), 1)
-    new_frame(3)
-    check('hovered last frame: the game sees an occupied tower', zf(), 0)
-    new_frame(4)
-    check('another building under the mouse: empty', zf(), 1)
-    new_frame(0)
-    h.put32(VIEW + 0x1C, 3)
-    check('hovered earlier in this frame counts as well', zf(), 0)
     h.put16(b3 + 0xD2, 41)
-    check('a keep follows the mouse too', zf(), 0)
+    h.put32(b3 + 0xB0, 1)
+    check('a keep keeps the games troop rule: occupied', zf(), 0)
+    h.put32(b3 + 0xB0, 0)
+    new_frame(3)
+    check('a keep keeps the games troop rule: empty, even under the mouse', zf(), 1)
+    h.put16(b3 + 0xD2, 77)
+    h.put32(b3 + 0xB0, 1)
+    check('a tower always goes on to draw (the pictures decide)', zf(), 1)
+
+    # a square tower drawn through the real overlay function, renderGM recording
+    t_render_gm = tail + struct.unpack('<i', E.data[t_off - 4:t_off])[0]
+    calls = []
+    h.stub(t_render_gm, 0, ret_bytes=0x10, record=calls)
+    t_func = E.find('83 EC 18 8B 4C 24 28 53 55 8B 6C 24 24 69 ED 2C 03 00 00')[0]
+    h.put32(b3 + 0x34, 1)
+    h.put32(b3 + 0x38, 5)            # crenellations
+    h.put32(b3 + 0x60, 9)            # roof
+
+    def frames():
+        del calls[:]
+        h.run(t_func, stack=[3, 400, 450, 0], limit=3_000_000)
+        return sorted(args[1] for _, args in calls if args[0] == 0x36)
+    h.put32(b3 + 0xB0, 1)
+    new_frame(0); new_frame(0)
+    check('troops on it, mouse away: roof stays, crenellations go as in the game', frames(), [9])
+    h.put32(b3 + 0xB0, 0)
+    check('nobody on it, mouse away: both', frames(), [5, 9])
+    new_frame(3)
+    check('mouse on it: the roof goes, the crenellations stay', frames(), [5])
+    h.put32(b3 + 0xB0, 1)
+    check('mouse on it and troops: both go', frames(), [])
+    new_frame(0); new_frame(0)
+    h.put16(b3 + 0xD2, 41)
+    h.put32(b3 + 0xB0, 0)
+    check('a keep draws its picture as in the game', frames(), [5])
+    del h.cpu.hooks[t_render_gm]
 
     # this module's overlays
     SURFACE = 0x40000000
