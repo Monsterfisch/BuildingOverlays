@@ -163,10 +163,7 @@ def suite(ext):
     check('nothing while a unit stands on its tiles', count(), 0)
     place_units(55)
     draw(1, bx, by)
-    check('the lord alone does not hide it', count() > 20000, True)
-    place_units(55, 24)
-    draw(1, bx, by)
-    check('a unit behind the lord on the same tile does', count(), 0)
+    check('the lord on a gatehouse hides it like any unit', count(), 0)
     place_units(24)
     h.m.write(unit_base + 5 * 0x490 + 0x402, bytes([1]))
     draw(1, bx, by)
@@ -322,6 +319,13 @@ def suite(ext):
     put_building(4, 42)
     draw(4, bx, by)
     check('the stronghold overlay is drawn (rows 450-599 inside the test clip)', count(), 348 * 150)
+    place_units(55)
+    draw(4, bx, by)
+    check('the lord on his keep does not hide its overlay', count(), 348 * 150)
+    place_units(55, 24)
+    draw(4, bx, by)
+    check('another unit on the keep does', count(), 0)
+    clear_units()
 
     # a plugin overlay with one of the module's names takes its place; Save writes it back
     open(os.path.join(plugin, 'overlays.lua'), 'w').write(

@@ -91,8 +91,8 @@ local R_NAME = 0x30                        -- its name, for the panel list
 local AOB_UNITS_ON_BUILDING = "8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B0 0C 01 00 00 "
   .. "33 DB 85 F6 57 7E"
 -- Its operands are what this module's own test reads: it walks the same footprint, but walks
--- every unit on a tile (unit +0x2A2 is the next one on the same tile) and leaves out the lord,
--- who always stands on his keep, and units walking through a gatehouse's passage.
+-- every unit on a tile (unit +0x2A2 is the next one on the same tile) and leaves out the lord on
+-- a keep (he always stands on it), and units walking through a gatehouse's passage.
 local UNITS_TRANSLATE = { 0x2D, { 0x8D, 0x3C, 0xBD } }   -- lea edi, [edi*4 + tile rows]
 local UNITS_TILES = { 0x3A, { 0x8D, 0x14, 0x55 } }       -- lea edx, [edx*2 + unit per tile]
 local UNITS_OWNER = { 0x4E, { 0x0F, 0xBF, 0x80 } }       -- movsx eax, word [eax + unit owner]
@@ -101,6 +101,7 @@ local UNIT_SIZE, U_OWNER, U_TYPE, U_NEXT, LORD = 0x490, 0x96, 0x8E, 0x2A2, 55
 -- Non-zero while a unit on a gatehouse is drawn walking through the passage rather than on the
 -- roof (see smarter-gatehouses): those are hidden by the gatehouse anyway.
 local U_PASSAGE = 0x402
+local KEEP_FIRST, KEEP_LAST = 40, 44     -- manor house .. the largest keep: the lord lives there
 local B_X, B_Y, B_SIZE, B_UID = 0xEE, 0xF0, 0xF8, 0xD8
 
 -- The building under the mouse (the one the game shows the health bar of): its index and uid,
@@ -362,7 +363,12 @@ dec dword [SCRATCH+28]
 je u_next_tile
 imul eax,eax,UNIT_SIZE
 cmp word [eax+UNIT_TYPE],LORD
-je u_next_unit
+jne not_lord
+cmp dword [SCRATCH],KEEP_FIRST
+jb not_lord
+cmp dword [SCRATCH],KEEP_LAST
+jbe u_next_unit
+not_lord:
 cmp byte [eax+UNIT_PASSAGE],0
 jne u_next_unit
 mov [SCRATCH+24],eax
@@ -1103,7 +1109,7 @@ local function enable(self, config)
     UNIT_TILES = readOperand(unitsTest, UNITS_TILES, "the units on the tiles"),
     UNIT_OWNER = readOperand(unitsTest, UNITS_OWNER, "the unit owner"),
     PLAYER_IDS = readOperand(unitsTest, UNITS_PLAYERS, "the players"),
-    UNIT_SIZE = UNIT_SIZE, LORD = LORD, B_X = B_X, B_Y = B_Y, B_SIZE = B_SIZE, B_UID = B_UID,
+    UNIT_SIZE = UNIT_SIZE, LORD = LORD, KEEP_FIRST = KEEP_FIRST, KEEP_LAST = KEEP_LAST, B_X = B_X, B_Y = B_Y, B_SIZE = B_SIZE, B_UID = B_UID,
     BUILDING_SIZE = BUILDING_SIZE,
     R_TYPE = R_TYPE, R_UNITS = R_UNITS, R_ENTRANCE = R_ENTRANCE, R_GATE = R_GATE, R_X = R_X,
     R_Y = R_Y, R_W = R_W, R_H = R_H, R_DATA565 = R_DATA565, R_DATA555 = R_DATA555,
