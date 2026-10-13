@@ -107,25 +107,12 @@ local B_X, B_Y, B_SIZE, B_UID = 0xEE, 0xF0, 0xF8, 0xD8
 
 -- The game's own tower and keep overlays: `cmp dword [reg + building +0xB0], edx / 0` before
 -- each, in renderGmOverlayBuilding and renderGmOverlayBuilding2 (the 0x3000 bytes before the
--- tail). In "only while the mouse is on it" mode each becomes a call that, for a lookout or
--- square tower, answers "empty" unless the mouse is on that building, and otherwise runs the
--- original compare.
+-- tail). In "only while the mouse is on it" mode each becomes a call that answers "empty"
+-- unless the mouse is on that building.
 local VANILLA_SEARCH = 0x3000
--- Only the towers whose game overlay is a roof over the walkway follow the mouse; every other
--- building with a game overlay (keeps, the other towers) keeps the game's own "anyone on it" rule.
-local LOOKOUT_TOWER, SQUARE_TOWER = 74, 77
 local REGISTERS = { [0] = "eax", "ecx", "edx", "ebx", nil, "ebp", "esi", "edi" }
 local VANILLA_THUNK = [[
 push eax
-movzx eax,word [REG+TYPE_FIELD]
-cmp eax,LOOKOUT_TOWER
-je v_roof
-cmp eax,SQUARE_TOWER
-je v_roof
-pop eax
-ORIGINAL
-ret
-v_roof:
 mov eax,[LAST_HOVER]
 imul eax,eax,BUILDING_SIZE
 cmp eax,REG
@@ -285,7 +272,9 @@ local BLEND_LEVEL_SIZE = 0x200
 -- list runs down the left under the building's name, clear of the gate buttons (200, 535);
 -- the arrows sit between the gate buttons and the help button, under the Repair button
 -- (340, 466) and left of the health display.
-local LIST_X, LIST_Y, LIST_W, LINE, MAX_ROWS = 20, 500, 170, 16, 4
+local LIST_X, LIST_Y, LIST_W, LINE = 20, 500, 170, 16
+-- The list: two columns of five short rows.
+local MAX_ROWS, ROWS_PER_COLUMN, COLUMN_W, ROW_H = 10, 5, 88, 13
 local SAVE_X, SAVE_Y, SAVE_W = 20, 570, 50
 local STEP_X, STEP_Y, STEP_W = 80, 570, 100
 local ARROW_SIZE = 24
@@ -677,6 +666,23 @@ local function storeBlitPicture(width, height, pixels)
   return base
 end
 
+---What the panel list shows for an overlay (12 characters fit): "large_gatehouse_left" -> "LG left".
+local function shortLabel(name)
+  local words = {}
+  for word in tostring(name):gmatch("[^_%s]+") do
+    words[#words + 1] = word
+  end
+  local label = table.concat(words, " ")
+  if #label > 12 and #words > 1 then
+    local initials = {}
+    for index = 1, #words - 1 do
+      initials[#initials + 1] = words[index]:sub(1, 1):upper()
+    end
+    label = table.concat(initials) .. " " .. words[#words]
+  end
+  return label:sub(1, 12)
+end
+
 local function storeString(text)
   local address = core.allocate(#text + 1, true)
   core.writeString(address, text)
@@ -700,15 +706,150 @@ local function loadCalibration()
   local text = readFile(MODULE_FOLDERS[1], "calibration.lua")
   local chunk = text and load(text, "calibration", "t", {})
   local ok, result = pcall(chunk or function() end)
-  local spots = {}
+  local spots, games = {}, {}
   if ok and type(result) == "table" then
     for _, entry in ipairs(result) do
-      if type(entry) == "table" and entry.name ~= nil then
+      if type(entry) == "table" and entry.game ~= nil then
+        games[#games + 1] = entry
+      elseif type(entry) == "table" and entry.name ~= nil then
         spots[entry.name] = entry
       end
     end
   end
-  return spots
+  return spots, games
+end
+
+---------------------------------------------------------------------------------------
+-- The game's own overlay pictures
+---------------------------------------------------------------------------------------
+
+-- Every picture renderGmOverlayBuilding (and its second half for some towers) draws goes
+-- through a `call` to one of four picture routines. Each of those calls gets a thunk of its own
+-- that adds that picture's offset (a pseudo record: R_X / R_Y, its name, R_SEEN) to the x / y
+-- it passes, and stamps the record when it draws for the selected building, so the panel can
+-- list the pictures a building really uses. When and whether a picture is drawn stays the
+-- game's own business. The calls are numbered in code order ("Game #n"); that number is what
+-- the saved files use, and it is the same in both executables.
+local F1_AOB = "83 EC 18 8B 4C 24 28 53 55 8B 6C 24 24 69 ED 2C 03 00 00"   -- renderGmOverlayBuilding
+local F2_AOB = "51 8B 4C 24 08 53 55 56 8B F1 69 F6 2C 03 00 00 0F BF 86"   -- its second half
+local F1_ENTRY = [[
+push eax
+mov eax,[esp+8]
+mov [CURRENT],eax
+pop eax
+sub esp,0x18
+mov ecx,[esp+0x28]
+jmp RESUME
+]]
+local F2_ENTRY = [[
+push eax
+mov eax,[esp+8]
+mov [CURRENT],eax
+pop eax
+push ecx
+mov ecx,[esp+8]
+jmp RESUME
+]]
+local R_SEEN = R_TYPE                    -- a pseudo record has no type: the frame it was drawn in
+local SITE_THUNK_SIZE = 48
+local RENDER_GM_BLEND, RENDER_GM_ALPHA, RENDER_GM_ANIMATION_CALL = 0x90, 0x4B0, 0x7F
+
+local sites = {}                         -- { record, number }
+
+local function bytesOf(value)
+  value = value & 0xFFFFFFFF
+  return value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF, (value >> 24) & 0xFF
+end
+
+local function installSites(tail, renderGm, values)
+  local f1 = scan(F1_AOB, "the building overlay drawing")
+  local f2 = scan(F2_AOB, "the building overlay drawing (towers)")
+  local f2End = f2
+  while f2End < f1 do
+    local a, b = core.readByte(f2End) & 0xFF, core.readByte(f2End + 1) & 0xFF
+    if (a == 0x90 and b == 0x90) or (a == 0xCC and b == 0xCC) then
+      break
+    end
+    f2End = f2End + 1
+  end
+  -- target -> offsets of x and y on the stack inside the thunk (after its push eax)
+  local targets = {
+    [renderGm] = { 0x10, 0x14 },
+    [renderGm + RENDER_GM_BLEND] = { 0x10, 0x14 },
+    [renderGm + RENDER_GM_ALPHA] = { 0x10, 0x14 },
+    [readCallTarget(renderGm, RENDER_GM_ANIMATION_CALL, "the animation drawing")] = { 0x08, 0x0C },
+  }
+  local found = {}
+  for _, range in ipairs({ { f2, f2End }, { f1, tail } }) do
+    local address = range[1]
+    while address < range[2] - 5 do
+      if (core.readByte(address) & 0xFF) == 0xE8 then
+        local target = (address + 5 + core.readInteger(address + 1)) & 0xFFFFFFFF
+        if targets[target] ~= nil then
+          found[#found + 1] = { address = address, target = target, offsets = targets[target] }
+          address = address + 4
+        end
+      end
+      address = address + 1
+    end
+  end
+  values.CURRENT = core.allocate(4, true)
+  values.PANEL_FRAME = core.allocate(4, true)
+  core.writeInteger(values.PANEL_FRAME, 100)       -- so the zero stamps all count as old
+  values.SITES = core.allocate(math.max(#found, 1) * RECORD_SIZE, true)
+  values.SITE_COUNT = #found
+  local filler = {}
+  for index = 1, math.max(#found, 1) * SITE_THUNK_SIZE do
+    filler[index] = 0xCC
+  end
+  local block = core.allocateCode(filler)
+  for number, call in ipairs(found) do
+    local record = values.SITES + (number - 1) * RECORD_SIZE
+    local thunk = block + (number - 1) * SITE_THUNK_SIZE
+    core.writeInteger(record + R_NAME, storeString(string.format("Game #%d", number)))
+    local code = {}
+    local function add(...)
+      for _, byte in ipairs({ ... }) do
+        code[#code + 1] = byte
+      end
+    end
+    add(0x50)                                                     -- push eax
+    add(0xA1) add(bytesOf(values.CURRENT))                        -- mov eax,[CURRENT]
+    add(0x3B, 0x05) add(bytesOf(values.SELECTED))                 -- cmp eax,[SELECTED]
+    add(0x75, 0x0A)                                               -- jne +10
+    add(0xA1) add(bytesOf(values.PANEL_FRAME))                    -- mov eax,[PANEL_FRAME]
+    add(0xA3) add(bytesOf(record + R_SEEN))                       -- mov [seen],eax
+    add(0xA1) add(bytesOf(record + R_X))                          -- mov eax,[dx]
+    add(0x01, 0x44, 0x24, call.offsets[1])                        -- add [esp+x],eax
+    add(0xA1) add(bytesOf(record + R_Y))                          -- mov eax,[dy]
+    add(0x01, 0x44, 0x24, call.offsets[2])                        -- add [esp+y],eax
+    add(0x58, 0xE9)                                               -- pop eax / jmp target
+    add(bytesOf(call.target - (thunk + SITE_THUNK_SIZE)))
+    assert(#code == SITE_THUNK_SIZE)
+    core.writeCode(thunk, code)
+    core.writeCode(call.address + 1, { bytesOf(thunk - (call.address + 5)) })
+    sites[number] = { record = record, number = number }
+  end
+  for _, entry in ipairs({ { f1, F1_ENTRY, 7 }, { f2, F2_ENTRY, 5 } }) do
+    local hook = core.allocateAssembly(entry[2], { CURRENT = values.CURRENT, RESUME = entry[1] + entry[3] })
+    local code = { 0xE9, bytesOf(hook - (entry[1] + 5)) }
+    for _ = 6, entry[3] do
+      code[#code + 1] = 0x90
+    end
+    core.writeCode(entry[1], code)
+  end
+  log(INFO, string.format("%s: %d of the game's own overlay pictures can be moved", MODULE_NAME, #found))
+end
+
+---A saved offset for one of the game's own pictures: { game = n, x = dx, y = dy }.
+local function applyGameEntry(entry)
+  local site = sites[tonumber(entry.game) or 0]
+  if site == nil then
+    log(WARNING, MODULE_NAME .. ": there is no game overlay #" .. tostring(entry.game))
+    return
+  end
+  core.writeInteger(site.record + R_X, tonumber(entry.x) or 0)
+  core.writeInteger(site.record + R_Y, tonumber(entry.y) or 0)
 end
 
 ---------------------------------------------------------------------------------------
@@ -718,6 +859,7 @@ end
 local state            -- everything the running hook uses; nil until enable has hooked
 local overlays = {}    -- every overlay in the table, in record order
 local pending = {}     -- plugin folders registered before enable finished
+local firstSource      -- the first plugin folder: the game pictures' offsets are saved there
 
 ---Adds one overlay (an entry of overlay_list.lua or of a plugin's overlays.lua) to the table
 ---the hook walks. `folder` is where its picture lives.
@@ -782,7 +924,7 @@ local function addOverlay(entry, folder, swap, source)
     store(packTgx(picture.width, picture.height, picture.pixels, false)))
   core.writeInteger(record + R_OUT565, store(packTgx(picture.width, picture.height, frame, true)))
   core.writeInteger(record + R_OUT555, store(packTgx(picture.width, picture.height, frame, false)))
-  core.writeInteger(record + R_NAME, storeString(overlay.name))
+  core.writeInteger(record + R_NAME, storeString(entry.label or shortLabel(overlay.name)))
   -- Last, so the hook never sees a half written record.
   core.writeInteger(state.block, #overlays)
 end
@@ -821,8 +963,13 @@ local function registerOverlaySource(self, path)
     log(WARNING, MODULE_NAME .. ": no readable overlays.lua in " .. folder)
     return
   end
+  firstSource = firstSource or folder
   for _, entry in ipairs(entries) do
-    addOverlay(entry, folder, false, folder)
+    if type(entry) == "table" and entry.game ~= nil then
+      applyGameEntry(entry)
+    else
+      addOverlay(entry, folder, false, folder)
+    end
   end
   log(INFO, string.format("%s: %d overlay(s) in total after %s", MODULE_NAME, #overlays, folder))
 end
@@ -841,7 +988,12 @@ end
 local function writeEntries(path, header, entries)
   local lines = { header, "return {" }
   for _, overlay in ipairs(entries) do
-    lines[#lines + 1] = formatEntry(overlay)
+    if overlay.game ~= nil then
+      lines[#lines + 1] = string.format("  { game = %d, x = %d, y = %d },", overlay.game,
+        overlay.x, overlay.y)
+    else
+      lines[#lines + 1] = formatEntry(overlay)
+    end
   end
   lines[#lines + 1] = "}"
   local ok, file = pcall(io.open, path, "wb")
@@ -890,6 +1042,25 @@ local function writeCalibration()
       table.insert(bySource[overlay.source], overlay)
     else
       own[#own + 1] = overlay
+    end
+  end
+  -- The game's own pictures that were moved go with the first plugin's overlays (or the module's).
+  local games = {}
+  for _, site in ipairs(sites) do
+    local x, y = core.readInteger(site.record + R_X), core.readInteger(site.record + R_Y)
+    if x ~= 0 or y ~= 0 then
+      games[#games + 1] = { game = site.number, x = x, y = y }
+      log(INFO, string.format("%s: game overlay #%d x = %d, y = %d", MODULE_NAME, site.number, x, y))
+    end
+  end
+  if #games > 0 then
+    local target = firstSource
+    if target ~= nil and bySource[target] == nil then
+      bySource[target] = {}
+      sources[#sources + 1] = target
+    end
+    for _, game in ipairs(games) do
+      table.insert(target and bySource[target] or own, game)
     end
   end
   local saved = true
@@ -1011,6 +1182,7 @@ local function installPanel(v)
     CLICK_ARG = data + 12, STEP_INDEX = data + 16, ORIGINAL_RENDER = data + 20,
     ORIGINAL_FRAME = data + 24,
     ROWS = core.allocate(MAX_ROWS * 4, true),
+    ROW_PLACES = core.allocate(MAX_ROWS * 8, true),
     ARROW_RECTS = core.allocate(4 * 16, true),
     ARROW_BASE = core.allocate(4 * 16, true),
     ORIGIN = core.allocate(8, true),
@@ -1065,6 +1237,11 @@ local function installPanel(v)
     error(MODULE_NAME .. ": the game's blend tables are not the ones this module knows")
   end
   w.BUILDING_SIZE, w.MAX_ROWS, w.TYPE_COUNT = BUILDING_SIZE, MAX_ROWS, TYPE_COUNT
+  w.COLUMN_W, w.ROW_H, w.R_SEEN = COLUMN_W, ROW_H, R_SEEN
+  for row = 0, MAX_ROWS - 1 do
+    core.writeInteger(ui.ROW_PLACES + row * 8, LIST_X + (row // ROWS_PER_COLUMN) * (COLUMN_W + 2))
+    core.writeInteger(ui.ROW_PLACES + row * 8 + 4, LIST_Y + (row % ROWS_PER_COLUMN) * ROW_H)
+  end
   w.LIST_X, w.LIST_Y, w.LIST_W, w.LINE = LIST_X, LIST_Y, LIST_W, LINE
   w.SAVE_X, w.SAVE_Y, w.SAVE_W = SAVE_X, SAVE_Y, SAVE_W
   w.STEP_X, w.STEP_Y, w.STEP_W = STEP_X, STEP_Y, STEP_W
@@ -1142,14 +1319,7 @@ local function patchVanillaOverlays(tail, values)
     end
     local register = size and REGISTERS[modrm & 7]
     if register ~= nil and (core.readInteger(address + 2) & 0xFFFFFFFF) == field then
-      local bytes = {}
-      for offset = 0, size - 1 do
-        bytes[#bytes + 1] = string.format("0x%02X", core.readByte(address + offset) & 0xFF)
-      end
-      local script = VANILLA_THUNK:gsub("REG", register):gsub("ORIGINAL", "db " .. table.concat(bytes, ","))
-      local thunk = core.allocateAssembly(script, {
-        TYPE_FIELD = (values.BUILDINGS + B_TYPE) & 0xFFFFFFFF,
-        LOOKOUT_TOWER = LOOKOUT_TOWER, SQUARE_TOWER = SQUARE_TOWER,
+      local thunk = core.allocateAssembly((VANILLA_THUNK:gsub("REG", register)), {
         LAST_HOVER = values.LAST_HOVER, VIEWPORT = values.VIEWPORT, VP_HOVER = VP_HOVER,
         BUILDING_SIZE = BUILDING_SIZE,
       })
@@ -1244,7 +1414,7 @@ local function enable(self, config)
 
   -- The module's own list first; the count stays 0 until the first record is complete.
   local swap = setting(config, "large_gatehouse", "swap_sides")
-  local calibrated = loadCalibration()
+  local calibrated, calibratedGames = loadCalibration()
   for _, entry in ipairs(list) do
     if setting(config, entry.group, "enabled") then
       local copy = {}
@@ -1260,9 +1430,18 @@ local function enable(self, config)
   end
 
   core.writeCode(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
+  local sitesOk, sitesProblem = pcall(installSites, tail, renderGm, values)
+  if not sitesOk then
+    log(WARNING, MODULE_NAME .. ": the game's own overlays cannot be moved: " .. tostring(sitesProblem))
+    values.SITES, values.SITE_COUNT = state.records, 0
+    values.PANEL_FRAME = values.PANEL_FRAME or core.allocate(4, true)
+  end
+  for _, entry in ipairs(calibratedGames) do
+    applyGameEntry(entry)
+  end
 
   if values.HOVER_ONLY == 1 then
-    log(INFO, string.format("%s: the game's own lookout and square tower roofs hide only under the mouse "
+    log(INFO, string.format("%s: the game's own hide-when-troops overlays hide only under the mouse "
       .. "(%d checks changed)", MODULE_NAME, patchVanillaOverlays(tail, values)))
   end
 

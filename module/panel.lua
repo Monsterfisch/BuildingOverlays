@@ -196,6 +196,7 @@ push ebx
 push esi
 push edi
 push ebp
+inc dword [PANEL_FRAME]
 mov dword [ROW_COUNT],0
 mov byte [PICKED_SHOWN],0
 mov eax,[SELECTED]
@@ -208,42 +209,29 @@ mov edi,[STATE]
 xor ebx,ebx
 r_next:
 test edi,edi
-je r_list_done
+je r_sites
 cmp ebp,[esi+R_TYPE]
 jne r_skip
-cmp ebx,MAX_ROWS
-jae r_skip
-mov [ROWS+ebx*4],esi
-mov eax,COLOUR
-cmp dword [STATE+4],0
-je r_colour
-cmp esi,[STATE+8]
-jne r_colour
-mov eax,PICKED_COLOUR
-mov byte [PICKED_SHOWN],1
-r_colour:
-mov ecx,ebx
-imul ecx,ecx,LINE
-add ecx,LIST_Y
-add ecx,[ORIGIN+4]
-mov edx,[ORIGIN]
-add edx,LIST_X
-push 0
-push 0
-push FONT
-push 0
-push eax
-push 0
-push ecx
-push edx
-push dword [esi+R_NAME]
-mov ecx,TEXT_MANAGER
-call SHADOWED_TEXT
-inc ebx
+call r_row
 r_skip:
 add esi,RECORD_SIZE
 dec edi
 jmp r_next
+r_sites:
+mov esi,SITES
+mov edi,SITE_COUNT
+r_site:
+test edi,edi
+je r_list_done
+mov eax,[esi+R_SEEN]
+add eax,3
+cmp eax,[PANEL_FRAME]
+jb r_site_skip
+call r_row
+r_site_skip:
+add esi,RECORD_SIZE
+dec edi
+jmp r_site
 r_list_done:
 mov [ROW_COUNT],ebx
 test ebx,ebx
@@ -348,6 +336,36 @@ pop edi
 pop esi
 pop ebx
 ret
+r_row:
+cmp ebx,MAX_ROWS
+jae r_row_full
+mov [ROWS+ebx*4],esi
+mov eax,COLOUR
+cmp dword [STATE+4],0
+je r_row_colour
+cmp esi,[STATE+8]
+jne r_row_colour
+mov eax,PICKED_COLOUR
+mov byte [PICKED_SHOWN],1
+r_row_colour:
+mov ecx,[ROW_PLACES+ebx*8+4]
+add ecx,[ORIGIN+4]
+mov edx,[ROW_PLACES+ebx*8]
+add edx,[ORIGIN]
+push 0
+push 0
+push FONT
+push 0
+push eax
+push 0
+push ecx
+push edx
+push dword [esi+R_NAME]
+mov ecx,TEXT_MANAGER
+call SHADOWED_TEXT
+inc ebx
+r_row_full:
+ret
 ]]
 
 -- The building panel's first every-frame item (shared, runs before every other item), cdecl.
@@ -365,14 +383,12 @@ xor ebx,ebx
 c_row:
 cmp ebx,[ROW_COUNT]
 jae c_save
-mov eax,ebx
-imul eax,eax,LINE
-add eax,LIST_Y
+mov eax,[ROW_PLACES+ebx*8+4]
 add eax,[ORIGIN+4]
-mov edx,[ORIGIN]
-add edx,LIST_X
-push LINE
-push LIST_W
+mov edx,[ROW_PLACES+ebx*8]
+add edx,[ORIGIN]
+push ROW_H
+push COLUMN_W
 push eax
 push edx
 mov ecx,MOUSE

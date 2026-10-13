@@ -16,8 +16,9 @@ editor_group_descr: |
   A tool to line overlay pictures up by eye and save the result.
 editor_enabled: Show the overlay tool in the building panel
 editor_enabled_tooltip: |
-  Select a building that has overlays: its panel lists them. Click one to pick it - it is
-  then shown on that building whatever stands there, with a magenta frame - and use the
+  Select any building: its panel lists its overlays - this module's and the game's own
+  pictures it is drawn with ("Game #n"). Click one to pick it - one of this module's is then
+  shown on that building whatever stands there, with a magenta frame - and use the
   blue arrows to move it (Step switches between 1, 5 and 20 pixels). Click the picked
   overlay again to stop. Save writes every overlay's spot to calibration.lua in the module
   folder, ready to go into a plugin as overlays.lua.
@@ -29,4 +30,5 @@ hover_only: Only hide the overlays while the mouse is on the building
 hover_only_tooltip: |
   Towers, gatehouses and keeps keep their walls and crenellations drawn even with troops on
   them, so the troops stand behind the battlements. Point the mouse at the building to see
-  who is up there. Covers this module's overlays and the game's own roofs on the lookout and square towers.
+  who is up there. Covers this module's overlays and the game's own overlays that normally hide when troops
+  are on a tower or keep. All other game overlays keep the game's own rules.

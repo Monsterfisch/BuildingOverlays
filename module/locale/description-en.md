@@ -20,13 +20,14 @@ An overlay goes away while any unit stands on the building - except the lord, wh
 stands on his keep and would otherwise hide a keep's overlay for good. With "Only hide the
 overlays while the mouse is on the building" switched on, towers, gatehouses and keeps keep
 their battlements drawn whoever stands on them, and only drop them while you point the mouse
-at the building (this module's overlays and the game's own roofs on the lookout and square
-towers).
+at the building (this module's overlays and the game's own overlays that normally hide when
+troops are on a tower or keep; every other game overlay keeps the game's own rules).
 
 ## Moving overlays in the game
 
-Select a building that has overlays (for example a large gatehouse). Its panel lists them on
-the left. Click one to pick it: it is then shown on that building whatever is standing there,
+Select any building. Its panel lists its overlays on the left: this module's, and the game's
+own pictures the building is drawn with, as "Game #n" (those can be moved too; when they show
+stays the game's business). Click one to pick it: it is then shown on that building whatever is standing there,
 with a magenta frame, and blue arrow buttons appear on the right of the panel. Each click
 moves the picture by the step size; click "Step" to switch between 1, 5 and 20 pixels. Click
 the picked overlay again to stop. "Save" writes every overlay's spot to `calibration.lua` in

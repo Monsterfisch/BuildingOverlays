@@ -236,7 +236,7 @@ def suite(ext):
     put_building(1, 45, variation=0x50)
     shown = run_panel()
     check('panel lists the gatehouse overlays and Save',
-          [s for s, _, _ in shown], ['large_gatehouse_left', 'large_gatehouse_right', 'Save'])
+          [s for s, _, _ in shown], ['LG left', 'LG right', 'Save'])
     check('Save label starts as Save', shown[-1][0], 'Save')
     check('first row where the list starts, moved with the panel', shown[0][1:], (20 + OX, 500 + OY))
     put_building(1, 47)
@@ -295,6 +295,37 @@ def suite(ext):
     check('tool off: units hide it again', count(), 0)
     clear_units()
 
+    # the game's own pictures: listed for the selected building, moved by their own offsets
+    gm_calls = []
+    h.stub(render_gm, 0, ret_bytes=0x10, record=gm_calls)
+    h.put32(selected, 1)
+    put_building(1, 45, variation=0x50)
+    draw(1, bx, by)
+    vanilla = [args for _, args in gm_calls if args[0] == 0x36]
+    check('the gatehouse draws a game picture', len(vanilla) > 0, True)
+    x0, y0 = vanilla[0][2], vanilla[0][3]
+    names = [s for s, _, _ in run_panel()]
+    games = [n for n in names if n.startswith('Game #')]
+    check('the panel lists the game picture the gatehouse used', len(games) >= 1, True)
+    row = names.index(games[0])
+    col, r = divmod(row, 5)
+    click(20 + col * 90 + 5, 500 + r * 13 + 4)
+    shown = run_panel()
+    step = int([s for s, _, _ in shown if s.startswith('Step')][0].split()[1])
+    # in the game the map is drawn every frame, which keeps the picture listed
+    check('right arrow taken', press('right'), True)
+    draw(1, bx, by)
+    check('up arrow taken', press('up'), True)
+    del gm_calls[:]
+    draw(1, bx, by)
+    moved = [args for _, args in gm_calls if args[0] == 0x36][0]
+    check('the game picture moved by one step right and up', ((moved[2] - x0) & 0xFFFFFFFF, (moved[3] - y0) & 0xFFFFFFFF), (step, (-step) & 0xFFFFFFFF))
+    saved_text = open(os.path.join(WORK, 'ucp', 'modules', 'building-overlays', 'calibration.lua')).read()
+    check('its offset is saved as a game entry', ('{ game = %s, x = %d, y = %d }' % (games[0][6:], step, -step)) in saved_text, True)
+    run_panel()
+    click(20 + col * 90 + 5, 500 + r * 13 + 4)
+    del h.cpu.hooks[render_gm]
+
     # a plugin's overlays.lua
     plugin = os.path.join(WORK, 'plugin')
     os.makedirs(plugin)
@@ -336,7 +367,7 @@ def suite(ext):
     draw(1, bx, by)
     check('the plugin picture is drawn at its own spot', pixel(bx + 1 + 100, by + 2 + 100), conv(left.getpixel((100, 100)), True))
     run_panel()
-    check('panel still lists two gatehouse overlays', [s for s, _, _ in run_panel()][:2], ['large_gatehouse_left', 'large_gatehouse_right'])
+    check('panel still lists two gatehouse overlays', [s for s, _, _ in run_panel()][:2], ['LG left', 'LG right'])
     click_save()
     written = open(os.path.join(plugin, 'overlays.lua')).read()
     check('Save writes the plugin overlay back into the plugin', ('large_gatehouse_right' in written, 'x = 1, y = 2' in written, 'large_gatehouse_left' in written), (True, True, False))
@@ -395,10 +426,7 @@ def hover_suite(ext):
     h.put32(VIEW + 0x1C, 3)
     check('hovered earlier in this frame counts as well', zf(), 0)
     h.put16(b3 + 0xD2, 41)
-    h.put32(b3 + 0xB0, 1)
-    check('a keep keeps the games own rule: occupied', zf(), 0)
-    h.put32(b3 + 0xB0, 0)
-    check('a keep keeps the games own rule: empty even under the mouse', zf(), 1)
+    check('a keep follows the mouse too', zf(), 0)
 
     # this module's overlays
     SURFACE = 0x40000000
