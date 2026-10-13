@@ -1699,6 +1699,7 @@ local function enable(self, config)
       values.TILE_RESUME = piece + strips.TILE_HOOK + strips.TILE_HOOK_SIZE
       values.CAM = core.allocate(8, true)
       values.SX, values.SY = core.allocate(4, true), core.allocate(4, true)
+      values.OLD = core.allocate(4, true)
       values.PENDING = core.allocate(MAX_BUILDINGS * strips.SLOT_SIZE, true)
       values.MAX_BUILDINGS, values.SLOT_SIZE, values.ENTRY_SIZE = MAX_BUILDINGS, strips.SLOT_SIZE, strips.ENTRY_SIZE
       values.ENTRIES_SIZE, values.MAX_ENTRIES = strips.ENTRIES_SIZE, strips.MAX_ENTRIES

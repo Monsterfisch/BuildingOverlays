@@ -594,16 +594,27 @@ def strips_suite(ext):
     new_frame(); clear()
     piece_drawn(bx - 64)
     cols = columns()
-    check('a piece draws only the strips over its own 32 px', (min(cols) >= bx - 64, max(cols) < bx - 32), (True, True))
+    check('first frame after appearing: nothing is known yet, the first piece draws it all', cols, full)
     piece_drawn(bx - 32)
     corner(bx, by)
     check('the front corner adds what no piece drew', columns(), full)
+    # next frame: the strips no piece covered (over the sides) come with the first piece
+    new_frame(); clear()
+    piece_drawn(bx - 64)
+    cols = columns()
+    check('overhang strips come with the first (back) piece',
+          (min(cols), max(cols)), (left_edge, left_edge + 214))
+    check('... but not the strips a piece covers', any(bx - 32 <= c < bx for c in cols), False)
+    piece_drawn(bx - 32)
+    clear()
+    corner(bx, by)
+    check('the front corner draws nothing more', columns(), set())
     # the camera moved one tile column right since the last frame: the strips move with it
     new_frame(); clear()
     h.put32(VIEW + 0x78, 32)
     piece_drawn(bx - 64 - 32)
     cols = columns()
-    check('the camera is followed', (min(cols) >= bx - 96, max(cols) < bx - 64), (True, True))
+    check('the camera is followed', (any(bx - 96 <= c < bx - 64 for c in cols), any(bx - 64 <= c < bx - 32 for c in cols)), (True, False))
 
 
 for which in (sys.argv[1:] or ['van', 'ext']):

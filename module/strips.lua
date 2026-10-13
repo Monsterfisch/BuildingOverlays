@@ -15,11 +15,12 @@ strips.R_STRIPS, strips.R_STRIP_COUNT, strips.R_PHASE = 0x34, 0x38, 0x3C
 -- the last of those pieces is the front one, so the strip ends up over the building and under
 -- anything in front of it. Positions come from the building's front corner in the frame before,
 -- kept in camera-free map units (screen + 32 * view column, screen + 16 * view row - row bias),
--- so no rotation has to be worked out. Strips no piece drew this frame (picture wider than the
--- building) are drawn at the front corner, as before.
+-- so no rotation has to be worked out. Strips no piece covers (the picture hangs over the sides
+-- of the footprint) are drawn with the building's back-most piece, the first one drawn, so
+-- neighbours drawn after it cover them too.
 -- PENDING, per building: stamp[2], count[2], then two sets (by frame parity) of up to 4 entries
--- { record, map x, map y, drawn strips bitmap[3] }.
-strips.SLOT_SIZE, strips.ENTRY_SIZE, strips.ENTRIES_SIZE, strips.MAX_ENTRIES = 0xD0, 24, 0x60, 4
+-- (see REMEMBER_SCRIPT).
+strips.SLOT_SIZE, strips.ENTRY_SIZE, strips.ENTRIES_SIZE, strips.MAX_ENTRIES = 0x150, 40, 0xA0, 4
 strips.AOB_TILE_PIECE = "03 05 ? ? ? ? 52 8B 15 ? ? ? ? 2B 15 ? ? ? ? 2B D1 03 15 ? ? ? ? B9 ? ? ? ? "
   .. "52 50 E8 ? ? ? ? 83 7C 24 24 00"
 strips.TILE_X_OPERAND, strips.TILE_HOOK, strips.TILE_HOOK_SIZE = 2, 0x27, 5
@@ -81,11 +82,14 @@ ret
 ]]
 
 -- At the front corner (renderGmOverlayBuilding's tail): ecx = record, edi / esi where the game
--- draws the building, [SCRATCH+16] its index. Draws the strips the pieces did not draw this frame
--- (all of them for a picture that was not shown last frame) and notes the picture for the
--- pieces of the next frame.
+-- draws the building, [SCRATCH+16] its index. Draws the strips that a piece covered last frame
+-- but not this one (all of them for a picture that was not shown last frame) and notes the
+-- picture for the pieces of the next frame, with the strips the pieces covered this frame.
+-- Entry: { record, map x, map y, drawn by pieces this frame[3], covered by pieces the frame
+-- before[3], frame its overhang was drawn }.
 strips.REMEMBER_SCRIPT = [[
 pushad
+mov dword [OLD],0
 mov eax,edi
 add eax,[ecx+R_X]
 mov [SX],eax
@@ -119,12 +123,15 @@ add edx,ENTRY_SIZE
 dec ebx
 jmp m_find
 m_found:
+mov [OLD],edx
 xor ebx,ebx
 m_left:
 cmp ebx,[ecx+R_STRIP_COUNT]
 jae m_store
 bt dword [edx+12],ebx
 jc m_next
+bt dword [edx+24],ebx
+jnc m_next
 call DRAW_STRIP
 m_next:
 inc ebx
@@ -171,13 +178,29 @@ mov [edx+8],eax
 mov dword [edx+12],0
 mov dword [edx+16],0
 mov dword [edx+20],0
+mov dword [edx+24],0
+mov dword [edx+28],0
+mov dword [edx+32],0
+mov dword [edx+36],0
+mov eax,[OLD]
+test eax,eax
+je m_done
+mov ebx,[eax+12]
+mov [edx+24],ebx
+mov ebx,[eax+16]
+mov [edx+28],ebx
+mov ebx,[eax+20]
+mov [edx+32],ebx
 m_done:
 popad
 ret
 ]]
 
 -- Right after the game drew a piece of a building (esi = the building, ebx = the view, the
--- piece's x in TILE_X): every picture noted for this building last frame gets the two strips
+-- piece's x in TILE_X). At its first (back-most) piece of the frame a picture gets the strips no
+-- piece covered last frame - the parts hanging over the footprint's sides - so nothing beside
+-- the building that is drawn later is painted over. Then every picture noted for this building
+-- last frame gets the two strips
 -- that lie over this piece's 32 px.
 strips.TILE_SCRIPT = [[
 pushad
@@ -210,6 +233,21 @@ mov [SX],eax
 mov eax,[edx+8]
 sub eax,[CAM+4]
 mov [SY],eax
+mov eax,[FRAME]
+cmp [edx+36],eax
+je t_pieces
+mov [edx+36],eax
+xor ebx,ebx
+t_overhang:
+cmp ebx,[ecx+R_STRIP_COUNT]
+jae t_pieces
+bt dword [edx+24],ebx
+jc t_overhang_next
+call DRAW_STRIP
+t_overhang_next:
+inc ebx
+jmp t_overhang
+t_pieces:
 mov eax,[TILE_X]
 sub eax,[SX]
 sub eax,[ecx+R_PHASE]
