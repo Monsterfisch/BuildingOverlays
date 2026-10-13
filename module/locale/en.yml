@@ -19,8 +19,8 @@ editor_enabled_tooltip: |
   Turns the tool on or off completely. With it off, the key below does nothing.
 editor_key: Key that switches the tool on and off
 editor_key_tooltip: |
-  Hold Alt and press this key in a game. A magenta frame appears round the picked overlay,
-  which is also shown whatever is standing on the building. Alt + PageUp / PageDown picks the
-  next or previous overlay, Alt + the arrow keys move it one pixel, and Alt + End saves
-  every overlay's spot to calibration.lua in the module folder (also written to ucp3.log).
-  Press the key again to switch the tool off.
+  Hold Alt and press this key in a game to start moving overlays. The picked overlay gets a
+  magenta frame and is shown whatever is standing on the building, with blue arrow buttons
+  next to it: click one to move the picture a pixel, hold it to keep moving. Alt + PageUp /
+  PageDown picks another overlay, Alt + End saves every overlay to calibration.lua in the
+  module folder (ready to go into a plugin as overlays.lua). Press the key again to stop.

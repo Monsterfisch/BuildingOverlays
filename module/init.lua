@@ -101,6 +101,23 @@ local AOB_UNITS_ON_BUILDING = "8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B
   .. "33 DB 85 F6 57 7E"
 local BUILDINGS_STATE_BEFORE_ARRAY = 0x14
 
+-- The mouse state (`isMouseInsideBox` is called on it): +0x10 / +0x14 the mouse x / y on the
+-- screen. Read from the menu item handler, the same pattern smarter-recruits uses.
+local AOB_MOUSE = "8B 56 10 8B 46 4C 8B 4E 0C 52 8B 50 08 03 56 08 8B 40 04 03 46 04 51 52 50 "
+  .. "B9 ? ? ? ? E8"
+local MOUSE_OPERAND = 26
+local MOUSE_X, MOUSE_Y = 0x10, 0x14
+-- The one call of GetAsyncKeyState in the exe; the operand is its import slot.
+local AOB_ASYNC_KEY = "6A 28 FF 15 ? ? ? ? 66 85 C0"
+local ASYNC_KEY_OPERAND = 4
+local ZOOMED_OUT = 0x54                  -- in the texture render core: 1 while zoomed out
+
+-- The four arrow buttons next to the picked overlay: up and down on its right, left and
+-- right under it. Sizes in pixels.
+local ARROW_SIZE = 24
+local ARROW_GAP = 8
+local ARROW_NAMES = { "up", "down", "left", "right" }
+
 local UNITS = { empty = 0, occupied = 1, any = 2 }
 local ENTRANCES = { any = 0, left = 1, right = 2 }
 -- A bit per gate state (0 open, 1 closing, 2 closed, 3 opening).
@@ -207,6 +224,7 @@ je frame_ready
 mov eax,[ecx+R_OUT555]
 frame_ready:
 call drawit
+ARROW_CALLS
 skip:
 add ecx,RECORD_SIZE
 dec edx
@@ -235,6 +253,153 @@ pop ecx
 pop edx
 ret
 ]]
+
+-- One arrow button, its own assembly (UCP gives FASM 64 KB for source, symbols and output).
+-- In: eax / ebp its top left on the map surface, [SCRATCH+28] which arrow (0 up, 1 down,
+-- 2 left, 3 right), ecx the picked overlay's record. Tests the mouse against it (halved when
+-- zoomed out), moves the overlay while the left button is held on it (one step at once,
+-- then after a pause one every few frames, faster after a while) and draws it.
+local ARROW_SCRIPT = [[
+push ebx
+push ecx
+push edx
+mov [SCRATCH+20],eax
+mov [SCRATCH+24],ebp
+mov [SCRATCH+44],ecx
+mov edx,ARROW_SIZE
+cmp dword [ZOOMED_OUT],0
+je full_size
+sar eax,1
+sar ebp,1
+mov edx,ARROW_HALF
+full_size:
+xor ebx,ebx
+mov ecx,[MOUSE_X]
+sub ecx,eax
+cmp ecx,edx
+jae pointer_away
+mov ecx,[MOUSE_Y]
+sub ecx,ebp
+cmp ecx,edx
+jae pointer_away
+mov ebx,1
+pointer_away:
+push 1
+call dword [ASYNC_KEY]
+test ah,0x80
+jne button_down
+mov dword [STATE+12],0
+mov ecx,[SCRATCH+44]
+mov eax,[ecx+R_X]
+mov [STATE+16],eax
+mov eax,[ecx+R_Y]
+mov [STATE+20],eax
+jmp pressed
+button_down:
+test ebx,ebx
+je pressed
+mov eax,[STATE+12]
+inc dword [STATE+12]
+test eax,eax
+je one_step
+cmp eax,18
+jb pressed
+cmp eax,90
+jae fast
+test al,3
+jne pressed
+jmp one_step
+fast:
+test al,1
+jne pressed
+mov dword [SCRATCH+48],3
+jmp apply
+one_step:
+mov dword [SCRATCH+48],1
+apply:
+mov ecx,[SCRATCH+44]
+mov eax,[SCRATCH+48]
+mov edx,[SCRATCH+28]
+test edx,edx
+je go_up
+cmp edx,1
+je go_down
+cmp edx,2
+je go_left
+add [ecx+R_X],eax
+jmp pressed
+go_up:
+sub [ecx+R_Y],eax
+jmp pressed
+go_down:
+add [ecx+R_Y],eax
+jmp pressed
+go_left:
+sub [ecx+R_X],eax
+pressed:
+mov eax,[SCRATCH+28]
+add eax,eax
+add eax,ebx
+shl eax,3
+lea edx,[eax+ARROWS]
+cmp dword [PIXEL_FORMAT],0x565
+mov eax,[edx]
+je arrow_ready
+mov eax,[edx+4]
+arrow_ready:
+push eax
+push ARROW_SIZE
+push ARROW_SIZE
+push dword [SCRATCH+24]
+push dword [SCRATCH+20]
+mov ecx,RENDER_CORE
+mov eax,BLIT
+call eax
+pop edx
+pop ecx
+pop ebx
+ret
+]]
+
+-- Where the four arrows sit, as asm for the picked overlay (ecx): right of it, above and
+-- below its middle, and under it, left and right of its middle. They stay put while the
+-- button is held (else the overlay would slide out from under the mouse) and catch up with
+-- the overlay when it is let go.
+local function arrowCalls()
+  local lines = {}
+  local half = ARROW_SIZE + 2
+  local function add(text)
+    lines[#lines + 1] = text
+  end
+  for k = 0, 3 do
+    add("mov eax,[STATE+16]")
+    add("add eax,edi")
+    add("mov ebp,[STATE+20]")
+    add("add ebp,esi")
+    if k < 2 then
+      add("add eax,[ecx+R_W]")
+      add("add eax," .. ARROW_GAP)
+      add("push eax")
+      add("mov eax,[ecx+R_H]")
+      add("shr eax,1")
+      add("add ebp,eax")
+      add(k == 0 and ("sub ebp," .. half) or "add ebp,2")
+      add("pop eax")
+    else
+      add("push ebp")
+      add("mov ebp,[ecx+R_W]")
+      add("shr ebp,1")
+      add("add eax,ebp")
+      add(k == 2 and ("sub eax," .. half) or "add eax,2")
+      add("pop ebp")
+      add("add ebp,[ecx+R_H]")
+      add("add ebp," .. ARROW_GAP)
+    end
+    add("mov dword [SCRATCH+28]," .. k)
+    add("call ARROW")
+  end
+  return table.concat(lines, "\n")
+end
 
 local function log(level, text)
   if _G.log ~= nil then
@@ -320,6 +485,38 @@ local function framePixels(width, height)
     for x = 0, width - 1 do
       local edge = x < 2 or y < 2 or x >= width - 2 or y >= height - 2
       pixels[y * width + x + 1] = edge and { 255, 0, 255, 255 } or { 0, 0, 0, 0 }
+    end
+  end
+  return pixels
+end
+
+---A chevron arrow, ARROW_SIZE square, pointing the given way, as pixels for packTgx.
+local function arrowPixels(direction, hovered)
+  local size = ARROW_SIZE
+  local a, b, c               -- the two strokes: a to b and b to c
+  if direction == "left" then
+    a, b, c = { 16, 4 }, { 8, 12 }, { 16, 20 }
+  elseif direction == "right" then
+    a, b, c = { 8, 4 }, { 16, 12 }, { 8, 20 }
+  elseif direction == "up" then
+    a, b, c = { 4, 16 }, { 12, 8 }, { 20, 16 }
+  else
+    a, b, c = { 4, 8 }, { 12, 16 }, { 20, 8 }
+  end
+  local function distance(px, py, p, q)
+    local dx, dy = q[1] - p[1], q[2] - p[2]
+    local t = ((px - p[1]) * dx + (py - p[2]) * dy) / (dx * dx + dy * dy)
+    t = math.max(0, math.min(1, t))
+    local nx, ny = p[1] + t * dx - px, p[2] + t * dy - py
+    return math.sqrt(nx * nx + ny * ny)
+  end
+  local fill = hovered and { 255, 220, 0, 255 } or { 40, 90, 255, 255 }
+  local edge = { 10, 10, 50, 255 }
+  local pixels = {}
+  for y = 0, size - 1 do
+    for x = 0, size - 1 do
+      local d = math.min(distance(x + 0.5, y + 0.5, a, b), distance(x + 0.5, y + 0.5, b, c))
+      pixels[y * size + x + 1] = d <= 1.7 and fill or d <= 2.7 and edge or { 0, 0, 0, 0 }
     end
   end
   return pixels
@@ -486,6 +683,8 @@ end
 local function pick(index)
   state.selected = index
   core.writeInteger(state.block + 8, overlays[index].record)
+  core.writeInteger(state.block + 16, core.readInteger(overlays[index].record + R_X))
+  core.writeInteger(state.block + 20, core.readInteger(overlays[index].record + R_Y))
   log(INFO, string.format("%s: picked %s (%d of %d)", MODULE_NAME, overlays[index].name,
     index, #overlays))
 end
@@ -558,35 +757,55 @@ local function enable(self, config)
   local buildings = (typeDisplacement - B_TYPE) & 0xFFFFFFFF
 
   state = {
-    block = core.allocate(16, true),           -- +0 overlay count, +4 tool on, +8 picked record
+    block = core.allocate(24, true),   -- +0 count, +4 tool on, +8 picked record, +12 frames held,
+                                       -- +16 / +20 where the arrows sit (the picked spot)
     records = core.allocate(MAX_OVERLAYS * RECORD_SIZE, true),
     selected = 1,
+    arrows = core.allocate(#ARROW_NAMES * 2 * 8, true),   -- per arrow and hover state: 565, 555
   }
+  for index, name in ipairs(ARROW_NAMES) do
+    for hovered = 0, 1 do
+      local pixels = arrowPixels(name, hovered == 1)
+      local entry = state.arrows + ((index - 1) * 2 + hovered) * 8
+      core.writeInteger(entry, store(packTgx(ARROW_SIZE, ARROW_SIZE, pixels, true)))
+      core.writeInteger(entry + 4, store(packTgx(ARROW_SIZE, ARROW_SIZE, pixels, false)))
+    end
+  end
 
   local original = {}
   for offset = 0, TAIL_SIZE - 1 do
     original[#original + 1] = string.format("0x%02X", core.readByte(tail + offset) & 0xFF)
   end
   local script = SCRIPT:gsub("%f[%w_]ORIGINAL%f[^%w_]", "db " .. table.concat(original, ","))
+  script = script:gsub("%f[%w_]ARROW_CALLS%f[^%w_]", arrowCalls())
+  local mouse = core.readInteger(scan(AOB_MOUSE, "the mouse state") + MOUSE_OPERAND)
+  local asyncKey = core.readInteger(scan(AOB_ASYNC_KEY, "the key state call") + ASYNC_KEY_OPERAND)
   local values = {
     BUILDINGS = buildings, BSHOWN = B_SHOWN, STATE = state.block,
     FRAME0 = B_FRAMES[1], FRAME1 = B_FRAMES[2], FRAME2 = B_FRAMES[3], FRAME3 = B_FRAMES[4],
     BTYPE = B_TYPE, OCCUPIED = B_OCCUPIED, VARIATION = B_VARIATION, VARIATION_X = VARIATION_X,
-    GATE_STATE = B_GATE_STATE, SCRATCH = core.allocate(32, true), MAP_ORIENTATION = orientation,
+    GATE_STATE = B_GATE_STATE, SCRATCH = core.allocate(64, true), MAP_ORIENTATION = orientation,
     PIXEL_FORMAT = pixelFormat, RECORDS = state.records, RECORD_SIZE = RECORD_SIZE,
     RENDER_CORE = renderCore, BLIT = blit, RESUME = tail + TAIL_SIZE,
     BUILDINGS_STATE = buildings - BUILDINGS_STATE_BEFORE_ARRAY, UNITS_ON_BUILDING = unitsOnBuilding,
     R_TYPE = R_TYPE, R_UNITS = R_UNITS, R_ENTRANCE = R_ENTRANCE, R_GATE = R_GATE, R_X = R_X,
     R_Y = R_Y, R_W = R_W, R_H = R_H, R_DATA565 = R_DATA565, R_DATA555 = R_DATA555,
-    R_OUT565 = R_OUT565, R_OUT555 = R_OUT555,
+    R_OUT565 = R_OUT565, R_OUT555 = R_OUT555, ARROWS = state.arrows,
+    MOUSE_X = mouse + MOUSE_X, MOUSE_Y = mouse + MOUSE_Y, ASYNC_KEY = asyncKey,
+    ZOOMED_OUT = renderCore + ZOOMED_OUT, ARROW_SIZE = ARROW_SIZE, ARROW_HALF = ARROW_SIZE // 2,
   }
-  local used = {}
-  for name, value in pairs(values) do
-    if script:find("%f[%w_]" .. name .. "%f[^%w_]") then
-      used[name] = value
+  -- FASM gets a fixed 64 KB for source, symbols and output: only pass what a script uses.
+  local function assemble(text)
+    local used = {}
+    for name, value in pairs(values) do
+      if text:find("%f[%w_]" .. name .. "%f[^%w_]") then
+        used[name] = value
+      end
     end
+    return core.allocateAssembly(text, used)
   end
-  local blob = core.allocateAssembly(script, used)
+  values.ARROW = assemble(ARROW_SCRIPT)
+  local blob = assemble(script)
 
   -- The module's own list first; the count stays 0 until the first record is complete.
   local swap = setting(config, "large_gatehouse", "swap_sides")

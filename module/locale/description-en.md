@@ -16,11 +16,12 @@ picture goes away. Can be switched off in the settings.
 
 ## Moving overlays in the game
 
-Hold Alt and press O (the key can be changed, or the tool switched off, in the settings) to
-start the line-up tool. The picked overlay is then shown whatever is standing on the building
-and gets a magenta frame. Alt + PageUp / PageDown picks another overlay, Alt + the arrow keys
-move it one pixel, and Alt + End saves every overlay's spot to `calibration.lua` in the module
-folder. Alt + O again switches the tool off.
+Hold Alt and press O (the key can be changed, or the tool switched off, in the settings). The
+picked overlay gets a magenta frame and is shown whatever is standing on the building, with
+blue arrow buttons beside it - up and down on its right, left and right underneath. Click an
+arrow to move the picture one pixel, hold it to keep it moving. Alt + PageUp / PageDown picks
+another overlay. Alt + End saves every overlay's spot to `calibration.lua` in the module folder;
+that file can go straight into a plugin as its `overlays.lua`. Alt + O again ends the tool.
 
 ## Adding or changing a picture
 

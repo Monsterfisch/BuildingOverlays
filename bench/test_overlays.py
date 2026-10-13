@@ -157,6 +157,15 @@ def suite(ext):
         regs = h.lua.table()
         regs[b'ESI'] = vk
         h.keyfn(regs)
+    mouse = struct.unpack('<I', E.data[E.va2off(E.find('8B 56 10 8B 46 4C 8B 4E 0C 52 8B 50 08 03 56 08 8B 40 04 03 46 04 51 52 50 B9 ? ? ? ? E8')[0]) + 26:][:4])[0]
+    slot = struct.unpack('<I', E.data[E.va2off(E.find('6A 28 FF 15 ? ? ? ? 66 85 C0')[0]) + 4:][:4])[0]
+    fake = 0x7E000000
+    h.put32(slot, fake)
+    state = {'down': 0}
+    h.cpu.hooks[fake] = lambda cpu: (cpu.r.__setitem__('eax', state['down']), setattr(cpu, 'eip', cpu.pop()), cpu.r.__setitem__('esp', (cpu.r['esp'] + 4) & MASK))
+
+    h.put32(mouse + 0x10, 5)
+    h.put32(mouse + 0x14, 5)
     h.stub(units, result=1, ret_bytes=4)
     put_building(1, 45, variation=0x50)
     key(0x4F)
@@ -175,6 +184,61 @@ def suite(ext):
     saved = open(os.path.join(WORK, 'ucp', 'modules', 'building-overlays', 'calibration.lua')).read()
     check('Alt + End saves both overlays', saved.count('building = 45'), 2)
     check('the moved spot is saved', 'x = -105, y = -192' in saved, True)
+    # arrow buttons next to the picked overlay, clicked with the mouse
+    def saved():
+        key(0x23)
+        text = open(os.path.join(WORK, 'ucp', 'modules', 'building-overlays', 'calibration.lua')).read()
+        import re
+        return [tuple(map(int, m)) for m in re.findall(r'x = (-?\d+), y = (-?\d+) }', text)]
+
+    ox, oy = bx + spot[0], by + spot[1]     # the picked overlay is now the left one, unmoved
+    first = saved()[1]
+    check('the left overlay is at its default spot', first, (-107, -193))
+    arrows = {'up': (ox + 215 + 8, oy + 73 - 26), 'down': (ox + 215 + 8, oy + 73 + 2),
+              'left': (ox + 107 - 26, oy + 147 + 8), 'right': (ox + 107 + 2, oy + 147 + 8)}
+    draw(1, bx, by)
+    for name, (ax, ay) in arrows.items():
+        blue = sum(1 for yy in range(24) for xx in range(24) if pixel(ax + xx, ay + yy) == (0x2D5F if False else pixel(ax + xx, ay + yy)) and pixel(ax + xx, ay + yy) not in (0,))
+        check('arrow %s is drawn' % name, blue > 40, True)
+
+    def press(name, frames=1, down=1):
+        ax, ay = arrows[name]
+        h.put32(mouse + 0x10, ax + 12)
+        h.put32(mouse + 0x14, ay + 12)
+        state['down'] = 0x8000 * down
+        for _ in range(frames):
+            draw(1, bx, by)
+
+    press('right', 1)
+    check('click on the right arrow moves it one pixel', saved()[1], (-106, -193))
+    press('right', 3)
+    check('holding does not repeat at once', saved()[1], (-106, -193))
+    press('right', 1, down=0)
+    press('right', 1)
+    check('released and pressed again moves again', saved()[1], (-105, -193))
+    press('left', 1, down=0)
+    press('left', 1)
+    check('left arrow', saved()[1], (-106, -193))
+    press('up', 1, down=0)
+    press('up', 1)
+    check('up arrow', saved()[1], (-106, -194))
+    press('down', 1, down=0)
+    press('down', 1)
+    check('down arrow', saved()[1], (-106, -193))
+    press('down', 1, down=0)
+    press('down', 120)
+    check('holding repeats after a pause, and keeps going under a still mouse', saved()[1][1] > -193 + 30, True)
+    h.put32(mouse + 0x10, 5)
+    h.put32(mouse + 0x14, 5)
+    before = saved()[1]
+    state['down'] = 0x8000
+    draw(1, bx, by)
+    check('mouse away from the arrows does nothing', saved()[1], before)
+    state['down'] = 0
+    h.put32(core + 0x54, 1)
+    draw(1, bx, by)
+    h.put32(core + 0x54, 0)
+
     key(0x4F)
     draw(1, bx, by)
     check('tool off: units hide it again', count(), 0)
