@@ -359,24 +359,69 @@ def hover_suite(ext):
     tail = E.find('0F B7 85 ? ? ? ? 0F BF C0 8B 04 85 ? ? ? ? 33 C9 3B C1 89 4C 24 30 89 4C 24 34 89 44 24 24')[0]
     check('13 of the games own overlay checks changed', any('(13 checks changed)' in l for l in h.logs), True)
     t_off = E.va2off(tail)
-    hover_index = struct.unpack('<I', E.data[t_off + 0x54:][:4])[0]
-    hover_uid = struct.unpack('<I', E.data[t_off + 0x60:][:4])[0]
     buildings = struct.unpack('<I', E.data[t_off + 3:][:4])[0] - 0xD2
-    # a tower check: the 6 byte cmp at the stone keep case is now a call
+    start = E.find("8B 0D ? ? ? ? 8B 93 80 00 00 00 89 4B 74 03 15 ? ? ? ? 8B 8B 84 00 00 00 03 D2 01 53 74 03 0D ? ? ? ? 8B 43 74 69 C9 B0 1F 00 00 03 C8 BA 01 00 00 00 89 4B 74 89 73 1C 89 73 28")[0]
+    check('frame start hooked', h.m.read(start + 57, 1), bytes([0xE9]))
+    mouse_x = struct.unpack('<I', E.data[E.va2off(start) + 17:][:4])[0]
+    mouse_y = struct.unpack('<I', E.data[E.va2off(start) + 34:][:4])[0]
+    VIEW = 0x50000000
+    h.m.write(VIEW, bytes(0x100))
+
+    def new_frame(hovered):
+        """The game finished a frame with `hovered` under the mouse; the next one starts."""
+        h.put32(VIEW + 0x1C, hovered)
+        h.run(start + 57, until=start + 63, regs={'ebx': VIEW, 'esi': 0})
+        check('the frame start still clears the hover', h.u32(VIEW + 0x1C), 0)
+
     site = [a for a in range(tail - 0x3000, tail) if h.m.read(a, 1) == bytes([0xE8])
             and E.data[E.va2off(a):E.va2off(a) + 2] == bytes([0x39, 0x95])]
     check('the keep checks are calls now', len(site) >= 7, True)
     thunk = site[0] + 5 + struct.unpack('<i', h.m.read(site[0] + 1, 4))[0]
-    b = buildings + 3 * STRIDE
-    h.put32(b + 0xD8, 777)
-    def zf(index, uid):
-        h.put32(hover_index, index)
-        h.put32(hover_uid, uid)
+
+    def zf():
         cpu = h.run(thunk, regs={'ebp': 3 * STRIDE, 'esi': 0, 'edi': 0})
         return int(cpu.zf)
-    check('not hovered: the game sees an empty tower', zf(0, 0), 1)
-    check('hovered: the game sees an occupied tower', zf(3, 777), 0)
-    check('another building under the mouse: empty', zf(4, 777), 1)
+    new_frame(0)
+    check('not hovered: the game sees an empty tower', zf(), 1)
+    new_frame(3)
+    check('hovered last frame: the game sees an occupied tower', zf(), 0)
+    new_frame(4)
+    check('another building under the mouse: empty', zf(), 1)
+    new_frame(0)
+    h.put32(VIEW + 0x1C, 3)
+    check('hovered earlier in this frame counts as well', zf(), 0)
+
+    # this module's overlays
+    SURFACE = 0x40000000
+    core = struct.unpack('<I', E.data[t_off - 9:][:4])[0]
+    func = E.find('83 EC 18 8B 4C 24 28 53 55 8B 6C 24 24 69 ED 2C 03 00 00')[0]
+    render_gm = tail + struct.unpack('<i', E.data[t_off - 4:t_off])[0]
+    blit = render_gm + 0x53 + 5 + struct.unpack('<i', E.data[E.va2off(render_gm) + 0x54:][:4])[0]
+    surface_ptr = struct.unpack('<I', E.data[E.va2off(blit) + 0x50:][:4])[0]
+    pix_fmt = struct.unpack('<I', E.data[E.va2off(E.find('81 3D ? ? ? 00 65 05 00 00 75 40')[0]) + 2:][:4])[0]
+    b = buildings + 1 * STRIDE
+    h.m.write(b, bytes(STRIDE))
+    h.put32(b + 0x34, 1); h.put32(b + 0x38, 1); h.put16(b + 0xD2, 45); h.put16(b + 0x102, 0x50)
+    h.put16(b + 0xEE, 10); h.put16(b + 0xF0, 10); h.put32(b + 0xF8, 3)
+
+    def drawn():
+        for off in range(0, 0x1FB0 * 600, 4096):
+            h.m.write(SURFACE + off, bytes(4096))
+        h.put32(surface_ptr, SURFACE); h.put32(core + 4, 1); h.put32(core + 0x58, 0)
+        h.put32(core + 0x5C, 600); h.put32(core + 0x54, 0); h.put32(pix_fmt, 0x565)
+        h.run(func, stack=[1, 400, 450, 0], limit=3_000_000)
+        return any(h.m.read(SURFACE + y * 0x1FB0 + 320 * 2, 2) != bytes(2) for y in range(300, 400))
+
+    h.put32(mouse_x, 5); h.put32(mouse_y, 5)
+    new_frame(0); new_frame(0)
+    check('hover mode: drawn while the mouse is elsewhere (units do not matter)', drawn(), True)
+    new_frame(1)
+    check('hover mode: hidden while the mouse was on the building', drawn(), False)
+    new_frame(0); new_frame(0)
+    h.put32(mouse_x, 400 - 107 + 50); h.put32(mouse_y, 450 - 193 + 50)
+    check('hover mode: hidden while the mouse is on the picture itself', drawn(), False)
+    h.put32(core + 0x54, 1)
+    h.put32(mouse_x, (400 - 107) // 2 + 20); h.put32(mouse_y, (450 - 193) // 2 + 20)
 
 
 for which in (sys.argv[1:] or ['van', 'ext']):

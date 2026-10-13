@@ -104,10 +104,6 @@ local U_PASSAGE = 0x402
 local KEEP_FIRST, KEEP_LAST = 40, 44     -- manor house .. the largest keep: the lord lives there
 local B_X, B_Y, B_SIZE, B_UID = 0xEE, 0xF0, 0xF8, 0xD8
 
--- The building under the mouse (the one the game shows the health bar of): its index and uid,
--- compared at +0x52 and +0x5E of the tail.
-local TAIL_HOVER_INDEX = { 0x52, { 0x3B, 0x05 } }
-local TAIL_HOVER_UID = { 0x5E, { 0x8B, 0x0D } }
 
 -- The game's own tower and keep overlays: `cmp dword [reg + building +0xB0], edx / 0` before
 -- each, in renderGmOverlayBuilding and renderGmOverlayBuilding2 (the 0x3000 bytes before the
@@ -117,19 +113,114 @@ local VANILLA_SEARCH = 0x3000
 local REGISTERS = { [0] = "eax", "ecx", "edx", "ebx", nil, "ebp", "esi", "edi" }
 local VANILLA_THUNK = [[
 push eax
-mov eax,[HOVER_INDEX]
+mov eax,[LAST_HOVER]
+imul eax,eax,BUILDING_SIZE
+cmp eax,REG
+je v_hide
+mov eax,[VIEWPORT]
+test eax,eax
+je v_show
+mov eax,[eax+VP_HOVER]
 imul eax,eax,BUILDING_SIZE
 cmp eax,REG
 jne v_show
-mov eax,[HOVER_UID]
-cmp eax,[REG+UID_FIELD]
-jne v_show
+v_hide:
 pop eax
 test esp,esp
 ret
 v_show:
 pop eax
 cmp esp,esp
+ret
+]]
+
+-- Which building is under the mouse. renderMap writes a marker pixel under the mouse before it
+-- draws each building and stores the building in the view's +0x1C when the marker got painted
+-- over; it clears +0x1C when it starts a frame. The hook at that clear keeps the last frame's
+-- answer (LAST_HOVER) and the view (VIEWPORT). The pixel under the mouse is (view +0x80 + mouse
+-- x, view +0x84 + mouse y) on the map surface, which the operands below give.
+local AOB_FRAME_START = "8B 0D ? ? ? ? 8B 93 80 00 00 00 89 4B 74 03 15 ? ? ? ? 8B 8B 84 00 00 00 "
+  .. "03 D2 01 53 74 03 0D ? ? ? ? 8B 43 74 69 C9 B0 1F 00 00 03 C8 BA 01 00 00 00 89 4B 74 89 73 1C "
+  .. "89 73 28"
+local FRAME_START_MOUSE_X, FRAME_START_MOUSE_Y = 17, 34
+local FRAME_START_HOOK, FRAME_START_SIZE = 57, 6
+local VP_HOVER, VP_MOUSE_X, VP_MOUSE_Y = 0x1C, 0x80, 0x84
+local FRAME_START_SCRIPT = [[
+push eax
+mov eax,[ebx+VP_HOVER]
+mov [LAST_HOVER],eax
+mov [VIEWPORT],ebx
+pop eax
+mov [ebx+0x1C],esi
+mov [ebx+0x28],esi
+jmp FRAME_RESUME
+]]
+
+-- "Is the mouse on this building or on this overlay?" (ebx building, ecx record, edi / esi where
+-- the building is drawn, [SCRATCH+16] its index) -> eax 1 / 0. The overlay's own rectangle
+-- counts too, or a hidden overlay would show again as soon as the mouse is only over the part
+-- of the picture that sticks out of the building, and flicker.
+local HOVER_SCRIPT = [[
+push edx
+mov edx,[SCRATCH+16]
+cmp edx,[LAST_HOVER]
+je h_yes
+mov edx,[VIEWPORT]
+test edx,edx
+je h_no
+push ebp
+mov ebp,[SCRATCH+16]
+cmp ebp,[edx+VP_HOVER]
+pop ebp
+je h_yes
+push ebx
+push ebp
+mov ebx,[edx+VP_MOUSE_X]
+add ebx,[MOUSE_X]
+mov ebp,[edx+VP_MOUSE_Y]
+add ebp,[MOUSE_Y]
+mov eax,edi
+add eax,[ecx+R_X]
+mov edx,esi
+add edx,[ecx+R_Y]
+cmp dword [ZOOMED_OUT],0
+je h_full
+sar eax,1
+sar edx,1
+sub ebx,eax
+sub ebp,edx
+mov eax,[ecx+R_W]
+shr eax,1
+cmp ebx,eax
+jae h_out
+mov eax,[ecx+R_H]
+shr eax,1
+cmp ebp,eax
+jae h_out
+jmp h_in
+h_full:
+sub ebx,eax
+sub ebp,edx
+cmp ebx,[ecx+R_W]
+jae h_out
+cmp ebp,[ecx+R_H]
+jae h_out
+h_in:
+pop ebp
+pop ebx
+pop edx
+mov eax,1
+ret
+h_out:
+pop ebp
+pop ebx
+h_no:
+pop edx
+xor eax,eax
+ret
+h_yes:
+pop edx
+mov eax,1
 ret
 ]]
 
@@ -236,30 +327,20 @@ je draw
 mov eax,[ecx+R_UNITS]
 cmp eax,2
 je units_ok
-cmp dword [SCRATCH+4],-1
-jne occupancy_known
 mov eax,HOVER_ONLY
 test eax,eax
 jne by_mouse
+cmp dword [SCRATCH+4],-1
+jne occupancy_known
 call UNITS_HERE
-jmp occupancy_set
-by_mouse:
-xor eax,eax
-push edx
-mov edx,[SCRATCH+16]
-cmp edx,[HOVER_INDEX]
-jne hover_done
-mov edx,[ebx+B_UID]
-cmp edx,[HOVER_UID]
-jne hover_done
-mov eax,1
-hover_done:
-pop edx
-occupancy_set:
 mov [SCRATCH+4],eax
 occupancy_known:
-mov eax,[ecx+R_UNITS]
-cmp eax,[SCRATCH+4]
+mov eax,[SCRATCH+4]
+jmp occupancy_test
+by_mouse:
+call HOVERED
+occupancy_test:
+cmp eax,[ecx+R_UNITS]
 jne skip
 units_ok:
 mov eax,[ecx+R_ENTRANCE]
@@ -1043,8 +1124,8 @@ local function patchVanillaOverlays(tail, values)
     local register = size and REGISTERS[modrm & 7]
     if register ~= nil and (core.readInteger(address + 2) & 0xFFFFFFFF) == field then
       local thunk = core.allocateAssembly((VANILLA_THUNK:gsub("REG", register)), {
-        HOVER_INDEX = values.HOVER_INDEX, HOVER_UID = values.HOVER_UID,
-        BUILDING_SIZE = BUILDING_SIZE, UID_FIELD = (values.BUILDINGS + B_UID) & 0xFFFFFFFF,
+        LAST_HOVER = values.LAST_HOVER, VIEWPORT = values.VIEWPORT, VP_HOVER = VP_HOVER,
+        BUILDING_SIZE = BUILDING_SIZE,
       })
       local code = { 0xE8, core.itob(core.getRelativeAddress(address, thunk, -5)) }
       for _ = 6, size do
@@ -1103,8 +1184,9 @@ local function enable(self, config)
     PIXEL_FORMAT = pixelFormat, RECORDS = state.records, RECORD_SIZE = RECORD_SIZE,
     RENDER_CORE = renderCore, BLIT = blit, RESUME = tail + TAIL_SIZE,
     HOVER_ONLY = setting(config, "mouse", "hover_only") and 1 or 0,
-    HOVER_INDEX = readOperand(tail, TAIL_HOVER_INDEX, "the building under the mouse"),
-    HOVER_UID = readOperand(tail, TAIL_HOVER_UID, "the building under the mouse"),
+    LAST_HOVER = core.allocate(4, true), VIEWPORT = core.allocate(4, true),
+    VP_HOVER = VP_HOVER, VP_MOUSE_X = VP_MOUSE_X, VP_MOUSE_Y = VP_MOUSE_Y,
+    ZOOMED_OUT = renderCore + 0x54,
     TRANSLATE = readOperand(unitsTest, UNITS_TRANSLATE, "the tile rows"),
     UNIT_TILES = readOperand(unitsTest, UNITS_TILES, "the units on the tiles"),
     UNIT_OWNER = readOperand(unitsTest, UNITS_OWNER, "the unit owner"),
@@ -1120,6 +1202,18 @@ local function enable(self, config)
   values.UNIT_PASSAGE = unitBase + U_PASSAGE
   local script = SCRIPT:gsub("%f[%w_]ORIGINAL%f[^%w_]", "db " .. table.concat(original, ","))
   values.UNITS_HERE = assemble(UNITS_SCRIPT, values)
+  if values.HOVER_ONLY == 1 then
+    local start = scan(AOB_FRAME_START, "the start of the map drawing")
+    values.MOUSE_X = core.readInteger(start + FRAME_START_MOUSE_X)
+    values.MOUSE_Y = core.readInteger(start + FRAME_START_MOUSE_Y)
+    values.FRAME_RESUME = start + FRAME_START_HOOK + FRAME_START_SIZE
+    local frameHook = assemble(FRAME_START_SCRIPT, values)
+    core.writeCode(start + FRAME_START_HOOK,
+      { 0xE9, core.itob(core.getRelativeAddress(start + FRAME_START_HOOK, frameHook, -5)), 0x90 })
+    values.HOVERED = assemble(HOVER_SCRIPT, values)
+  else
+    values.HOVERED = 0
+  end
   local blob = assemble(script, values)
 
   -- The module's own list first; the count stays 0 until the first record is complete.

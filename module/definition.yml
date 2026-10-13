@@ -1,7 +1,7 @@
 name: building-overlays
 display-name: Building Overlays
 type: module
-version: 1.0.12
+version: 1.0.13
 author: Monsterfish
 meta:
   version: 1.0.0
