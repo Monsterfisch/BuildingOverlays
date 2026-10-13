@@ -27,7 +27,7 @@ def exe(p):
 
 
 class Host:
-    def __init__(self, extreme=False, config=None, foreign_patches=True, aic=True):
+    def __init__(self, extreme=False, config=None, foreign_patches=True, aic=True, pre=None):
         self.E = exe(EXT_PATH if extreme else VAN_PATH)
         self.m = Memory(self.image)
         self.cpu = CPU(self.m)
@@ -98,6 +98,8 @@ class Host:
             self.m.write(sd + 9, b'\xE9\x00\x00\x00\x72\x90')
             self.m.write(sd, bytes([0xE9,0,0,0,0x73,0x90,0x90]))   # smarter-buildings
         os.chdir(G)   # io.open('ucp/modules/...') relative to the game folder
+        if pre is not None:
+            pre(self)
         self.mod = lua.eval(b'dofile')((MODULE + r'\init.lua').encode('mbcs'))
         if isinstance(self.mod, tuple):     # init.lua may return (module, { public = ... })
             self.mod, self.public = self.mod[0], self.mod[1]

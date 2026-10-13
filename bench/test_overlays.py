@@ -394,6 +394,8 @@ def hover_suite(ext):
     E = h.E
     tail = E.find('0F B7 85 ? ? ? ? 0F BF C0 8B 04 85 ? ? ? ? 33 C9 3B C1 89 4C 24 30 89 4C 24 34 89 44 24 24')[0]
     check('13 of the games own overlay checks changed', any('(13 checks changed)' in l for l in h.logs), True)
+    check('the roof reads go through the cache', any('reads)' in l for l in h.logs), True)
+    check('all 162 picture calls hooked', any('162 of the game' in l for l in h.logs), True)
     STRIDE_ = STRIDE
     t_off = E.va2off(tail)
     buildings = struct.unpack('<I', E.data[t_off + 3:][:4])[0] - 0xD2
@@ -454,6 +456,12 @@ def hover_suite(ext):
     h.put32(b3 + 0xB0, 1)
     check('mouse on it and troops: both go', frames(), [])
     new_frame(0); new_frame(0)
+    h.put32(b3 + 0x60, 0)             # the game clears the roof while troops are up there
+    check('troops on it, roof cleared by the game: the remembered roof stays', frames(), [9])
+    new_frame(3)
+    check('... and goes under the mouse', frames(), [])
+    h.put32(b3 + 0x60, 9)
+    new_frame(0); new_frame(0)
     h.put16(b3 + 0xD2, 41)
     h.put32(b3 + 0xB0, 0)
     check('a keep draws its picture as in the game', frames(), [5])
@@ -492,7 +500,24 @@ def hover_suite(ext):
     h.put32(mouse_x, (400 - 107) // 2 + 20); h.put32(mouse_y, (450 - 193) // 2 + 20)
 
 
+def foreign_suite(ext):
+    print('=== another module redirected picture calls first, %s' % ('Extreme' if ext else 'vanilla'))
+    fresh_work()
+    def redirect(h):
+        # what interface-visual-fixes does: five renderGM calls of the tower half go elsewhere
+        E = h.E
+        pad = 0x6F000000
+        h.m.write(pad, bytes([0xC2, 0x10, 0x00]))      # ret 0x10
+        hits = E.find('52 50 6A 36 B9 ? ? ? ? E8 ? ? ? ? 8B 86 ? ? ? ? 85 C0 0F 84')
+        for a in hits[:4]:
+            call = a + 9
+            h.m.write(call + 1, struct.pack('<i', pad - (call + 5)))
+    h = Host(extreme=ext, config={}, foreign_patches=False, aic=False, pre=redirect)
+    check('the numbering stays at 162 with redirected calls', any('162 of the game' in l for l in h.logs), True)
+
+
 for which in (sys.argv[1:] or ['van', 'ext']):
+    foreign_suite(which == 'ext')
     suite(which == 'ext')
     hover_suite(which == 'ext')
 print('FAILED: %s' % fails if fails else 'all green')

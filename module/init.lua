@@ -805,7 +805,10 @@ cmp edx,FIRST_TOWER
 jb s_draw
 cmp edx,LAST_TOWER
 ja s_draw
-mov eax,[eax+B_ROOF]
+mov eax,[CURRENT]
+cmp eax,MAX_BUILDINGS
+jae s_wall
+mov eax,[ROOF_CACHE+eax*4]
 test eax,eax
 je s_wall
 cmp eax,[esp+0x1C]
@@ -880,11 +883,60 @@ add esp,4
 ret 0x10
 ]]
 
+-- A tower's roof picture number: the game sets it to 0 while troops are on the tower (that is
+-- how the roof goes away), so in "only while the mouse is on it" mode the reads of it in the
+-- overlay drawing go through ROOF_READ, which remembers the last roof per building and hands
+-- that back while the game has cleared it. COMMON then hides it only under the mouse.
+local MAX_BUILDINGS = 10000
+local ROOF_READ = [[
+mov eax,[ebp+ROOF_FIELD]
+push edx
+movzx edx,word [ebp+TYPE_FIELD]
+cmp edx,FIRST_TOWER
+jb r_done
+cmp edx,LAST_TOWER
+ja r_done
+mov edx,[CURRENT]
+cmp edx,MAX_BUILDINGS
+jae r_done
+test eax,eax
+je r_cached
+mov [ROOF_CACHE+edx*4],eax
+jmp r_done
+r_cached:
+mov eax,[ROOF_CACHE+edx*4]
+r_done:
+pop edx
+ret
+]]
+
 local sites = {}                         -- { records (type 0), number }
 
 local function bytesOf(value)
   value = value & 0xFFFFFFFF
   return value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF, (value >> 24) & 0xFF
+end
+
+---The game's code section (from the PE header in memory).
+local function textSection()
+  local base = 0x400000
+  local nt = base + core.readInteger(base + 0x3C)
+  local sections = core.readSmallInteger(nt + 6) & 0xFFFF
+  local first = nt + 0x18 + (core.readSmallInteger(nt + 0x14) & 0xFFFF)
+  for index = 0, sections - 1 do
+    local header = first + index * 0x28
+    local name = ""
+    for k = 0, 7 do
+      local c = core.readByte(header + k) & 0xFF
+      if c == 0 then break end
+      name = name .. string.char(c)
+    end
+    if name == ".text" then
+      local start = base + core.readInteger(header + 0x0C)
+      return start, start + core.readInteger(header + 0x08)
+    end
+  end
+  return 0x401000, 0x5A0000
 end
 
 local function installSites(tail, renderGm, values)
@@ -906,14 +958,25 @@ local function installSites(tail, renderGm, values)
     [renderGm + RENDER_GM_ALPHA] = { 0x24, 0x28, 0 },
     [readCallTarget(renderGm, RENDER_GM_ANIMATION_CALL, "the animation drawing")] = { 0x1C, 0x20, 0 },
   }
+  -- Another module may already have redirected some of these calls (interface-visual-fixes
+  -- does five): a call that lands outside the game's code, right after `mov ecx, <texture
+  -- core>`, is such a picture call. It is hooked as well (on top of the other module's code),
+  -- so the numbering is the same whatever else is installed.
+  local textStart, textEnd = textSection()
   local found = {}
   for _, range in ipairs({ { f2, f2End }, { f1, tail } }) do
     local address = range[1]
     while address <= range[2] - 5 do
       if (core.readByte(address) & 0xFF) == 0xE8 then
         local target = (address + 5 + core.readInteger(address + 1)) & 0xFFFFFFFF
-        if targets[target] ~= nil then
-          found[#found + 1] = { address = address, target = target, kind = targets[target] }
+        local kind = targets[target]
+        if kind == nil and (target < textStart or target >= textEnd)
+            and (core.readByte(address - 5) & 0xFF) == 0xB9
+            and (core.readInteger(address - 4) & 0xFFFFFFFF) == values.RENDER_CORE then
+          kind = { 0x24, 0x28, 0 }
+        end
+        if kind ~= nil then
+          found[#found + 1] = { address = address, target = target, kind = kind }
           address = address + 4
         end
       end
@@ -932,6 +995,8 @@ local function installSites(tail, renderGm, values)
   values.I_TARGET, values.I_XO, values.I_YO, values.I_RECORDS, values.I_PLAIN =
     I_TARGET, I_XO, I_YO, I_RECORDS, I_PLAIN
   values.TYPE_COUNT, values.R_SEEN = TYPE_COUNT, R_SEEN
+  values.MAX_BUILDINGS = MAX_BUILDINGS
+  values.ROOF_CACHE = core.allocate(MAX_BUILDINGS * 4, true)
   local common = assemble(SITE_COMMON, values)
   local infos = core.allocate(math.max(#found, 1) * INFO_SIZE, true)
   local filler = {}
@@ -970,6 +1035,25 @@ local function installSites(tail, renderGm, values)
     core.writeCode(entry[1], code)
   end
   log(INFO, string.format("%s: %d of the game's own overlay pictures can be moved", MODULE_NAME, #found))
+  if values.HOVER_ONLY == 1 then
+    local roofField = (values.BUILDINGS + B_ROOF) & 0xFFFFFFFF
+    local reader = assemble(ROOF_READ, {
+      ROOF_FIELD = roofField, TYPE_FIELD = (values.BUILDINGS + B_TYPE) & 0xFFFFFFFF,
+      FIRST_TOWER = FIRST_TOWER, LAST_TOWER = LAST_TOWER, CURRENT = values.CURRENT,
+      MAX_BUILDINGS = MAX_BUILDINGS, ROOF_CACHE = values.ROOF_CACHE,
+    })
+    local reads = 0
+    for address = f1, tail - 6 do
+      if (core.readByte(address) & 0xFF) == 0x8B and (core.readByte(address + 1) & 0xFF) == 0x85
+          and (core.readInteger(address + 2) & 0xFFFFFFFF) == roofField then
+        local code = { 0xE8, bytesOf(reader - (address + 5)) }
+        code[#code + 1] = 0x90
+        core.writeCode(address, code)
+        reads = reads + 1
+      end
+    end
+    log(INFO, string.format("%s: tower roofs stay while troops are on them (%d reads)", MODULE_NAME, reads))
+  end
 end
 
 ---A saved offset for one of the game's own pictures: { game = n, building = type, x, y }.
