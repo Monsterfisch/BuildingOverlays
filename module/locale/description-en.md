@@ -28,7 +28,7 @@ tower's crenellations and every other game overlay keep the game's own rules. An
 
 The game draws overlays in one piece at a building's front corner, so they show through towers
 and walls standing right next to it. This module draws its own pictures, and the game's own
-pictures on keeps, gatehouses and towers, in narrow strips together with the building's tiles
+overlay pictures on every building, in narrow strips together with the building's tiles
 instead, so whatever stands in front covers them. Parts hanging over the sides of a building go
 with its back-most tile. Can be switched off in the settings ("Let buildings in front cover the
 overlays").

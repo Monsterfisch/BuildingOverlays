@@ -825,8 +825,8 @@ add [esp+eax],ebx
 pop ebx
 cmp dword [V_VIEW],0
 jne s_normal_view
-cmp dword [ecx+I_PLAIN],0
-je s_normal_view
+cmp dword [ecx+I_PLAIN],1
+jne s_normal_view
 mov eax,[esp]
 movzx eax,word [eax+BTYPE]
 cmp eax,CASTLE_FIRST
@@ -841,8 +841,8 @@ s_normal_view:
 mov eax,HOVER_ONLY
 test eax,eax
 je s_draw
-cmp dword [ecx+I_PLAIN],0
-je s_draw
+cmp dword [ecx+I_PLAIN],1
+jne s_draw
 mov eax,[esp]
 movzx edx,word [eax+BTYPE]
 cmp edx,FIRST_TOWER
@@ -873,53 +873,11 @@ s_draw:
 mov eax,TILE_STRIPS
 test eax,eax
 je s_whole
-cmp dword [ecx+I_PLAIN],0
-je s_whole
-mov eax,[esp]
-movzx eax,word [eax+BTYPE]
-cmp eax,STRIP_FIRST
-jb s_whole
-cmp eax,CASTLE_LAST
-jbe s_strip
-cmp eax,FIRST_TOWER
-jb s_whole
-cmp eax,LAST_TOWER
-ja s_whole
-s_strip:
-mov eax,[esp+0x18]
-mov eax,[FIRST_FRAMES+eax*4]
-add eax,[esp+0x1C]
-dec eax
-cmp eax,MAX_IMAGES
-jae s_whole
-mov [CUT_IMAGE],eax
-mov edx,[ANCHOR_X]
-sub edx,[esp+0x20]
-and edx,15
-mov [CUT_PHASE],edx
-shl eax,4
-add eax,edx
-mov edx,[CUTS+eax*4]
-test edx,edx
-jne s_have_cut
-push eax
-call LUA_CUT
-pop eax
-mov edx,[CUTS+eax*4]
-s_have_cut:
-cmp edx,-1
-je s_whole
-test edx,edx
-je s_whole
-mov eax,[esp+0x20]
-mov [SX],eax
-mov eax,[esp+0x24]
-mov [SY],eax
-mov eax,[CURRENT]
-mov [SCRATCH+16],eax
-mov ecx,edx
-call REMEMBER_AT
-jmp s_skip
+call STRIP_GAME
+cmp eax,1
+je s_skip
+cmp eax,2
+je s_skip_faded
 s_whole:
 add esp,4
 s_go:
@@ -976,6 +934,13 @@ pop edx
 pop eax
 add esp,4
 ret 0x10
+s_skip_faded:
+add esp,4
+pop ecx
+pop edx
+pop eax
+add esp,4
+ret 0x14
 ]]
 
 -- A tower's roof picture number: while troops are on the tower (hasUnitsOntop, +0x2F8) the game
@@ -984,7 +949,7 @@ ret 0x10
 -- ROOF_READ, which remembers the roof of the empty tower per building and hands that back while
 -- troops are up there. COMMON then hides it only under the mouse.
 local B_ON_TOP = 0x2F8
-local MAX_BUILDINGS = 10000
+local MAX_BUILDINGS = 2048             -- the game has room for 2000
 local ROOF_READ = [[
 mov eax,[ebp+ROOF_FIELD]
 push edx
@@ -1068,7 +1033,7 @@ local function installSites(tail, renderGm, values)
   -- above the return address), and whether a skipped call has to clean 0x10 bytes (renderGM)
   local targets = {
     [renderGm] = { 0x24, 0x28, 1 },
-    [renderGm + RENDER_GM_BLEND] = { 0x24, 0x28, 0 },
+    [renderGm + RENDER_GM_BLEND] = { 0x24, 0x28, 2 },
     [renderGm + RENDER_GM_ALPHA] = { 0x24, 0x28, 0 },
     [readCallTarget(renderGm, RENDER_GM_ANIMATION_CALL, "the animation drawing")] = { 0x1C, 0x20, 0 },
   }
@@ -1111,11 +1076,14 @@ local function installSites(tail, renderGm, values)
   values.ANCHOR_X = core.allocate(4, true)
   values.CUT_IMAGE, values.CUT_PHASE = core.allocate(4, true), core.allocate(4, true)
   values.GM_OFFSETS = core.readInteger(renderGm + RENDER_GM_OFFSETS)
+  values.CUT_CALL = core.allocate(4, true)
+  values.GM_TYPES = (values.RENDER_CORE + 0x530) & 0xFFFFFFFF
   if values.TILE_STRIPS == 1 then
     values.CUTS = core.allocate(MAX_IMAGES * 16 * 4, true)
     values.LUA_CUT = luaFunction("cutting a game picture", function()
       local image, phase = core.readInteger(values.CUT_IMAGE), core.readInteger(values.CUT_PHASE)
-      local cut = strips.cutGame(values, image, phase, store)
+      local size = core.readInteger(values.DRAW_KIND) == 2 and 1 or 2
+      local cut = strips.cutGame(values, image, phase, store, size)
       if cut == 0 then
         cut = -1     -- not cuttable: drawn whole from now on (the asm tests for 0 only)
       end
@@ -1123,12 +1091,15 @@ local function installSites(tail, renderGm, values)
     end)
   else
     values.CUTS, values.LUA_CUT, values.SX, values.SY, values.REMEMBER_AT = 0, 0, 0, 0, 0
+    values.DRAW_KIND, values.DRAW_ALPHA, values.DRAW_OWNER, values.DRAW_SPRITE = 0, 0, 0, 0
+    values.OWNER_GLOBAL, values.SPRITE_GLOBAL = 0, 0
   end
   values.I_TARGET, values.I_XO, values.I_YO, values.I_RECORDS, values.I_PLAIN =
     I_TARGET, I_XO, I_YO, I_RECORDS, I_PLAIN
   values.TYPE_COUNT, values.R_SEEN = TYPE_COUNT, R_SEEN
   values.MAX_BUILDINGS = MAX_BUILDINGS
   values.ROOF_CACHE = core.allocate(MAX_BUILDINGS * 4, true)
+  values.STRIP_GAME = values.TILE_STRIPS == 1 and assemble(strips.STRIP_GAME_SCRIPT, values) or 0
   local common = assemble(SITE_COMMON, values)
   local infos = core.allocate(math.max(#found, 1) * INFO_SIZE, true)
   local filler = {}
@@ -1782,6 +1753,15 @@ local function enable(self, config)
       values.MAX_BUILDINGS, values.SLOT_SIZE, values.ENTRY_SIZE = MAX_BUILDINGS, strips.SLOT_SIZE, strips.ENTRY_SIZE
       values.ENTRIES_SIZE, values.MAX_ENTRIES = strips.ENTRIES_SIZE, strips.MAX_ENTRIES
       values.R_STRIPS, values.R_STRIP_COUNT, values.R_PHASE = strips.R_STRIPS, strips.R_STRIP_COUNT, strips.R_PHASE
+      local faded = renderGm + RENDER_GM_BLEND
+      values.TGX_FADED = readCallTarget(faded, 0xC9, "the faded picture drawing")
+      values.INDEXED = readCallTarget(faded, 0x96, "the colour-indexed picture drawing")
+      values.INDEXED_FADED = readCallTarget(faded, 0xF7, "the faded colour-indexed picture drawing")
+      local f1 = scan(F1_AOB, "the building overlay drawing")
+      values.OWNER_GLOBAL = readOperand(f1, { 0x33, { 0xA3 } }, "the drawn owner colour")
+      values.SPRITE_GLOBAL = readOperand(f1, { 0xFF, { 0xC7, 0x05 } }, "the drawn sprite")
+      values.DRAW_KIND, values.DRAW_ALPHA = core.allocate(4, true), core.allocate(4, true)
+      values.DRAW_OWNER, values.DRAW_SPRITE = core.allocate(4, true), core.allocate(4, true)
       values.CAMERA = assemble(strips.CAMERA_SCRIPT, values)
       values.DRAW_STRIP = assemble(strips.DRAW_STRIP_SCRIPT, values)
       values.REMEMBER_AT = assemble(strips.REMEMBER_AT_SCRIPT, values)

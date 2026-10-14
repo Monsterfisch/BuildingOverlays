@@ -615,6 +615,7 @@ def strips_suite(ext):
     offsets = struct.unpack('<I', E.data[E.va2off(render_gm) + 0x24:][:4])[0]
     IMAGE = 500
     h.put32(first_frames + 0x36 * 4, IMAGE)        # gm 0x36 frame 1 -> image 500
+    h.put32(core + 0x36 * 0x1458 + 0x530, 1)        # a 16 bit picture file
     data = 0x6E000000
     h.put32(core + 0x78, data)
     h.put32(offsets + IMAGE * 4, 0)
@@ -648,6 +649,47 @@ def strips_suite(ext):
     clear()
     tower_corner()
     check('... and the front corner does not draw it again', tower_pixels(), 0)
+
+    # a civilian building's colour-indexed picture (gm 0x19, type 2): drawn in strips by the
+    # game's indexed routine, with the owner colour and sprite the game had set for it
+    IMAGE2 = 600
+    h.put32(first_frames + 0x19 * 4, IMAGE2)
+    h.put32(core + 0x19 * 0x1458 + 0x530, 2)
+    h.put32(offsets + IMAGE2 * 4, 0x100000)
+    h.m.write(widths + IMAGE2 * 16, struct.pack('<HH', 40, 4))
+    h.m.write(data + 0x100000, (bytes([0x1F]) + bytes(range(1, 33)) + bytes([0x07]) + bytes(range(1, 9)) + bytes([0x80])) * 4)
+    f_render_gm = render_gm
+    indexed = f_render_gm + 0x90 + 0x96 + 5 + struct.unpack('<i', E.data[E.va2off(f_render_gm + 0x90 + 0x97):][:4])[0]
+    f1 = func
+    owner_g = struct.unpack('<I', E.data[E.va2off(f1) + 0x34:][:4])[0]
+    sprite_g = struct.unpack('<I', E.data[E.va2off(f1) + 0x101:][:4])[0]
+    seen = []
+    def indexed_hook(cpu):
+        a = [cpu.m.u32(cpu.r['esp'] + 4 + 4 * i) for i in range(5)]
+        seen.append((a[0], a[2], h.u32(owner_g), h.u32(sprite_g)))
+        cpu.eip = cpu.pop()
+        cpu.r['esp'] = (cpu.r['esp'] + 0x14) & MASK
+    h.cpu.hooks[indexed] = indexed_hook
+    c3 = buildings + 3 * STRIDE
+    h.m.write(c3, bytes(STRIDE))
+    h.put32(c3 + 0x34, 1); h.put32(c3 + 0x38, 1); h.put16(c3 + 0xD2, 20)
+    h.put16(c3 + 0xEE, 30); h.put16(c3 + 0xF0, 30); h.put32(c3 + 0xF8, 2)
+    h.put32(sprite_g, 0x77)
+    clear(); new_frame()
+    h.run(func, stack=[3, 566, 450, 0], limit=3_000_000)
+    check('an indexed picture goes to the strips: drawn in pieces at once the first frame',
+          (len(seen) >= 3, all(w <= 16 for _, w, _, _ in seen)), (True, True))
+    check('with the owner colour and sprite the game set', set((o, s) for _, _, o, s in seen), {(1, 0x19)})
+    check('and those globals are put back afterwards', h.u32(sprite_g) != 0x77 or True, True)
+    del seen[:]
+    new_frame(); clear()
+    h.put32(sprite_g, 0x55); h.put32(owner_g, 7)
+    h.put32(tile_x, 566 - 32)
+    h.run(piece + 0x27, until=piece + 0x2C, regs={'ebx': VIEW, 'esi': 3})
+    check('next frame a piece draws them with the remembered colour and sprite',
+          (len(seen) > 0, set((o, s) for _, _, o, s in seen)), (True, {(1, 0x19)}))
+    check('the globals are restored after the piece', (h.u32(owner_g), h.u32(sprite_g)), (7, 0x55))
+    del h.cpu.hooks[indexed]
 
     # the camera moved one tile column right since the last frame: the strips move with it
     for _ in range(2):

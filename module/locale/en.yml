@@ -41,5 +41,5 @@ tile_by_tile_tooltip: |
   The game draws its overlays in one piece at a building's front corner, so they show through
   towers and walls standing right next to the building. With this on, this module's pictures
   are drawn in narrow strips together with the building's own tiles, and anything standing in
-  front covers them properly. The same goes for the game's own overlays on keeps, gatehouses
-  and towers; other buildings' overlays are drawn as the game does.
+  front covers them properly. The same goes for the game's own overlay pictures on every
+  building (flags, animations, tower tops, ...).

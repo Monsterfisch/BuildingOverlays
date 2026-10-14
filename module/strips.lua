@@ -18,9 +18,12 @@ strips.R_STRIPS, strips.R_STRIP_COUNT, strips.R_PHASE = 0x34, 0x38, 0x3C
 -- so no rotation has to be worked out. Strips no piece covers (the picture hangs over the sides
 -- of the footprint) are drawn with the building's back-most piece, the first one drawn, so
 -- neighbours drawn after it cover them too.
--- PENDING, per building: stamp[2], count[2], then two sets (by frame parity) of up to 4 entries
+-- PENDING, per building: stamp[2], count[2], then two sets (by frame parity) of up to 16 entries
 -- (see REMEMBER_SCRIPT).
-strips.SLOT_SIZE, strips.ENTRY_SIZE, strips.ENTRIES_SIZE, strips.MAX_ENTRIES = 0x290, 40, 0x140, 8
+-- A picture is drawn the way the game would have drawn it (DRAW_KIND / DRAW_ALPHA, and for the
+-- game's colour-indexed pictures the owner colour and sprite the game had set): kind 0 a 16 bit
+-- TGX picture (faded with DRAW_ALPHA 1..31), kind 2 a colour-indexed one.
+strips.SLOT_SIZE, strips.ENTRY_SIZE, strips.ENTRIES_SIZE, strips.MAX_ENTRIES = 0x710, 56, 0x380, 16
 strips.AOB_TILE_PIECE = "03 05 ? ? ? ? 52 8B 15 ? ? ? ? 2B 15 ? ? ? ? 2B D1 03 15 ? ? ? ? B9 ? ? ? ? "
   .. "52 50 E8 ? ? ? ? 83 7C 24 24 00"
 strips.TILE_X_OPERAND, strips.TILE_HOOK, strips.TILE_HOOK_SIZE = 2, 0x27, 5
@@ -52,7 +55,8 @@ pop eax
 ret
 ]]
 
--- ecx = record, ebx = strip, picture's top left on screen in [SX] / [SY]; keeps every register
+-- ecx = record, ebx = strip, picture's top left on screen in [SX] / [SY], how to draw it in
+-- DRAW_KIND / DRAW_ALPHA / DRAW_OWNER / DRAW_SPRITE; keeps every register
 strips.DRAW_STRIP_SCRIPT = [[
 pushad
 mov esi,[ecx+R_STRIPS]
@@ -61,21 +65,72 @@ shl eax,4
 add esi,eax
 cmp dword [esi+12],0
 je d_out
+mov edi,[ecx+R_H]
+mov ebx,[SX]
+add ebx,[esi+8]
+cmp dword [DRAW_KIND],2
+je d_indexed
 cmp dword [PIXEL_FORMAT],0x565
 mov eax,[esi]
 je d_ready
 mov eax,[esi+4]
 d_ready:
+mov edx,[DRAW_ALPHA]
+test edx,edx
+je d_plain
+push edx
 push eax
-push dword [ecx+R_H]
+push edi
 push dword [esi+12]
 push dword [SY]
-mov eax,[SX]
-add eax,[esi+8]
+push ebx
+mov ecx,RENDER_CORE
+mov eax,TGX_FADED
+call eax
+jmp d_out
+d_plain:
 push eax
+push edi
+push dword [esi+12]
+push dword [SY]
+push ebx
 mov ecx,RENDER_CORE
 mov eax,BLIT
 call eax
+jmp d_out
+d_indexed:
+push dword [OWNER_GLOBAL]
+push dword [SPRITE_GLOBAL]
+mov eax,[DRAW_OWNER]
+mov [OWNER_GLOBAL],eax
+mov eax,[DRAW_SPRITE]
+mov [SPRITE_GLOBAL],eax
+mov eax,[esi]
+mov edx,[DRAW_ALPHA]
+test edx,edx
+je d_indexed_plain
+push edx
+push eax
+push edi
+push dword [esi+12]
+push dword [SY]
+push ebx
+mov ecx,RENDER_CORE
+mov eax,INDEXED_FADED
+call eax
+jmp d_indexed_done
+d_indexed_plain:
+push eax
+push edi
+push dword [esi+12]
+push dword [SY]
+push ebx
+mov ecx,RENDER_CORE
+mov eax,INDEXED
+call eax
+d_indexed_done:
+pop dword [SPRITE_GLOBAL]
+pop dword [OWNER_GLOBAL]
 d_out:
 popad
 ret
@@ -86,8 +141,10 @@ ret
 -- but not this one (all of them for a picture that was not shown last frame) and notes the
 -- picture for the pieces of the next frame, with the strips the pieces covered this frame.
 -- Entry: { record, map x, map y, drawn by pieces this frame[3], covered by pieces the frame
--- before[3], frame its overhang was drawn }.
+-- before[3], frame its overhang was drawn, kind, alpha, owner colour, sprite }.
 strips.REMEMBER_SCRIPT = [[
+mov dword [DRAW_KIND],0
+mov dword [DRAW_ALPHA],0
 push eax
 mov eax,edi
 add eax,[ecx+R_X]
@@ -99,8 +156,9 @@ pop eax
 jmp REMEMBER_AT
 ]]
 
--- The same with the picture's place on screen already in [SX] / [SY] (the game's own pictures,
--- ecx = their cut, which is laid out like a record: R_H, R_STRIPS, R_STRIP_COUNT, R_PHASE).
+-- The same with the picture's place on screen already in [SX] / [SY] and the way to draw it in
+-- DRAW_* (the game's own pictures, ecx = their cut, which is laid out like a record: R_H,
+-- R_STRIPS, R_STRIP_COUNT, R_PHASE).
 strips.REMEMBER_AT_SCRIPT = [[
 pushad
 mov dword [OLD],0
@@ -190,6 +248,14 @@ mov dword [edx+24],0
 mov dword [edx+28],0
 mov dword [edx+32],0
 mov dword [edx+36],0
+mov eax,[DRAW_KIND]
+mov [edx+40],eax
+mov eax,[DRAW_ALPHA]
+mov [edx+44],eax
+mov eax,[DRAW_OWNER]
+mov [edx+48],eax
+mov eax,[DRAW_SPRITE]
+mov [edx+52],eax
 mov eax,[OLD]
 test eax,eax
 je m_done
@@ -241,6 +307,14 @@ mov [SX],eax
 mov eax,[edx+8]
 sub eax,[CAM+4]
 mov [SY],eax
+mov eax,[edx+40]
+mov [DRAW_KIND],eax
+mov eax,[edx+44]
+mov [DRAW_ALPHA],eax
+mov eax,[edx+48]
+mov [DRAW_OWNER],eax
+mov eax,[edx+52]
+mov [DRAW_SPRITE],eax
 mov eax,[FRAME]
 cmp [edx+36],eax
 je t_pieces
@@ -286,7 +360,10 @@ jmp TILE_RESUME
 ---Cuts a picture into strips one tile column wide, where the tile columns fall for an overlay
 ---at x (see "Tile by tile"): strip j covers columns [phase + 16 (j - 1), phase + 16 j).
 ---Decodes one of the game's TGX pictures from memory into words (nil = see-through), w x h.
-local function decodeGame(data, w, h)
+---size 2: 16 bit pixels, size 1: colour indices.
+local function decodeGame(data, w, h, size)
+  local read = size == 2 and function(a) return core.readSmallInteger(a) & 0xFFFF end
+    or function(a) return core.readByte(a) & 0xFF end
   local words, row, column, at = {}, 0, 0, data
   local limit = w * h * 3 + h * 4 + 64
   while row < h and limit > 0 do
@@ -296,15 +373,15 @@ local function decodeGame(data, w, h)
     local n, kind = (token & 0x1F) + 1, token & 0xE0
     if kind == 0x00 then
       for _ = 1, n do
-        if column < w then words[row * w + column + 1] = core.readSmallInteger(at) & 0xFFFF end
-        at = at + 2
+        if column < w then words[row * w + column + 1] = read(at) end
+        at = at + size
         column = column + 1
       end
     elseif kind == 0x20 then
       column = column + n
     elseif kind == 0x40 then
-      local word = core.readSmallInteger(at) & 0xFFFF
-      at = at + 2
+      local word = read(at)
+      at = at + size
       for _ = 1, n do
         if column < w then words[row * w + column + 1] = word end
         column = column + 1
@@ -318,7 +395,7 @@ local function decodeGame(data, w, h)
 end
 
 ---TGX for raw words (already in the screen's pixel format), as packTgx does for pixels.
-local function packWords(w, h, words, from, width)
+local function packWords(w, h, words, from, width, size)
   local out = {}
   for y = 0, h - 1 do
     local x = 0
@@ -333,7 +410,9 @@ local function packWords(w, h, words, from, width)
         for k = 0, n - 1 do
           local word = words[y * w + from + x + k + 1]
           out[#out + 1] = word & 0xFF
-          out[#out + 1] = word >> 8
+          if size == 2 then
+            out[#out + 1] = word >> 8
+          end
         end
       else
         out[#out + 1] = 0x20 | (n - 1)
@@ -347,7 +426,7 @@ end
 
 ---Cuts one of the game's pictures (image number `image`) into strips for the given phase and
 ---returns its cut, laid out like a record. v: GM_OFFSETS, RENDER_CORE, WIDTHS, RECORD_SIZE.
-function strips.cutGame(v, image, phase, store)
+function strips.cutGame(v, image, phase, store, size)
   local data = (core.readInteger(v.GM_OFFSETS + image * 4) + core.readInteger(v.RENDER_CORE + 0x78))
     & 0xFFFFFFFF
   local w = core.readSmallInteger(v.WIDTHS + image * 16) & 0xFFFF
@@ -355,14 +434,14 @@ function strips.cutGame(v, image, phase, store)
   if data == 0 or w == 0 or h == 0 or w > 2048 or h > 2048 then
     return 0
   end
-  local words = decodeGame(data, w, h)
+  local words = decodeGame(data, w, h, size)
   local count = (w - phase + 15) // 16 + 1
   local table_ = core.allocate(count * 16, true)
   for j = 0, count - 1 do
     local from = math.max(0, phase + 16 * (j - 1))
     local to = math.min(w, phase + 16 * j)
     if to > from then
-      local strip = store(packWords(w, h, words, from, to - from))
+      local strip = store(packWords(w, h, words, from, to - from, size))
       core.writeInteger(table_ + j * 16, strip)
       core.writeInteger(table_ + j * 16 + 4, strip)
       core.writeInteger(table_ + j * 16 + 8, from)
@@ -404,5 +483,82 @@ function strips.cut(record, picture, x, packTgx, store)
   core.writeInteger(record + strips.R_STRIP_COUNT, count)
 end
 
+
+-- The tile by tile path for one of the game's pictures (called from SITE_COMMON with the
+-- building pushed: [esp+4]; ecx = the call's info, kept). Returns eax 0 = draw it the game's way,
+-- 1 / 2 = it was handed to the strips (renderGM / its faded variant: the call is to be skipped).
+strips.STRIP_GAME_SCRIPT = [[
+mov eax,[ecx+I_PLAIN]
+test eax,eax
+je g_none
+mov [CUT_CALL],eax
+mov dword [DRAW_ALPHA],0
+cmp eax,2
+jne g_alpha_known
+mov eax,[esp+0x2C]
+cmp eax,0x20
+jae g_none
+mov [DRAW_ALPHA],eax
+g_alpha_known:
+mov eax,[esp+0x1C]
+imul eax,eax,0x1458
+mov eax,[eax+GM_TYPES]
+cmp eax,2
+je g_indexed
+cmp eax,1
+je g_true_colour
+cmp eax,6
+jne g_none
+g_true_colour:
+mov dword [DRAW_KIND],0
+jmp g_strip
+g_indexed:
+mov dword [DRAW_KIND],2
+mov eax,[OWNER_GLOBAL]
+mov [DRAW_OWNER],eax
+mov eax,[SPRITE_GLOBAL]
+mov [DRAW_SPRITE],eax
+g_strip:
+mov eax,[esp+0x1C]
+mov eax,[FIRST_FRAMES+eax*4]
+add eax,[esp+0x20]
+dec eax
+cmp eax,MAX_IMAGES
+jae g_none
+mov [CUT_IMAGE],eax
+mov edx,[ANCHOR_X]
+sub edx,[esp+0x24]
+and edx,15
+mov [CUT_PHASE],edx
+shl eax,4
+add eax,edx
+mov edx,[CUTS+eax*4]
+test edx,edx
+jne g_have_cut
+push eax
+call LUA_CUT
+pop eax
+mov edx,[CUTS+eax*4]
+g_have_cut:
+cmp edx,-1
+je g_none
+test edx,edx
+je g_none
+mov eax,[esp+0x24]
+mov [SX],eax
+mov eax,[esp+0x28]
+mov [SY],eax
+mov eax,[CURRENT]
+mov [SCRATCH+16],eax
+push ecx
+mov ecx,edx
+call REMEMBER_AT
+pop ecx
+mov eax,[CUT_CALL]
+ret
+g_none:
+xor eax,eax
+ret
+]]
 
 return strips
