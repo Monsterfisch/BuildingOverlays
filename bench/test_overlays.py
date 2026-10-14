@@ -489,6 +489,10 @@ def hover_suite(ext):
     check('a mangonel on the tower: no roof', 9 in frames(), False)
     h.put16(unit_tiles + 11 * 2, 0)
     check('the engine gone: the roof is back', 9 in frames(), True)
+    h.put16(unit_tiles + 11 * 2, 0)
+    h.put16(b3 + 0x2F8, 0)
+    new_frame(0); new_frame(0)
+
     # a square tower that has had troops on it since before its roof was ever seen
     b5 = buildings + 5 * STRIDE
     h.m.write(b5, bytes(STRIDE))
@@ -713,6 +717,41 @@ def strips_suite(ext):
           (len(seen) > 0, set((o, s) for _, _, o, s in seen)), (True, {(1, 0x19)}))
     check('the globals are restored after the piece', (h.u32(owner_g), h.u32(sprite_g)), (7, 0x55))
     del h.cpu.hooks[indexed]
+
+    # a unit standing on the gatehouse, drawn rows late by renderUnits: its rectangle gets the
+    # overlay strips again, so the overlay covers it
+    ufn = E.find('8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B0 0C 01 00 00 33 DB 85 F6 57 7E')[0]
+    unit_tiles = struct.unpack('<I', E.data[E.va2off(ufn) + 0x3D:][:4])[0]
+    unit_base = struct.unpack('<I', E.data[E.va2off(ufn) + 0x51:][:4])[0] - 0x96
+    note = E.find("57 55 56 51 B9 ? ? ? ? E8 ? ? ? ? E9 ? ? ? ? 8B 4C 24 18 85 C9 0F 84")[0] + 0x13
+    done = E.find("8B 44 24 2C 83 C0 01 3B 44 24 20 89 44 24 2C 0F 8C ? ? ? ? 5F 5E 5D 5B 83 C4 24")[0]
+    u9 = unit_base + 9 * 0x490
+    h.put16(u9 + 0x8E, 24); h.put16(u9 + 0x2A2, 0)
+    h.m.write(u9 + 0x402, bytes([1]))     # walking the passage: the overlay stays
+    h.put16(unit_tiles + 11 * 2, 9)
+    ux, uy, uw, uh = bx - 60, by - 150, 24, 40
+    h.m.write(u9 + 0x14, struct.pack('<hhhh', ux, uy, uw, uh))
+    for _ in range(2):
+        new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
+    new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32)
+    before = {}
+    for yy in range(uy, uy + uh):
+        for xx in range(ux, ux + uw):
+            before[(xx, yy)] = h.m.read(SURFACE + yy * PITCH + xx * 2, 2)
+    UNIT_COLOUR = struct.pack('<H', 0x1F)
+    def unit_drawn_by_game():
+        h.run(note, until=note + 6, stack=[0, 0, 0, 0, 0, 9])
+        for yy in range(uy, uy + uh):
+            h.m.write(SURFACE + yy * PITCH + ux * 2, UNIT_COLOUR * uw)
+        h.run(done, until=done + 7, stack=[0] * 16)
+    unit_drawn_by_game()
+    covered = sum(1 for k, v in before.items() if v != bytes(2) and h.m.read(SURFACE + k[1] * PITCH + k[0] * 2, 2) == v)
+    overlay_px = sum(1 for v in before.values() if v != bytes(2))
+    check('the overlay covers the unit standing on its building', (overlay_px > 100, covered), (True, overlay_px))
+    outside = h.m.read(SURFACE + (uy + uh) * PITCH + ux * 2, 2)
+    check('nothing is drawn below the unit', outside == before.get((ux, uy + uh), outside), True)
+    h.put16(unit_tiles + 11 * 2, 0)
+    new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
 
     # the camera moved one tile column right since the last frame: the strips move with it
     for _ in range(2):

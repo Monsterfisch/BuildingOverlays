@@ -121,25 +121,6 @@ local B_X, B_Y, B_SIZE, B_UID = 0xEE, 0xF0, 0xF8, 0xD8
 -- the game would and leaves the roof to the mouse. Every other building gets the game's answer.
 local VANILLA_SEARCH = 0x3000
 local REGISTERS = { [0] = "eax", "ecx", "edx", "ebx", nil, "ebp", "esi", "edi" }
-local VANILLA_THUNK = [[
-push eax
-movzx eax,word [REG+TYPE_FIELD]
-cmp eax,FIRST_TOWER
-jb v_game
-cmp eax,LAST_TOWER
-ja v_game
-pop eax
-ORIGINAL
-je v_open
-mov dword [GATED],1
-v_open:
-cmp esp,esp
-ret
-v_game:
-pop eax
-ORIGINAL
-ret
-]]
 
 -- Which building is under the mouse. renderMap writes a marker pixel under the mouse before it
 -- draws each building and stores the building in the view's +0x1C when the marker got painted
@@ -152,85 +133,11 @@ local AOB_FRAME_START = "8B 0D ? ? ? ? 8B 93 80 00 00 00 89 4B 74 03 15 ? ? ? ? 
 local FRAME_START_MOUSE_X, FRAME_START_MOUSE_Y = 17, 34
 local FRAME_START_HOOK, FRAME_START_SIZE = 57, 6
 local VP_HOVER, VP_MOUSE_X, VP_MOUSE_Y = 0x1C, 0x80, 0x84
-local FRAME_START_SCRIPT = [[
-inc dword [FRAME]
-push eax
-mov eax,[ebx+VP_HOVER]
-mov [LAST_HOVER],eax
-mov [VIEWPORT],ebx
-pop eax
-mov [ebx+0x1C],esi
-mov [ebx+0x28],esi
-jmp FRAME_RESUME
-]]
 
 -- "Is the mouse on this building or on this overlay?" (ebx building, ecx record, edi / esi where
 -- the building is drawn, [SCRATCH+16] its index) -> eax 1 / 0. The overlay's own rectangle
 -- counts too, or a hidden overlay would show again as soon as the mouse is only over the part
 -- of the picture that sticks out of the building, and flicker.
-local HOVER_SCRIPT = [[
-push edx
-mov edx,[SCRATCH+16]
-cmp edx,[LAST_HOVER]
-je h_yes
-mov edx,[VIEWPORT]
-test edx,edx
-je h_no
-push ebp
-mov ebp,[SCRATCH+16]
-cmp ebp,[edx+VP_HOVER]
-pop ebp
-je h_yes
-push ebx
-push ebp
-mov ebx,[edx+VP_MOUSE_X]
-add ebx,[MOUSE_X]
-mov ebp,[edx+VP_MOUSE_Y]
-add ebp,[MOUSE_Y]
-mov eax,edi
-add eax,[ecx+R_X]
-mov edx,esi
-add edx,[ecx+R_Y]
-cmp dword [ZOOMED_OUT],0
-je h_full
-sar eax,1
-sar edx,1
-sub ebx,eax
-sub ebp,edx
-mov eax,[ecx+R_W]
-shr eax,1
-cmp ebx,eax
-jae h_out
-mov eax,[ecx+R_H]
-shr eax,1
-cmp ebp,eax
-jae h_out
-jmp h_in
-h_full:
-sub ebx,eax
-sub ebp,edx
-cmp ebx,[ecx+R_W]
-jae h_out
-cmp ebp,[ecx+R_H]
-jae h_out
-h_in:
-pop ebp
-pop ebx
-pop edx
-mov eax,1
-ret
-h_out:
-pop ebp
-pop ebx
-h_no:
-pop edx
-xor eax,eax
-ret
-h_yes:
-pop edx
-mov eax,1
-ret
-]]
 
 local UNITS = { empty = 0, occupied = 1, any = 2 }
 local ENTRANCES = { any = 0, left = 1, right = 2 }
@@ -749,30 +656,6 @@ end
 -- the saved files use, and it is the same in both executables.
 local F1_AOB = "83 EC 18 8B 4C 24 28 53 55 8B 6C 24 24 69 ED 2C 03 00 00"   -- renderGmOverlayBuilding
 local F2_AOB = "51 8B 4C 24 08 53 55 56 8B F1 69 F6 2C 03 00 00 0F BF 86"   -- its second half
-local F1_ENTRY = [[
-push eax
-mov eax,[esp+12]
-mov [ANCHOR_X],eax
-mov eax,[esp+8]
-mov [CURRENT],eax
-mov dword [GATED],0
-pop eax
-sub esp,0x18
-mov ecx,[esp+0x28]
-jmp RESUME
-]]
-local F2_ENTRY = [[
-push eax
-mov eax,[esp+12]
-mov [ANCHOR_X],eax
-mov eax,[esp+8]
-mov [CURRENT],eax
-mov dword [GATED],0
-pop eax
-push ecx
-mov ecx,[esp+8]
-jmp RESUME
-]]
 local R_SEEN = R_TYPE                    -- a pseudo record has no type: the frame it was drawn in
 local RENDER_GM_BLEND, RENDER_GM_ALPHA, RENDER_GM_ANIMATION_CALL = 0x90, 0x4B0, 0x7F
 local RENDER_GM_FIRST_FRAMES, RENDER_GM_WIDTHS = 0x0C, 0x43   -- operands inside renderGM
@@ -949,53 +832,10 @@ ret 0x14
 -- A tower's roof picture number: while troops are on the tower (hasUnitsOntop, +0x2F8) the game
 -- sets it to 0, or for the lookout tower to an open top, which is how the roof goes away. So in
 -- "only while the mouse is on it" mode the reads of it in the overlay drawing go through
--- ROOF_READ, which remembers the roof of the empty tower per building and hands that back while
+-- strips.ROOF_READ, which remembers the roof of the empty tower per building and hands that back while
 -- troops are up there. COMMON then hides it only under the mouse.
 local B_ON_TOP = 0x2F8
 local MAX_BUILDINGS = 2048             -- the game has room for 2000
-local ROOF_READ = [[
-mov eax,[ebp+ROOF_FIELD]
-push edx
-movzx edx,word [ebp+TYPE_FIELD]
-cmp edx,FIRST_TOWER
-jb r_done
-cmp edx,LAST_TOWER
-ja r_done
-mov [ROOF_TYPE],edx
-mov edx,[CURRENT]
-cmp edx,MAX_BUILDINGS
-jae r_done
-push ebx
-push eax
-lea ebx,[ebp+BUILDINGS]
-call SIEGE_HERE
-test eax,eax
-pop eax
-pop ebx
-jne r_none
-cmp word [ebp+ON_TOP_FIELD],0
-jne r_cached
-test eax,eax
-je r_cached
-mov [ROOF_CACHE+edx*4],eax
-jmp r_done
-r_cached:
-cmp dword [ROOF_CACHE+edx*4],0
-je r_default
-mov eax,[ROOF_CACHE+edx*4]
-jmp r_done
-r_default:
-mov edx,[ROOF_TYPE]
-cmp dword [ROOF_DEFAULTS+edx*4],0
-je r_done
-mov eax,[ROOF_DEFAULTS+edx*4]
-jmp r_done
-r_none:
-xor eax,eax
-r_done:
-pop edx
-ret
-]]
 
 local sites = {}                         -- { records (type 0), number }
 
@@ -1149,7 +989,7 @@ local function installSites(tail, renderGm, values)
     core.writeCode(call.address + 1, { bytesOf(stub - (call.address + 5)) })
     sites[number] = { records = records, number = number }
   end
-  for _, entry in ipairs({ { f1, F1_ENTRY, 7 }, { f2, F2_ENTRY, 5 } }) do
+  for _, entry in ipairs({ { f1, strips.F1_ENTRY, 7 }, { f2, strips.F2_ENTRY, 5 } }) do
     local hook = core.allocateAssembly(entry[2], { CURRENT = values.CURRENT, GATED = values.GATED,
       ANCHOR_X = values.ANCHOR_X,
       RESUME = entry[1] + entry[3] })
@@ -1176,7 +1016,7 @@ local function installSites(tail, renderGm, values)
     siegeValues.SIEGE_SCRATCH = core.allocate(8, true)
     siegeValues.MANGONEL, siegeValues.TOWER_BALLISTA = 41, 61
     local siegeHere = assemble(strips.SIEGE_SCRIPT, siegeValues)
-    local reader = assemble(ROOF_READ, {
+    local reader = assemble(strips.ROOF_READ, {
       ROOF_FIELD = roofField, TYPE_FIELD = (values.BUILDINGS + B_TYPE) & 0xFFFFFFFF,
       ON_TOP_FIELD = (values.BUILDINGS + B_ON_TOP) & 0xFFFFFFFF,
       FIRST_TOWER = FIRST_TOWER, LAST_TOWER = LAST_TOWER, CURRENT = values.CURRENT,
@@ -1680,7 +1520,7 @@ local function patchVanillaOverlays(tail, values)
       for offset = 0, size - 1 do
         bytes[#bytes + 1] = string.format("0x%02X", core.readByte(address + offset) & 0xFF)
       end
-      local script = VANILLA_THUNK:gsub("REG", register)
+      local script = strips.VANILLA_THUNK:gsub("REG", register)
       script = script:gsub("ORIGINAL", "db " .. table.concat(bytes, ","))
       local thunk = core.allocateAssembly(script, {
         TYPE_FIELD = (values.BUILDINGS + B_TYPE) & 0xFFFFFFFF, GATED = values.GATED,
@@ -1768,11 +1608,11 @@ local function enable(self, config)
   values.MOUSE_X = core.readInteger(start + FRAME_START_MOUSE_X)
   values.MOUSE_Y = core.readInteger(start + FRAME_START_MOUSE_Y)
   values.FRAME_RESUME = start + FRAME_START_HOOK + FRAME_START_SIZE
-  local frameHook = assemble(FRAME_START_SCRIPT, values)
+  local frameHook = assemble(strips.FRAME_START_SCRIPT, values)
   core.writeCode(start + FRAME_START_HOOK,
     { 0xE9, core.itob(core.getRelativeAddress(start + FRAME_START_HOOK, frameHook, -5)), 0x90 })
   if values.HOVER_ONLY == 1 then
-    values.HOVERED = assemble(HOVER_SCRIPT, values)
+    values.HOVERED = assemble(strips.HOVER_SCRIPT, values)
   else
     values.HOVERED = 0
   end
@@ -1803,6 +1643,38 @@ local function enable(self, config)
       values.DRAW_STRIP = assemble(strips.DRAW_STRIP_SCRIPT, values)
       values.REMEMBER_AT = assemble(strips.REMEMBER_AT_SCRIPT, values)
       values.REMEMBER = assemble(strips.REMEMBER_SCRIPT, values)
+      values.MARK_UNITS = 0
+      local sortOk, sortProblem = pcall(function()
+        local note = scan("57 55 56 51 B9 ? ? ? ? E8 ? ? ? ? E9 ? ? ? ? 8B 4C 24 18 85 C9 0F 84",
+          "where the map draws a unit")
+        local done = scan("8B 44 24 2C 83 C0 01 3B 44 24 20 89 44 24 2C 0F 8C ? ? ? ? 5F 5E 5D 5B 83 C4 24",
+          "where the map is done with a unit")
+        local u = {}
+        for key, value in pairs(values) do u[key] = value end
+        u.MAX_UNITS = strips.MAX_UNITS
+        u.UNIT_STAMP = core.allocate(strips.MAX_UNITS * 4, true)
+        u.UNIT_BUILDING = core.allocate(strips.MAX_UNITS * 4, true)
+        u.CUR_UNIT, u.MARK_B = core.allocate(4, true), core.allocate(4, true)
+        u.MARK_SCRATCH = core.allocate(8, true)
+        u.UX, u.UX2, u.UY, u.UY2, u.ZJ_END = core.allocate(4, true), core.allocate(4, true),
+          core.allocate(4, true), core.allocate(4, true), core.allocate(4, true)
+        u.UNIT_RECT = values.UNIT_OWNER - U_OWNER + 0x14
+        u.CLIP_TOP, u.CLIP_BOTTOM = values.RENDER_CORE + 0x58, values.RENDER_CORE + 0x5C
+        u.NOTE_RESUME = note + 0x13 + 6
+        u.REDRAW_RESUME = done + 7
+        local noteHook = assemble(strips.NOTE_SCRIPT, u)
+        local redrawHook = assemble(strips.REDRAW_SCRIPT, u)
+        values.MARK_UNITS = assemble(strips.MARK_SCRIPT, u)
+        values.MARKED = core.allocate(MAX_BUILDINGS * 4, true)
+        values.MARK_B = u.MARK_B
+        core.writeCode(note + 0x13, { 0xE9, core.itob(core.getRelativeAddress(note + 0x13, noteHook, -5)), 0x90 })
+        core.writeCode(done, { 0xE9, core.itob(core.getRelativeAddress(done, redrawHook, -5)), 0x90, 0x90 })
+      end)
+      if not sortOk then
+        values.MARK_UNITS = 0
+        values.MARKED, values.MARK_B = 0, 0
+        log(WARNING, MODULE_NAME .. ": units on buildings may show over overlays: " .. tostring(sortProblem))
+      end
       local tileHook = assemble(strips.TILE_SCRIPT, values)
       core.writeCode(piece + strips.TILE_HOOK,
         { 0xE9, core.itob(core.getRelativeAddress(piece + strips.TILE_HOOK, tileHook, -5)) })

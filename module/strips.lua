@@ -294,6 +294,21 @@ and eax,1
 cmp [ebp+eax*4],edx
 jne t_out
 call CAMERA
+mov ecx,MARK_UNITS
+test ecx,ecx
+je t_marked
+mov ecx,[FRAME]
+cmp [MARKED+esi*4],ecx
+je t_marked
+mov [MARKED+esi*4],ecx
+push ebx
+mov [MARK_B],esi
+mov ebx,esi
+imul ebx,ebx,BUILDING_SIZE
+add ebx,BUILDINGS
+call MARK_UNITS
+pop ebx
+t_marked:
 mov edi,[ebp+8+eax*4]
 imul eax,eax,ENTRIES_SIZE
 lea edx,[ebp+0x10+eax]
@@ -616,6 +631,362 @@ pop ebp
 pop edi
 pop esi
 ret
+]]
+
+-- Units on a building: the game draws units a few map rows late (renderUnits keeps them in five
+-- row buckets), so a unit standing on a tower or gatehouse is drawn after the building's front
+-- piece and with it after the overlay strips - on top of crenellations and roofs. So:
+-- MARK_SCRIPT, at a building's first piece of the frame (ebx = the building, MARK_B its index),
+-- notes for every unit on its tiles "on building MARK_B this frame"; NOTE_SCRIPT, where
+-- renderUnits starts drawing a unit (its index at [esp+0x18]), remembers a noted unit; and
+-- REDRAW_SCRIPT, where renderUnits is done with it, draws that building's strips over the unit's
+-- rectangle again (only the strips across it, clipped to its rows), so the overlay covers it as
+-- if the unit had been drawn in its place.
+strips.MARK_SCRIPT = [[
+push esi
+push edi
+push ebp
+push ecx
+push edx
+push eax
+mov esi,[ebx+B_SIZE]
+test esi,esi
+jle k_out
+mov [MARK_SCRATCH],esi
+movsx ebp,word [ebx+B_X]
+movsx edi,word [ebx+B_Y]
+lea edi,[edi+edi*2]
+lea edi,[edi*4+TRANSLATE]
+k_row:
+mov edx,[edi]
+add edx,ebp
+lea edx,[edx*2+UNIT_TILES]
+mov ecx,esi
+k_column:
+movsx eax,word [edx]
+mov dword [MARK_SCRATCH+4],64
+k_chain:
+test eax,eax
+jle k_next_tile
+dec dword [MARK_SCRATCH+4]
+je k_next_tile
+cmp eax,MAX_UNITS
+jae k_next_tile
+push edx
+mov edx,[FRAME]
+mov [UNIT_STAMP+eax*4],edx
+mov edx,[MARK_B]
+mov [UNIT_BUILDING+eax*4],edx
+pop edx
+imul eax,eax,UNIT_SIZE
+movsx eax,word [eax+UNIT_NEXT]
+jmp k_chain
+k_next_tile:
+add edx,2
+dec ecx
+jne k_column
+add edi,12
+dec dword [MARK_SCRATCH]
+jne k_row
+k_out:
+pop eax
+pop edx
+pop ecx
+pop ebp
+pop edi
+pop esi
+ret
+]]
+
+strips.NOTE_SCRIPT = [[
+mov ecx,[esp+0x18]
+mov dword [CUR_UNIT],0
+test ecx,ecx
+jle n_draw
+cmp ecx,MAX_UNITS
+jae n_draw
+push eax
+mov eax,[FRAME]
+cmp [UNIT_STAMP+ecx*4],eax
+pop eax
+jne n_draw
+mov [CUR_UNIT],ecx
+n_draw:
+test ecx,ecx
+jmp NOTE_RESUME
+]]
+
+strips.REDRAW_SCRIPT = [[
+pushad
+mov ecx,[CUR_UNIT]
+test ecx,ecx
+je z_out
+mov dword [CUR_UNIT],0
+mov esi,[UNIT_BUILDING+ecx*4]
+cmp esi,MAX_BUILDINGS
+jae z_out
+mov eax,ecx
+imul eax,eax,UNIT_SIZE
+movsx edx,word [eax+UNIT_RECT]
+mov [UX],edx
+movsx ebx,word [eax+UNIT_RECT+4]
+add edx,ebx
+mov [UX2],edx
+movsx edx,word [eax+UNIT_RECT+2]
+mov [UY],edx
+movsx ebx,word [eax+UNIT_RECT+6]
+add edx,ebx
+mov [UY2],edx
+mov ebp,esi
+imul ebp,ebp,SLOT_SIZE
+add ebp,PENDING
+mov edx,[FRAME]
+dec edx
+mov eax,edx
+and eax,1
+cmp [ebp+eax*4],edx
+jne z_out
+mov ebx,[VIEWPORT]
+test ebx,ebx
+je z_out
+call CAMERA
+push dword [CLIP_TOP]
+push dword [CLIP_BOTTOM]
+mov edx,[UY]
+cmp edx,[CLIP_TOP]
+jl z_top_kept
+mov [CLIP_TOP],edx
+z_top_kept:
+mov edx,[UY2]
+cmp edx,[CLIP_BOTTOM]
+jg z_bottom_kept
+mov [CLIP_BOTTOM],edx
+z_bottom_kept:
+mov edi,[ebp+8+eax*4]
+imul eax,eax,ENTRIES_SIZE
+lea edx,[ebp+0x10+eax]
+z_entry:
+test edi,edi
+je z_restore
+mov ecx,[edx]
+mov eax,[edx+4]
+sub eax,[CAM]
+mov [SX],eax
+mov eax,[edx+8]
+sub eax,[CAM+4]
+mov [SY],eax
+mov eax,[edx+40]
+mov [DRAW_KIND],eax
+mov eax,[edx+44]
+mov [DRAW_ALPHA],eax
+mov eax,[edx+48]
+mov [DRAW_OWNER],eax
+mov eax,[edx+52]
+mov [DRAW_SPRITE],eax
+mov eax,[UX2]
+dec eax
+sub eax,[SX]
+sub eax,[ecx+R_PHASE]
+sar eax,4
+inc eax
+mov [ZJ_END],eax
+mov eax,[UX]
+sub eax,[SX]
+sub eax,[ecx+R_PHASE]
+sar eax,4
+inc eax
+mov ebx,eax
+z_strip:
+cmp ebx,[ZJ_END]
+jg z_next_entry
+cmp ebx,[ecx+R_STRIP_COUNT]
+jae z_next_entry
+cmp ebx,0
+jl z_inc
+call DRAW_STRIP
+z_inc:
+inc ebx
+jmp z_strip
+z_next_entry:
+add edx,ENTRY_SIZE
+dec edi
+jmp z_entry
+z_restore:
+pop dword [CLIP_BOTTOM]
+pop dword [CLIP_TOP]
+z_out:
+popad
+mov eax,[esp+0x2C]
+add eax,1
+jmp REDRAW_RESUME
+]]
+
+strips.MAX_UNITS = 10000
+
+strips.ROOF_READ = [[
+mov eax,[ebp+ROOF_FIELD]
+push edx
+movzx edx,word [ebp+TYPE_FIELD]
+cmp edx,FIRST_TOWER
+jb r_done
+cmp edx,LAST_TOWER
+ja r_done
+mov [ROOF_TYPE],edx
+mov edx,[CURRENT]
+cmp edx,MAX_BUILDINGS
+jae r_done
+push ebx
+push eax
+lea ebx,[ebp+BUILDINGS]
+call SIEGE_HERE
+test eax,eax
+pop eax
+pop ebx
+jne r_none
+cmp word [ebp+ON_TOP_FIELD],0
+jne r_cached
+test eax,eax
+je r_cached
+mov [ROOF_CACHE+edx*4],eax
+jmp r_done
+r_cached:
+cmp dword [ROOF_CACHE+edx*4],0
+je r_default
+mov eax,[ROOF_CACHE+edx*4]
+jmp r_done
+r_default:
+mov edx,[ROOF_TYPE]
+cmp dword [ROOF_DEFAULTS+edx*4],0
+je r_done
+mov eax,[ROOF_DEFAULTS+edx*4]
+jmp r_done
+r_none:
+xor eax,eax
+r_done:
+pop edx
+ret
+]]
+
+strips.VANILLA_THUNK = [[
+push eax
+movzx eax,word [REG+TYPE_FIELD]
+cmp eax,FIRST_TOWER
+jb v_game
+cmp eax,LAST_TOWER
+ja v_game
+pop eax
+ORIGINAL
+je v_open
+mov dword [GATED],1
+v_open:
+cmp esp,esp
+ret
+v_game:
+pop eax
+ORIGINAL
+ret
+]]
+
+strips.F1_ENTRY = [[
+push eax
+mov eax,[esp+12]
+mov [ANCHOR_X],eax
+mov eax,[esp+8]
+mov [CURRENT],eax
+mov dword [GATED],0
+pop eax
+sub esp,0x18
+mov ecx,[esp+0x28]
+jmp RESUME
+]]
+
+strips.F2_ENTRY = [[
+push eax
+mov eax,[esp+12]
+mov [ANCHOR_X],eax
+mov eax,[esp+8]
+mov [CURRENT],eax
+mov dword [GATED],0
+pop eax
+push ecx
+mov ecx,[esp+8]
+jmp RESUME
+]]
+
+strips.HOVER_SCRIPT = [[
+push edx
+mov edx,[SCRATCH+16]
+cmp edx,[LAST_HOVER]
+je h_yes
+mov edx,[VIEWPORT]
+test edx,edx
+je h_no
+push ebp
+mov ebp,[SCRATCH+16]
+cmp ebp,[edx+VP_HOVER]
+pop ebp
+je h_yes
+push ebx
+push ebp
+mov ebx,[edx+VP_MOUSE_X]
+add ebx,[MOUSE_X]
+mov ebp,[edx+VP_MOUSE_Y]
+add ebp,[MOUSE_Y]
+mov eax,edi
+add eax,[ecx+R_X]
+mov edx,esi
+add edx,[ecx+R_Y]
+cmp dword [ZOOMED_OUT],0
+je h_full
+sar eax,1
+sar edx,1
+sub ebx,eax
+sub ebp,edx
+mov eax,[ecx+R_W]
+shr eax,1
+cmp ebx,eax
+jae h_out
+mov eax,[ecx+R_H]
+shr eax,1
+cmp ebp,eax
+jae h_out
+jmp h_in
+h_full:
+sub ebx,eax
+sub ebp,edx
+cmp ebx,[ecx+R_W]
+jae h_out
+cmp ebp,[ecx+R_H]
+jae h_out
+h_in:
+pop ebp
+pop ebx
+pop edx
+mov eax,1
+ret
+h_out:
+pop ebp
+pop ebx
+h_no:
+pop edx
+xor eax,eax
+ret
+h_yes:
+pop edx
+mov eax,1
+ret
+]]
+
+strips.FRAME_START_SCRIPT = [[
+inc dword [FRAME]
+push eax
+mov eax,[ebx+VP_HOVER]
+mov [LAST_HOVER],eax
+mov [VIEWPORT],ebx
+pop eax
+mov [ebx+0x1C],esi
+mov [ebx+0x28],esi
+jmp FRAME_RESUME
 ]]
 
 return strips
