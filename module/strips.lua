@@ -63,75 +63,118 @@ mov esi,[ecx+R_STRIPS]
 mov eax,ebx
 shl eax,4
 add esi,eax
-cmp dword [esi+12],0
+mov ebp,[esi+12]
+test ebp,ebp
 je d_out
 mov edi,[ecx+R_H]
 mov ebx,[SX]
 add ebx,[esi+8]
-cmp dword [DRAW_KIND],2
-je d_indexed
-cmp dword [PIXEL_FORMAT],0x565
+mov edx,[SY]
 mov eax,[esi]
+cmp dword [DRAW_KIND],2
+je d_ready
+cmp dword [PIXEL_FORMAT],0x565
 je d_ready
 mov eax,[esi+4]
 d_ready:
-mov edx,[DRAW_ALPHA]
-test edx,edx
-je d_plain
-push edx
+cmp dword [LOG_OFF],0
+jne d_blit
+mov ecx,[FRAME]
+cmp [LOG_FRAME],ecx
+je d_same
+mov [LOG_FRAME],ecx
+mov dword [LOG_COUNT],0
+d_same:
+mov ecx,[LOG_COUNT]
+cmp ecx,LOG_MAX
+jae d_blit
+inc dword [LOG_COUNT]
+imul ecx,ecx,LOG_ENTRY
+add ecx,LOG
+mov [ecx],ebx
+mov [ecx+4],edx
+mov [ecx+8],ebp
+mov [ecx+12],edi
+mov [ecx+16],eax
+mov esi,[DRAW_KIND]
+mov [ecx+20],esi
+mov esi,[DRAW_ALPHA]
+mov [ecx+24],esi
+mov esi,[DRAW_OWNER]
+mov [ecx+28],esi
+mov esi,[DRAW_SPRITE]
+mov [ecx+32],esi
+mov esi,[LOG_B]
+mov [ecx+36],esi
+d_blit:
+call BLIT_ONE
+d_out:
+popad
+ret
+]]
+
+-- One picture piece: ebx = x, edx = y, ebp = width, edi = height, eax = the picture, drawn the
+-- way DRAW_KIND / DRAW_ALPHA / DRAW_OWNER / DRAW_SPRITE say; keeps every register.
+strips.BLIT_ONE_SCRIPT = [[
+pushad
+cmp dword [DRAW_KIND],2
+je b_indexed
+mov ecx,[DRAW_ALPHA]
+test ecx,ecx
+je b_plain
+push ecx
 push eax
 push edi
-push dword [esi+12]
-push dword [SY]
+push ebp
+push edx
 push ebx
 mov ecx,RENDER_CORE
 mov eax,TGX_FADED
 call eax
-jmp d_out
-d_plain:
+jmp b_out
+b_plain:
 push eax
 push edi
-push dword [esi+12]
-push dword [SY]
+push ebp
+push edx
 push ebx
 mov ecx,RENDER_CORE
 mov eax,BLIT
 call eax
-jmp d_out
-d_indexed:
+jmp b_out
+b_indexed:
 push dword [OWNER_GLOBAL]
 push dword [SPRITE_GLOBAL]
-mov eax,[DRAW_OWNER]
-mov [OWNER_GLOBAL],eax
-mov eax,[DRAW_SPRITE]
-mov [SPRITE_GLOBAL],eax
-mov eax,[esi]
-mov edx,[DRAW_ALPHA]
-test edx,edx
-je d_indexed_plain
-push edx
+mov ecx,[DRAW_OWNER]
+mov [OWNER_GLOBAL],ecx
+mov ecx,[DRAW_SPRITE]
+mov [SPRITE_GLOBAL],ecx
+mov ecx,[DRAW_ALPHA]
+test ecx,ecx
+je b_indexed_plain
+push ecx
 push eax
 push edi
-push dword [esi+12]
-push dword [SY]
+push ebp
+push edx
 push ebx
 mov ecx,RENDER_CORE
 mov eax,INDEXED_FADED
 call eax
-jmp d_indexed_done
-d_indexed_plain:
+jmp b_indexed_done
+b_indexed_plain:
 push eax
 push edi
-push dword [esi+12]
-push dword [SY]
+push ebp
+push edx
 push ebx
 mov ecx,RENDER_CORE
 mov eax,INDEXED
 call eax
-d_indexed_done:
+b_indexed_done:
 pop dword [SPRITE_GLOBAL]
 pop dword [OWNER_GLOBAL]
-d_out:
+b_out:
 popad
 ret
 ]]
@@ -163,6 +206,7 @@ strips.REMEMBER_AT_SCRIPT = [[
 pushad
 mov dword [OLD],0
 mov ebp,[SCRATCH+16]
+mov [LOG_B],ebp
 cmp ebp,MAX_BUILDINGS
 jae m_all
 mov ebx,[VIEWPORT]
@@ -294,6 +338,7 @@ and eax,1
 cmp [ebp+eax*4],edx
 jne t_out
 call CAMERA
+mov [LOG_B],esi
 mov ecx,MARK_UNITS
 test ecx,ecx
 je t_marked
@@ -633,15 +678,18 @@ pop esi
 ret
 ]]
 
--- Units on a building: the game draws units a few map rows late (renderUnits keeps them in five
--- row buckets), so a unit standing on a tower or gatehouse is drawn after the building's front
--- piece and with it after the overlay strips - on top of crenellations and roofs. So:
--- MARK_SCRIPT, at a building's first piece of the frame (ebx = the building, MARK_B its index),
--- notes for every unit on its tiles "on building MARK_B this frame"; NOTE_SCRIPT, where
--- renderUnits starts drawing a unit (its index at [esp+0x18]), remembers a noted unit; and
--- REDRAW_SCRIPT, where renderUnits is done with it, draws that building's strips over the unit's
--- rectangle again (only the strips across it, clipped to its rows), so the overlay covers it as
--- if the unit had been drawn in its place.
+-- Units, arrows and the like behind overlays: the game queues what stands on a tile while it
+-- draws that tile's row but draws it a few rows later (renderUnits, five row buckets), after the
+-- pieces in front of it - and so after the overlay strips that go with those pieces. A unit on a
+-- tower or gatehouse, or one walking behind it, comes out over its roof and crenellations.
+-- Every strip drawn is written to a log (LOG, this frame), and QUEUE_SCRIPT notes for every
+-- queued entry where the log stood at that moment. NOTE_SCRIPT, where renderUnits starts on an
+-- entry, works out its rectangle and whether strips are to go over it: those logged after it was
+-- queued, and for a unit standing on a building (MARK_SCRIPT, at the building's first piece) all
+-- of that building's strips. If so it keeps a copy of the pixels there. REDRAW_SCRIPT, when the
+-- entry is drawn, draws those strips again (clipped to its rows) and then puts back the old
+-- pixels wherever the entry itself drew nothing - so the strips land on the unit only, the mask
+-- being the unit's own pixels.
 strips.MARK_SCRIPT = [[
 push esi
 push edi
@@ -698,45 +746,43 @@ pop esi
 ret
 ]]
 
-strips.NOTE_SCRIPT = [[
-mov ecx,[esp+0x18]
-mov dword [CUR_UNIT],0
-test ecx,ecx
-jle n_draw
-cmp ecx,MAX_UNITS
-jae n_draw
+-- In the game's queue (eax = the bucket 1..5, ecx = the render state): note where the log stands.
+strips.QUEUE_SCRIPT = [[
+push edx
 push eax
-mov eax,[FRAME]
-cmp [UNIT_STAMP+ecx*4],eax
+lea edx,[eax-1]
+cmp edx,4
+ja q_done
+mov eax,[ecx+BUCKET_COUNTS+edx*4]
+cmp eax,BUCKET_ROOM
+jae q_done
+shl edx,9
+add edx,eax
+xor eax,eax
+push ecx
+mov ecx,[FRAME]
+cmp [LOG_FRAME],ecx
+pop ecx
+jne q_store
+mov eax,[LOG_COUNT]
+q_store:
+mov [QUEUED_AT+edx*4],eax
+q_done:
 pop eax
-jne n_draw
-mov [CUR_UNIT],ecx
-n_draw:
-test ecx,ecx
-jmp NOTE_RESUME
+pop edx
+add eax,-1
+cmp eax,4
+jmp QUEUE_RESUME
 ]]
 
-strips.REDRAW_SCRIPT = [[
+-- COVER_DRAW 0: are there strips to go over [UX, UX2) x [UY, UY2)? (COVER_HIT) 1: draw them.
+-- The strips of building N_B noted last frame, then the log from Q_FROM on (except N_B's).
+strips.COVER_SCRIPT = [[
 pushad
-mov ecx,[CUR_UNIT]
-test ecx,ecx
-je z_out
-mov dword [CUR_UNIT],0
-mov esi,[UNIT_BUILDING+ecx*4]
+mov dword [COVER_HIT],0
+mov esi,[N_B]
 cmp esi,MAX_BUILDINGS
-jae z_out
-mov eax,ecx
-imul eax,eax,UNIT_SIZE
-movsx edx,word [eax+UNIT_RECT]
-mov [UX],edx
-movsx ebx,word [eax+UNIT_RECT+4]
-add edx,ebx
-mov [UX2],edx
-movsx edx,word [eax+UNIT_RECT+2]
-mov [UY],edx
-movsx ebx,word [eax+UNIT_RECT+6]
-add edx,ebx
-mov [UY2],edx
+jae c_log
 mov ebp,esi
 imul ebp,ebp,SLOT_SIZE
 add ebp,PENDING
@@ -745,29 +791,17 @@ dec edx
 mov eax,edx
 and eax,1
 cmp [ebp+eax*4],edx
-jne z_out
+jne c_log
 mov ebx,[VIEWPORT]
 test ebx,ebx
-je z_out
+je c_log
 call CAMERA
-push dword [CLIP_TOP]
-push dword [CLIP_BOTTOM]
-mov edx,[UY]
-cmp edx,[CLIP_TOP]
-jl z_top_kept
-mov [CLIP_TOP],edx
-z_top_kept:
-mov edx,[UY2]
-cmp edx,[CLIP_BOTTOM]
-jg z_bottom_kept
-mov [CLIP_BOTTOM],edx
-z_bottom_kept:
 mov edi,[ebp+8+eax*4]
 imul eax,eax,ENTRIES_SIZE
 lea edx,[ebp+0x10+eax]
-z_entry:
+c_entry:
 test edi,edi
-je z_restore
+je c_log
 mov ecx,[edx]
 mov eax,[edx+4]
 sub eax,[CAM]
@@ -775,6 +809,11 @@ mov [SX],eax
 mov eax,[edx+8]
 sub eax,[CAM+4]
 mov [SY],eax
+cmp eax,[UY2]
+jge c_next_entry
+add eax,[ecx+R_H]
+cmp eax,[UY]
+jle c_next_entry
 mov eax,[edx+40]
 mov [DRAW_KIND],eax
 mov eax,[edx+44]
@@ -795,25 +834,275 @@ sub eax,[SX]
 sub eax,[ecx+R_PHASE]
 sar eax,4
 inc eax
+test eax,eax
+jge c_first
+xor eax,eax
+c_first:
 mov ebx,eax
-z_strip:
+c_strip:
 cmp ebx,[ZJ_END]
-jg z_next_entry
+jg c_next_entry
 cmp ebx,[ecx+R_STRIP_COUNT]
-jae z_next_entry
-cmp ebx,0
-jl z_inc
+jae c_next_entry
+mov dword [COVER_HIT],1
+cmp dword [COVER_DRAW],0
+je c_done
 call DRAW_STRIP
-z_inc:
 inc ebx
-jmp z_strip
-z_next_entry:
+jmp c_strip
+c_next_entry:
 add edx,ENTRY_SIZE
 dec edi
-jmp z_entry
-z_restore:
+jmp c_entry
+c_log:
+mov eax,[FRAME]
+cmp [LOG_FRAME],eax
+jne c_done
+mov ecx,[Q_FROM]
+c_log_next:
+cmp ecx,[LOG_COUNT]
+jae c_done
+mov edx,ecx
+imul edx,edx,LOG_ENTRY
+add edx,LOG
+mov eax,[edx+36]
+cmp eax,[N_B]
+je c_log_skip
+mov eax,[edx]
+cmp eax,[UX2]
+jge c_log_skip
+add eax,[edx+8]
+cmp eax,[UX]
+jle c_log_skip
+mov eax,[edx+4]
+cmp eax,[UY2]
+jge c_log_skip
+add eax,[edx+12]
+cmp eax,[UY]
+jle c_log_skip
+mov dword [COVER_HIT],1
+cmp dword [COVER_DRAW],0
+je c_done
+push ecx
+mov eax,[edx+20]
+mov [DRAW_KIND],eax
+mov eax,[edx+24]
+mov [DRAW_ALPHA],eax
+mov eax,[edx+28]
+mov [DRAW_OWNER],eax
+mov eax,[edx+32]
+mov [DRAW_SPRITE],eax
+mov ebx,[edx]
+mov ebp,[edx+8]
+mov edi,[edx+12]
+mov eax,[edx+16]
+mov edx,[edx+4]
+call BLIT_ONE
+pop ecx
+c_log_skip:
+inc ecx
+jmp c_log_next
+c_done:
+popad
+mov eax,[COVER_HIT]
+ret
+]]
+
+-- Where renderUnits starts on an entry (ebp = x, edi = y; [esp+0x18] = the unit, -1 / 0 = a
+-- picture: set ecx / eax, frame esi; for a unit [esp+0x10] / [esp+0x14] = width / height;
+-- [esp+0x28] = the render state, [esp+0x2C] = the entry's place in its bucket).
+strips.NOTE_SCRIPT = [[
+pushad
+mov dword [ACTIVE],0
+mov dword [N_B],-1
+mov eax,[esp+0x38]
+cmp eax,0
+jle n_picture
+mov ecx,[esp+0x30]
+mov edx,[esp+0x34]
+cmp eax,MAX_UNITS
+jae n_rect
+mov esi,[FRAME]
+cmp [UNIT_STAMP+eax*4],esi
+jne n_rect
+mov esi,[UNIT_BUILDING+eax*4]
+mov [N_B],esi
+jmp n_rect
+n_picture:
+mov ecx,[esp+0x18]
+test eax,eax
+jne n_set
+mov ecx,[esp+0x1C]
+n_set:
+cmp ecx,GM_LIMIT
+jae n_out
+mov esi,[esp+4]
+cmp esi,1
+jl n_out
+cmp esi,0x4000
+jg n_out
+mov eax,[FIRST_FRAMES+ecx*4]
+lea eax,[eax+esi-1]
+shl eax,4
+movsx ecx,word [WIDTHS+eax]
+movsx edx,word [WIDTHS+eax+2]
+n_rect:
+cmp ecx,0
+jle n_out
+cmp ecx,MAX_SIDE
+jg n_out
+cmp edx,0
+jle n_out
+cmp edx,MAX_SIDE
+jg n_out
+mov eax,[esp+8]
+mov [UX],eax
+add eax,ecx
+mov [UX2],eax
+mov eax,[esp]
+mov [UY],eax
+add eax,edx
+mov [UY2],eax
+mov dword [Q_FROM],0x7FFFFFFF
+mov eax,[esp+0x48]
+mov ecx,[eax+BUCKET]
+dec ecx
+cmp ecx,4
+ja n_queued
+mov eax,[esp+0x4C]
+cmp eax,BUCKET_ROOM
+jae n_queued
+shl ecx,9
+add ecx,eax
+mov eax,[QUEUED_AT+ecx*4]
+mov [Q_FROM],eax
+n_queued:
+call COVER
+test eax,eax
+je n_out
+mov eax,[UX]
+sub eax,16
+jge n_left
+xor eax,eax
+n_left:
+mov [RX0],eax
+mov eax,[UX2]
+add eax,16
+cmp eax,SURFACE_W
+jle n_right
+mov eax,SURFACE_W
+n_right:
+mov [RX1],eax
+cmp eax,[RX0]
+jle n_out
+mov eax,[UY]
+cmp eax,[CLIP_TOP]
+jge n_top
+mov eax,[CLIP_TOP]
+n_top:
+test eax,eax
+jge n_top_ok
+xor eax,eax
+n_top_ok:
+mov [RY0],eax
+mov eax,[UY2]
+cmp eax,[CLIP_BOTTOM]
+jle n_bottom
+mov eax,[CLIP_BOTTOM]
+n_bottom:
+mov [RY1],eax
+cmp eax,[RY0]
+jle n_out
+mov edi,SNAP
+call KEEP
+mov dword [ACTIVE],1
+n_out:
+popad
+cmp dword [esp+0x18],-1
+jne UNIT_PATH
+jmp PICTURE_PATH
+]]
+
+-- Copies the screen's [RX0, RX1) x [RY0, RY1) to edi.
+strips.KEEP_SCRIPT = [[
+pushad
+mov esi,[RY0]
+imul esi,esi,PITCH
+mov eax,[RX0]
+lea esi,[esi+eax*2]
+add esi,[SURFACE_PTR]
+mov ebx,[RY1]
+sub ebx,[RY0]
+mov edx,[RX1]
+sub edx,eax
+k_row:
+push esi
+mov ecx,edx
+k_pixel:
+mov ax,[esi]
+mov [edi],ax
+add esi,2
+add edi,2
+dec ecx
+jne k_pixel
+pop esi
+add esi,PITCH
+dec ebx
+jne k_row
+popad
+ret
+]]
+
+-- Where renderUnits is done with an entry.
+strips.REDRAW_SCRIPT = [[
+pushad
+cmp dword [ACTIVE],0
+je z_out
+mov dword [ACTIVE],0
+mov edi,AFTER
+call KEEP
+push dword [CLIP_TOP]
+push dword [CLIP_BOTTOM]
+mov eax,[RY0]
+mov [CLIP_TOP],eax
+mov eax,[RY1]
+mov [CLIP_BOTTOM],eax
+mov dword [LOG_OFF],1
+mov dword [COVER_DRAW],1
+call COVER
+mov dword [COVER_DRAW],0
+mov dword [LOG_OFF],0
 pop dword [CLIP_BOTTOM]
 pop dword [CLIP_TOP]
+mov edi,[RY0]
+imul edi,edi,PITCH
+mov eax,[RX0]
+lea edi,[edi+eax*2]
+add edi,[SURFACE_PTR]
+mov esi,SNAP
+mov ebx,AFTER
+mov ebp,[RY1]
+sub ebp,[RY0]
+mov edx,[RX1]
+sub edx,eax
+z_row:
+push edi
+mov ecx,edx
+z_pixel:
+mov ax,[ebx]
+cmp ax,[esi]
+jne z_unit
+mov [edi],ax
+z_unit:
+add esi,2
+add ebx,2
+add edi,2
+dec ecx
+jne z_pixel
+pop edi
+add edi,PITCH
+dec ebp
+jne z_row
 z_out:
 popad
 mov eax,[esp+0x2C]
@@ -821,6 +1110,8 @@ add eax,1
 jmp REDRAW_RESUME
 ]]
 
+strips.LOG_MAX, strips.LOG_ENTRY = 16384, 40   -- the strips drawn in a frame
+strips.MAX_SIDE, strips.PITCH = 256, 0x1FB0     -- largest unit picture handled; map surface row
 strips.MAX_UNITS = 10000
 
 strips.ROOF_READ = [[

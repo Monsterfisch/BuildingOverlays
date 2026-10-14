@@ -718,39 +718,76 @@ def strips_suite(ext):
     check('the globals are restored after the piece', (h.u32(owner_g), h.u32(sprite_g)), (7, 0x55))
     del h.cpu.hooks[indexed]
 
-    # a unit standing on the gatehouse, drawn rows late by renderUnits: its rectangle gets the
-    # overlay strips again, so the overlay covers it
+    # units are queued while their row is drawn and drawn rows later (renderUnits): the strips
+    # drawn in between go over them again, but only on the pixels the unit itself drew
     ufn = E.find('8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B0 0C 01 00 00 33 DB 85 F6 57 7E')[0]
     unit_tiles = struct.unpack('<I', E.data[E.va2off(ufn) + 0x3D:][:4])[0]
     unit_base = struct.unpack('<I', E.data[E.va2off(ufn) + 0x51:][:4])[0] - 0x96
-    note = E.find("57 55 56 51 B9 ? ? ? ? E8 ? ? ? ? E9 ? ? ? ? 8B 4C 24 18 85 C9 0F 84")[0] + 0x13
+    queue = E.find("83 C0 FF 83 F8 04 0F 87 ? ? ? ? 56 FF 24 85")[0]
+    note = E.find("83 7C 24 18 FF 75 ? 8B 54 24 14 85 D2 7D")[0]
+    unit_path = note + 7 + E.data[E.va2off(note) + 6]
     done = E.find("8B 44 24 2C 83 C0 01 3B 44 24 20 89 44 24 2C 0F 8C ? ? ? ? 5F 5E 5D 5B 83 C4 24")[0]
+    check('unit hooks in place', [h.m.read(a, 1) for a in (queue, note, done)], [bytes([0xE9])] * 3)
+    RS = 0x52000000
+    h.m.write(RS + 0x18B000, bytes(0x14000))
     u9 = unit_base + 9 * 0x490
     h.put16(u9 + 0x8E, 24); h.put16(u9 + 0x2A2, 0)
     h.m.write(u9 + 0x402, bytes([1]))     # walking the passage: the overlay stays
-    h.put16(unit_tiles + 11 * 2, 9)
     ux, uy, uw, uh = bx - 60, by - 150, 24, 40
-    h.m.write(u9 + 0x14, struct.pack('<hhhh', ux, uy, uw, uh))
-    for _ in range(2):
-        new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
-    new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32)
-    before = {}
-    for yy in range(uy, uy + uh):
-        for xx in range(ux, ux + uw):
-            before[(xx, yy)] = h.m.read(SURFACE + yy * PITCH + xx * 2, 2)
-    UNIT_COLOUR = struct.pack('<H', 0x1F)
-    def unit_drawn_by_game():
-        h.run(note, until=note + 6, stack=[0, 0, 0, 0, 0, 9])
-        for yy in range(uy, uy + uh):
-            h.m.write(SURFACE + yy * PITCH + ux * 2, UNIT_COLOUR * uw)
+    UNIT = struct.pack('<H', 0xF81F)
+    FOREIGN = struct.pack('<H', 0x07E0)
+
+    def px(x, y):
+        return h.m.read(SURFACE + y * PITCH + x * 2, 2)
+
+    def queued(slot):
+        h.put32(RS + 0x19EFF4, slot)
+        h.run(queue, until=queue + 6, regs={'eax': 1, 'ecx': RS})
+
+    def unit_drawn(slot, shape):
+        h.put32(RS + 0x18B770, 1)
+        h.run(note, until=unit_path, regs={'ebp': ux, 'edi': uy},
+              stack=[0, 0, 0, uw, uh, 9, 0, 0, 0, RS, slot])
+        for (xx, yy) in shape:
+            h.m.write(SURFACE + yy * PITCH + xx * 2, UNIT)
         h.run(done, until=done + 7, stack=[0] * 16)
-    unit_drawn_by_game()
-    covered = sum(1 for k, v in before.items() if v != bytes(2) and h.m.read(SURFACE + k[1] * PITCH + k[0] * 2, 2) == v)
-    overlay_px = sum(1 for v in before.values() if v != bytes(2))
-    check('the overlay covers the unit standing on its building', (overlay_px > 100, covered), (True, overlay_px))
-    outside = h.m.read(SURFACE + (uy + uh) * PITCH + ux * 2, 2)
-    check('nothing is drawn below the unit', outside == before.get((ux, uy + uh), outside), True)
+
+    # the left half of the rectangle is the unit, the right half something else drawn since
+    shape = [(xx, yy) for yy in range(uy, uy + uh) for xx in range(ux, ux + uw // 2)]
+    other = [(xx, yy) for yy in range(uy, uy + uh) for xx in range(ux + uw // 2, ux + uw)]
+
+    def overlay_only():
+        new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
+        return {k: px(*k) for k in shape + other}
+
+    h.put16(unit_tiles + 11 * 2, 9)        # standing on the gatehouse
+    for _ in range(2):
+        overlay_only()
+    plain = overlay_only()
+    new_frame(); clear(); queued(0); piece_drawn(bx - 64); piece_drawn(bx - 32)
+    for k in other:
+        h.m.write(SURFACE + k[1] * PITCH + k[0] * 2, FOREIGN)
+    below = px(ux, uy + uh)
+    unit_drawn(0, shape)
+    over = [k for k in shape if plain[k] != bytes(2)]
+    check('the overlay covers the unit standing on its building',
+          (len(over) > 50, sum(1 for k in over if px(*k) == plain[k])), (True, len(over)))
+    check('where the overlay is see-through the unit shows',
+          all(px(*k) == UNIT for k in shape if plain[k] == bytes(2)), True)
+    check('pixels the unit did not draw are left alone', all(px(*k) == FOREIGN for k in other), True)
+    check('nothing is drawn below the unit', px(ux, uy + uh), below)
+
+    # not on the building: covered when queued before the pieces in front were drawn (behind it)
     h.put16(unit_tiles + 11 * 2, 0)
+    for _ in range(2):
+        overlay_only()
+    new_frame(); clear(); queued(0); piece_drawn(bx - 64); piece_drawn(bx - 32)
+    unit_drawn(0, shape)
+    check('a unit behind the building is covered too',
+          sum(1 for k in over if px(*k) == plain[k]), len(over))
+    new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); queued(0)
+    unit_drawn(0, shape)
+    check('a unit queued after the pieces (in front) is not', all(px(*k) == UNIT for k in shape), True)
     new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
 
     # the camera moved one tile column right since the last frame: the strips move with it

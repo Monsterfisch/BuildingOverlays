@@ -1640,13 +1640,19 @@ local function enable(self, config)
       values.DRAW_KIND, values.DRAW_ALPHA = core.allocate(4, true), core.allocate(4, true)
       values.DRAW_OWNER, values.DRAW_SPRITE = core.allocate(4, true), core.allocate(4, true)
       values.CAMERA = assemble(strips.CAMERA_SCRIPT, values)
+      values.LOG_MAX, values.LOG_ENTRY = strips.LOG_MAX, strips.LOG_ENTRY
+      values.LOG = core.allocate(strips.LOG_MAX * strips.LOG_ENTRY, true)
+      values.LOG_COUNT, values.LOG_FRAME = core.allocate(4, true), core.allocate(4, true)
+      values.LOG_B, values.LOG_OFF = core.allocate(4, true), core.allocate(4, true)
+      core.writeInteger(values.LOG_OFF, 1)
+      values.BLIT_ONE = assemble(strips.BLIT_ONE_SCRIPT, values)
       values.DRAW_STRIP = assemble(strips.DRAW_STRIP_SCRIPT, values)
       values.REMEMBER_AT = assemble(strips.REMEMBER_AT_SCRIPT, values)
       values.REMEMBER = assemble(strips.REMEMBER_SCRIPT, values)
       values.MARK_UNITS = 0
       local sortOk, sortProblem = pcall(function()
-        local note = scan("57 55 56 51 B9 ? ? ? ? E8 ? ? ? ? E9 ? ? ? ? 8B 4C 24 18 85 C9 0F 84",
-          "where the map draws a unit")
+        local queue = scan("83 C0 FF 83 F8 04 0F 87 ? ? ? ? 56 FF 24 85", "where the map queues a unit")
+        local note = scan("83 7C 24 18 FF 75 ? 8B 54 24 14 85 D2 7D", "where the map draws a unit")
         local done = scan("8B 44 24 2C 83 C0 01 3B 44 24 20 89 44 24 2C 0F 8C ? ? ? ? 5F 5E 5D 5B 83 C4 24",
           "where the map is done with a unit")
         local u = {}
@@ -1654,21 +1660,41 @@ local function enable(self, config)
         u.MAX_UNITS = strips.MAX_UNITS
         u.UNIT_STAMP = core.allocate(strips.MAX_UNITS * 4, true)
         u.UNIT_BUILDING = core.allocate(strips.MAX_UNITS * 4, true)
-        u.CUR_UNIT, u.MARK_B = core.allocate(4, true), core.allocate(4, true)
+        u.MARK_B = core.allocate(4, true)
         u.MARK_SCRATCH = core.allocate(8, true)
-        u.UX, u.UX2, u.UY, u.UY2, u.ZJ_END = core.allocate(4, true), core.allocate(4, true),
-          core.allocate(4, true), core.allocate(4, true), core.allocate(4, true)
-        u.UNIT_RECT = values.UNIT_OWNER - U_OWNER + 0x14
+        for _, name in ipairs({ "UX", "UX2", "UY", "UY2", "ZJ_END", "N_B", "Q_FROM", "ACTIVE", "COVER_HIT",
+          "COVER_DRAW", "RX0", "RX1", "RY0", "RY1" }) do
+          u[name] = core.allocate(4, true)
+        end
         u.CLIP_TOP, u.CLIP_BOTTOM = values.RENDER_CORE + 0x58, values.RENDER_CORE + 0x5C
-        u.NOTE_RESUME = note + 0x13 + 6
+        u.BUCKET = core.readInteger(queue - 0x1F)
+        u.BUCKET_COUNTS = core.readInteger(queue + 0x16)
+        u.BUCKET_ROOM = 512
+        u.QUEUED_AT = core.allocate(5 * 512 * 4, true)
+        u.QUEUE_RESUME = queue + 6
+        u.GM_LIMIT = 0x100
+        u.FIRST_FRAMES = core.readInteger(renderGm + RENDER_GM_FIRST_FRAMES)
+        u.WIDTHS = core.readInteger(renderGm + RENDER_GM_WIDTHS)
+        u.MAX_SIDE = strips.MAX_SIDE
+        u.PITCH, u.SURFACE_W = strips.PITCH, strips.PITCH // 2
+        u.SURFACE_PTR = core.readInteger(values.BLIT + 0x50)
+        u.SNAP = core.allocate((strips.MAX_SIDE + 32) * strips.MAX_SIDE * 2, true)
+        u.AFTER = core.allocate((strips.MAX_SIDE + 32) * strips.MAX_SIDE * 2, true)
+        u.UNIT_PATH = note + 7 + core.readByte(note + 6)
+        u.PICTURE_PATH = note + 7
         u.REDRAW_RESUME = done + 7
+        u.COVER = assemble(strips.COVER_SCRIPT, u)
+        u.KEEP = assemble(strips.KEEP_SCRIPT, u)
+        local queueHook = assemble(strips.QUEUE_SCRIPT, u)
         local noteHook = assemble(strips.NOTE_SCRIPT, u)
         local redrawHook = assemble(strips.REDRAW_SCRIPT, u)
         values.MARK_UNITS = assemble(strips.MARK_SCRIPT, u)
         values.MARKED = core.allocate(MAX_BUILDINGS * 4, true)
         values.MARK_B = u.MARK_B
-        core.writeCode(note + 0x13, { 0xE9, core.itob(core.getRelativeAddress(note + 0x13, noteHook, -5)), 0x90 })
+        core.writeCode(queue, { 0xE9, core.itob(core.getRelativeAddress(queue, queueHook, -5)), 0x90 })
+        core.writeCode(note, { 0xE9, core.itob(core.getRelativeAddress(note, noteHook, -5)), 0x90, 0x90 })
         core.writeCode(done, { 0xE9, core.itob(core.getRelativeAddress(done, redrawHook, -5)), 0x90, 0x90 })
+        core.writeInteger(values.LOG_OFF, 0)
       end)
       if not sortOk then
         values.MARK_UNITS = 0
