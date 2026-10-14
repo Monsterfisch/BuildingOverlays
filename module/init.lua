@@ -943,6 +943,9 @@ add esp,4
 ret 0x14
 ]]
 
+-- With a mangonel or tower ballista standing on a tower its roof is gone, as the game has it. A
+-- tower that had troops on it before its roof was ever seen gets the roof its type is built
+-- with (the lookout tower's and the square tower's builders write it; ROOF_DEFAULTS).
 -- A tower's roof picture number: while troops are on the tower (hasUnitsOntop, +0x2F8) the game
 -- sets it to 0, or for the lookout tower to an open top, which is how the roof goes away. So in
 -- "only while the mouse is on it" mode the reads of it in the overlay drawing go through
@@ -958,9 +961,18 @@ cmp edx,FIRST_TOWER
 jb r_done
 cmp edx,LAST_TOWER
 ja r_done
+mov [ROOF_TYPE],edx
 mov edx,[CURRENT]
 cmp edx,MAX_BUILDINGS
 jae r_done
+push ebx
+push eax
+lea ebx,[ebp+BUILDINGS]
+call SIEGE_HERE
+test eax,eax
+pop eax
+pop ebx
+jne r_none
 cmp word [ebp+ON_TOP_FIELD],0
 jne r_cached
 test eax,eax
@@ -969,8 +981,17 @@ mov [ROOF_CACHE+edx*4],eax
 jmp r_done
 r_cached:
 cmp dword [ROOF_CACHE+edx*4],0
-je r_done
+je r_default
 mov eax,[ROOF_CACHE+edx*4]
+jmp r_done
+r_default:
+mov edx,[ROOF_TYPE]
+cmp dword [ROOF_DEFAULTS+edx*4],0
+je r_done
+mov eax,[ROOF_DEFAULTS+edx*4]
+jmp r_done
+r_none:
+xor eax,eax
 r_done:
 pop edx
 ret
@@ -1141,11 +1162,27 @@ local function installSites(tail, renderGm, values)
   log(INFO, string.format("%s: %d of the game's own overlay pictures can be moved", MODULE_NAME, #found))
   if values.HOVER_ONLY == 1 then
     local roofField = (values.BUILDINGS + B_ROOF) & 0xFFFFFFFF
+    local defaults = core.allocate(TYPE_COUNT * 4, true)
+    for _, known in ipairs({
+      { 74, "C7 81 ? ? ? ? 7D 00 00 00 C7 81 ? ? ? ? 7C 00 00 00", 16, 0x7C },   -- lookout tower
+      { 77, "C7 86 ? ? ? ? 7A 00 00 00", 6, 0x7A },                               -- square tower
+    }) do
+      local ok, site = pcall(core.AOBScan, known[2])
+      core.writeInteger(defaults + known[1] * 4,
+        (ok and site ~= nil) and core.readInteger(site + known[3]) or known[4])
+    end
+    local siegeValues = {}
+    for key, value in pairs(values) do siegeValues[key] = value end
+    siegeValues.SIEGE_SCRATCH = core.allocate(8, true)
+    siegeValues.MANGONEL, siegeValues.TOWER_BALLISTA = 41, 61
+    local siegeHere = assemble(strips.SIEGE_SCRIPT, siegeValues)
     local reader = assemble(ROOF_READ, {
       ROOF_FIELD = roofField, TYPE_FIELD = (values.BUILDINGS + B_TYPE) & 0xFFFFFFFF,
       ON_TOP_FIELD = (values.BUILDINGS + B_ON_TOP) & 0xFFFFFFFF,
       FIRST_TOWER = FIRST_TOWER, LAST_TOWER = LAST_TOWER, CURRENT = values.CURRENT,
       MAX_BUILDINGS = MAX_BUILDINGS, ROOF_CACHE = values.ROOF_CACHE,
+      ROOF_TYPE = core.allocate(4, true), ROOF_DEFAULTS = defaults, SIEGE_HERE = siegeHere,
+      BUILDINGS = values.BUILDINGS,
     })
     local reads = 0
     for address = f1, tail - 6 do

@@ -561,4 +561,61 @@ xor eax,eax
 ret
 ]]
 
+-- "Is a mangonel or tower ballista standing on this tower?" (ebx = the building) -> eax 1 / 0.
+-- Walks the footprint and every unit on each tile like UNITS_HERE.
+strips.SIEGE_SCRIPT = [[
+push esi
+push edi
+push ebp
+push ecx
+push edx
+xor eax,eax
+mov esi,[ebx+B_SIZE]
+test esi,esi
+jle g_out
+mov [SIEGE_SCRATCH],esi
+movsx ebp,word [ebx+B_X]
+movsx edi,word [ebx+B_Y]
+lea edi,[edi+edi*2]
+lea edi,[edi*4+TRANSLATE]
+g_row:
+mov edx,[edi]
+add edx,ebp
+lea edx,[edx*2+UNIT_TILES]
+mov ecx,esi
+g_column:
+movsx eax,word [edx]
+mov dword [SIEGE_SCRATCH+4],64
+g_chain:
+test eax,eax
+je g_next_tile
+dec dword [SIEGE_SCRATCH+4]
+je g_next_tile
+imul eax,eax,UNIT_SIZE
+cmp word [eax+UNIT_TYPE],MANGONEL
+je g_found
+cmp word [eax+UNIT_TYPE],TOWER_BALLISTA
+je g_found
+movsx eax,word [eax+UNIT_NEXT]
+jmp g_chain
+g_next_tile:
+add edx,2
+dec ecx
+jne g_column
+add edi,12
+dec dword [SIEGE_SCRATCH]
+jne g_row
+xor eax,eax
+jmp g_out
+g_found:
+mov eax,1
+g_out:
+pop edx
+pop ecx
+pop ebp
+pop edi
+pop esi
+ret
+]]
+
 return strips

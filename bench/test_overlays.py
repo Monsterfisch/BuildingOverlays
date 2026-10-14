@@ -475,6 +475,29 @@ def hover_suite(ext):
     check('troops on a lookout tower: the remembered roof, not the open top', frames(), [9])
     h.put16(b3 + 0x2F8, 0)
     h.put32(b3 + 0x60, 9)
+    # a mangonel or tower ballista on the tower: no roof, mouse or not
+    ufn = E.find('8B 44 24 04 69 C0 2C 03 00 00 53 55 03 C1 56 8B B0 0C 01 00 00 33 DB 85 F6 57 7E')[0]
+    unit_tiles = struct.unpack('<I', E.data[E.va2off(ufn) + 0x3D:][:4])[0]
+    unit_base = struct.unpack('<I', E.data[E.va2off(ufn) + 0x51:][:4])[0] - 0x96
+    h.put16(b3 + 0xEE, 10); h.put16(b3 + 0xF0, 10); h.put32(b3 + 0xF8, 2)
+    h.put16(unit_base + 9 * 0x490 + 0x8E, 61)
+    h.put16(unit_base + 9 * 0x490 + 0x2A2, 0)
+    h.put16(unit_tiles + 11 * 2, 9)
+    new_frame(0); new_frame(0)
+    check('a tower ballista on the tower: no roof', 9 in frames(), False)
+    h.put16(unit_base + 9 * 0x490 + 0x8E, 41)
+    check('a mangonel on the tower: no roof', 9 in frames(), False)
+    h.put16(unit_tiles + 11 * 2, 0)
+    check('the engine gone: the roof is back', 9 in frames(), True)
+    # a square tower that has had troops on it since before its roof was ever seen
+    b5 = buildings + 5 * STRIDE
+    h.m.write(b5, bytes(STRIDE))
+    h.put32(b5 + 0x34, 1); h.put32(b5 + 0x38, 5); h.put16(b5 + 0xD2, 77); h.put16(b5 + 0x2F8, 1)
+    def frames5():
+        del calls[:]
+        h.run(t_func, stack=[5, 400, 450, 0], limit=3_000_000)
+        return sorted(args[1] for _, args in calls if args[0] == 0x36)
+    check('a square tower never seen without troops still gets its roof', 0x7A in frames5(), True)
     new_frame(0); new_frame(0)
     h.put16(b3 + 0xD2, 41)
     h.put32(b3 + 0xB0, 0)
