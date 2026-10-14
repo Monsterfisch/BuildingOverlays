@@ -649,6 +649,35 @@ def strips_suite(ext):
     tower_corner()
     check('... and the front corner does not draw it again', tower_pixels(), 0)
 
+    # a whole 3 x 3 building drawn the game's way: every piece paints its 32 px column (all the
+    # way up, as tall building art does), back to front, then the hook runs
+    BUILDING_ART = 0x07E0
+    def paint_column(x):
+        for y in range(0, 600):
+            h.m.write(SURFACE + y * PITCH + x * 2, struct.pack('<H', BUILDING_ART) * 32)
+
+    tiles = sorted(((tx, ty) for tx in range(3) for ty in range(3)), key=lambda p: (p[0] + p[1], p[0]))
+    def whole_building():
+        for tx, ty in tiles:
+            x = bx + 16 * ((tx - 2) - (ty - 2)) - 16
+            paint_column(x)
+            piece_drawn(x)
+        corner(bx, by)
+    for _ in range(4):
+        new_frame(); clear(); whole_building()
+    right = None
+    from PIL import Image
+    right = Image.open(os.path.join(OVERLAYS, 'large_gatehouse_overlay_closed_right.png')).convert('RGBA')
+    hidden = 0
+    for yy in range(0, 147, 3):
+        for xx in range(0, 215, 3):
+            p = right.getpixel((xx, yy))
+            sx, sy = bx - 107 + xx, by - 193 + yy
+            if p[3] >= 128 and bx - 64 - 16 <= sx < bx + 48 and 0 <= sy < 600:
+                if struct.unpack('<H', h.m.read(SURFACE + sy * PITCH + sx * 2, 2))[0] == BUILDING_ART:
+                    hidden += 1
+    check('over its own building the overlay stays on top of the building art', hidden, 0)
+
     # the camera moved one tile column right since the last frame: the strips move with it
     for _ in range(2):
         new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
