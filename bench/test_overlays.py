@@ -563,7 +563,7 @@ def foreign_suite(ext):
 def strips_suite(ext):
     print('=== tile by tile, %s' % ('Extreme' if ext else 'vanilla'))
     fresh_work()
-    h = Host(extreme=ext, config={}, foreign_patches=False, aic=False)
+    h = Host(extreme=ext, config={'drawing': {'hide_units': True}}, foreign_patches=False, aic=False)
     E = h.E
     v_flag = struct.unpack('<I', E.data[E.va2off(E.find('6A 03 B9 ? ? ? ? E8 ? ? ? ? 89 2D ? ? ? ? E9')[0]) + 3:][:4])[0] + 0x5548C4
     h.put32(v_flag, 1)
@@ -777,6 +777,15 @@ def strips_suite(ext):
     check('pixels the unit did not draw are left alone', all(px(*k) == FOREIGN for k in other), True)
     check('nothing is drawn below the unit', px(ux, uy + uh), below)
 
+    # hide units under roofs: a unit up on the building (not in the passage) is not drawn
+    overlay_only()
+    new_frame(); clear(); queued(0); piece_drawn(bx - 64); piece_drawn(bx - 32)
+    h.m.write(u9 + 0x402, bytes([0]))
+    h.put32(RS + 0x18B770, 1)
+    cpu = h.run(note, until=done, regs={'ebp': ux, 'edi': uy}, stack=[0, 0, 0, uw, uh, 9, 0, 0, 0, RS, 0],
+                limit=20000)
+    check('hide units under roofs: the unit on the roofed building is skipped', cpu.eip, done)
+    h.m.write(u9 + 0x402, bytes([1]))
     # not on the building: covered when queued before the pieces in front were drawn (behind it)
     h.put16(unit_tiles + 11 * 2, 0)
     for _ in range(2):

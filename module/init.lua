@@ -39,7 +39,7 @@ local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this t
 local DEFAULTS = {
   large_gatehouse = { enabled = true, swap_sides = false },
   editor = { enabled = true },
-  drawing = { tile_by_tile = true },
+  drawing = { tile_by_tile = true, hide_units = false },
   mouse = { hover_only = false },
 }
 
@@ -278,6 +278,19 @@ pop ecx
 test al,1
 je skip
 draw:
+cmp dword [ecx+R_UNITS],0
+jne roof_noted
+push eax
+push edx
+mov eax,[SCRATCH+16]
+cmp eax,MAX_BUILDINGS
+jae roof_noted_pop
+mov edx,[FRAME]
+mov [ROOF_SHOWN+eax*4],edx
+roof_noted_pop:
+pop edx
+pop eax
+roof_noted:
 mov eax,TILE_STRIPS
 test eax,eax
 je whole_picture
@@ -748,6 +761,10 @@ test edx,edx
 je s_draw
 cmp eax,[edx+VP_HOVER]
 je s_roof_hidden
+push edx
+mov edx,[FRAME]
+mov [ROOF_SHOWN+eax*4],edx
+pop edx
 jmp s_draw
 s_wall:
 cmp dword [GATED],0
@@ -1604,6 +1621,10 @@ local function enable(self, config)
   local script = SCRIPT:gsub("%f[%w_]ORIGINAL%f[^%w_]", "db " .. table.concat(original, ","))
   values.UNITS_HERE = assemble(UNITS_SCRIPT, values)
   values.FRAME = core.allocate(4, true)
+  -- the frame a building last had a roof drawn (this module's "empty" overlays, tower roofs)
+  values.MAX_BUILDINGS = MAX_BUILDINGS
+  values.ROOF_SHOWN = core.allocate(MAX_BUILDINGS * 4, true)
+  values.HIDE_UNITS = setting(config, "drawing", "hide_units") and 1 or 0
   local start = scan(AOB_FRAME_START, "the start of the map drawing")
   values.MOUSE_X = core.readInteger(start + FRAME_START_MOUSE_X)
   values.MOUSE_Y = core.readInteger(start + FRAME_START_MOUSE_Y)
@@ -1683,6 +1704,7 @@ local function enable(self, config)
         u.UNIT_PATH = note + 7 + core.readByte(note + 6)
         u.PICTURE_PATH = note + 7
         u.REDRAW_RESUME = done + 7
+        u.UNIT_SKIP = done
         u.COVER = assemble(strips.COVER_SCRIPT, u)
         u.KEEP = assemble(strips.KEEP_SCRIPT, u)
         local queueHook = assemble(strips.QUEUE_SCRIPT, u)

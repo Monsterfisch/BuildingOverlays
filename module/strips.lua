@@ -690,6 +690,8 @@ ret
 -- entry is drawn, draws those strips again (clipped to its rows) and then puts back the old
 -- pixels wherever the entry itself drew nothing - so the strips land on the unit only, the mask
 -- being the unit's own pixels.
+-- With "hide units under roofs" (HIDE_UNITS) a unit standing on a building whose roof was drawn
+-- this frame or the last (ROOF_SHOWN) is not drawn at all - except one walking the passage.
 strips.MARK_SCRIPT = [[
 push esi
 push edi
@@ -927,7 +929,20 @@ cmp [UNIT_STAMP+eax*4],esi
 jne n_rect
 mov esi,[UNIT_BUILDING+eax*4]
 mov [N_B],esi
-jmp n_rect
+mov edi,HIDE_UNITS
+test edi,edi
+je n_rect
+cmp esi,MAX_BUILDINGS
+jae n_rect
+mov edi,[FRAME]
+dec edi
+cmp [ROOF_SHOWN+esi*4],edi
+jl n_rect
+imul edi,eax,UNIT_SIZE
+cmp byte [edi+UNIT_PASSAGE],0
+jne n_rect
+popad
+jmp UNIT_SKIP
 n_picture:
 mov ecx,[esp+0x18]
 test eax,eax

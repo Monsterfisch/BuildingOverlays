@@ -66,3 +66,11 @@ options:
     contents:
       type: boolean
       value: true
+  - url: building-overlays.drawing.hide_units
+    name: building-overlays-drawing-hide-units
+    text: '{{hide_units}}'
+    tooltip: '{{hide_units_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: false
