@@ -1607,24 +1607,6 @@ local function installPanel(v)
     end
     log(INFO, string.format("%s: panel drawn, selected building %d (type %d), %d overlay(s) listed",
       MODULE_NAME, building, kind, core.readInteger(w.DIAG + 4)))
-    -- what the tile by tile drawing did for the building selected before (diagnostics)
-    if v.CAPTURE_LOG ~= nil and v.CAPTURE_LOG ~= 0 then
-      local count = core.readInteger(v.CAPTURE_LOG)
-      for index = 0, count - 1 do
-        local at = v.CAPTURE_LOG + 4 + index * 24
-        local kind_, frame = core.readInteger(at), core.readInteger(at + 4)
-        local a, b, c, record = core.readInteger(at + 8), core.readInteger(at + 12),
-          core.readInteger(at + 16), core.readInteger(at + 20) & 0xFFFFFFFF
-        if kind_ == 1 then
-          log(INFO, string.format("%s: tiles f%d piece x=%d picture x=%d strip %d (%08X)",
-            MODULE_NAME, frame, a, b, c, record))
-        else
-          log(INFO, string.format("%s: tiles f%d corner picture x=%d y=%d phase %d (%08X)",
-            MODULE_NAME, frame, a, b, c, record))
-        end
-      end
-      core.writeInteger(v.CAPTURE_LOG, 0)
-    end
   end)
 
   local originals = {
@@ -1800,10 +1782,6 @@ local function enable(self, config)
       values.MAX_BUILDINGS, values.SLOT_SIZE, values.ENTRY_SIZE = MAX_BUILDINGS, strips.SLOT_SIZE, strips.ENTRY_SIZE
       values.ENTRIES_SIZE, values.MAX_ENTRIES = strips.ENTRIES_SIZE, strips.MAX_ENTRIES
       values.R_STRIPS, values.R_STRIP_COUNT, values.R_PHASE = strips.R_STRIPS, strips.R_STRIP_COUNT, strips.R_PHASE
-      values.CAP = core.allocate(24, true)
-      values.CAPTURE_MAX = 160
-      values.CAPTURE_LOG = core.allocate(4 + values.CAPTURE_MAX * 24, true)
-      values.CAPTURE = assemble(strips.CAPTURE_SCRIPT, values)
       values.CAMERA = assemble(strips.CAMERA_SCRIPT, values)
       values.DRAW_STRIP = assemble(strips.DRAW_STRIP_SCRIPT, values)
       values.REMEMBER_AT = assemble(strips.REMEMBER_AT_SCRIPT, values)

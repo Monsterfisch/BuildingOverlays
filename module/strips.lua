@@ -25,34 +25,6 @@ strips.AOB_TILE_PIECE = "03 05 ? ? ? ? 52 8B 15 ? ? ? ? 2B 15 ? ? ? ? 2B D1 03 1
   .. "52 50 E8 ? ? ? ? 83 7C 24 24 00"
 strips.TILE_X_OPERAND, strips.TILE_HOOK, strips.TILE_HOOK_SIZE = 2, 0x27, 5
 
--- Diagnostics: appends the six dwords at [CAP] to CAPTURE_LOG (count, then 24 bytes each).
-strips.CAPTURE_SCRIPT = [[
-push eax
-push edx
-mov eax,[CAPTURE_LOG]
-cmp eax,CAPTURE_MAX
-jae k_full
-inc dword [CAPTURE_LOG]
-imul eax,eax,24
-lea eax,[eax+CAPTURE_LOG+4]
-mov edx,[CAP]
-mov [eax],edx
-mov edx,[CAP+4]
-mov [eax+4],edx
-mov edx,[CAP+8]
-mov [eax+8],edx
-mov edx,[CAP+12]
-mov [eax+12],edx
-mov edx,[CAP+16]
-mov [eax+16],edx
-mov edx,[CAP+20]
-mov [eax+20],edx
-k_full:
-pop edx
-pop eax
-ret
-]]
-
 -- ebx = the view -> [CAM] = 32 * view column, [CAM+4] = 16 * view row - row bias
 strips.CAMERA_SCRIPT = [[
 push eax
@@ -131,21 +103,6 @@ jmp REMEMBER_AT
 -- ecx = their cut, which is laid out like a record: R_H, R_STRIPS, R_STRIP_COUNT, R_PHASE).
 strips.REMEMBER_AT_SCRIPT = [[
 pushad
-mov eax,[SCRATCH+16]
-cmp eax,[SELECTED]
-jne r_logged
-mov dword [CAP],2
-mov eax,[FRAME]
-mov [CAP+4],eax
-mov eax,[SX]
-mov [CAP+8],eax
-mov eax,[SY]
-mov [CAP+12],eax
-mov eax,[ecx+R_PHASE]
-mov [CAP+16],eax
-mov [CAP+20],ecx
-call CAPTURE
-r_logged:
 mov dword [OLD],0
 mov ebp,[SCRATCH+16]
 cmp ebp,MAX_BUILDINGS
@@ -312,21 +269,6 @@ add edx,ENTRY_SIZE
 dec edi
 jmp t_entry
 t_one:
-cmp esi,[SELECTED]
-jne t_logged
-push eax
-mov dword [CAP],1
-mov eax,[FRAME]
-mov [CAP+4],eax
-mov eax,[TILE_X]
-mov [CAP+8],eax
-mov eax,[SX]
-mov [CAP+12],eax
-mov [CAP+16],ebx
-mov [CAP+20],ecx
-call CAPTURE
-pop eax
-t_logged:
 cmp ebx,0
 jl t_skip
 cmp ebx,[ecx+R_STRIP_COUNT]
