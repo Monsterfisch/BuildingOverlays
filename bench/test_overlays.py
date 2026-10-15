@@ -4,6 +4,7 @@ surface, and the pixels are compared with the PNGs.  python test_overlays.py [va
 import os, sys, shutil, struct, tempfile
 import harness
 from harness import Host, SENTINEL, MASK
+from x86emu import Halt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODULE = os.path.join(os.path.dirname(HERE), 'module')
@@ -677,6 +678,35 @@ def strips_suite(ext):
     tower_corner()
     check('... and the front corner does not draw it again', tower_pixels(), 0)
 
+    # an animation moves on to its next picture (the mill's sails): still the same picture for the
+    # strips, so the front corner does not draw the new one whole over whatever stands in front
+    h.put32(offsets + (IMAGE + 1) * 4, 0x200000)
+    h.m.write(widths + (IMAGE + 1) * 16, struct.pack('<HH', 40, 10))
+    row2 = bytes([0x1F]) + struct.pack('<H', 0x5678) * 32 + bytes([0x07]) + struct.pack('<H', 0x5678) * 8 + bytes([0x80])
+    h.m.write(data + 0x200000, row2 * 10)
+
+    def next_pixels():
+        n = 0
+        for y in range(0, 600):
+            row_ = h.m.read(SURFACE + y * PITCH, 1000 * 2)
+            n += sum(1 for i in range(0, len(row_), 2) if row_[i] == 0x78 and row_[i + 1] == 0x56)
+        return n
+    new_frame(); clear()
+    tower_piece(566 - 32)
+    h.put32(t2 + 0x38, 2)
+    clear()
+    tower_corner()
+    check('next animation picture: the front corner does not draw it whole', (tower_pixels(), next_pixels()), (0, 0))
+    new_frame(); clear()
+    tower_piece(566 - 32)
+    check('... the piece draws it the frame after', (tower_pixels(), next_pixels()), (0, 400))
+    clear()
+    tower_corner()
+    check('... and the corner still adds nothing', (tower_pixels(), next_pixels()), (0, 0))
+    h.put32(t2 + 0x38, 1)
+    for _ in range(2):
+        new_frame(); clear(); tower_piece(566 - 32); tower_corner()
+
     # a civilian building's colour-indexed picture (gm 0x19, type 2): drawn in strips by the
     # game's indexed routine, with the owner colour and sprite the game had set for it
     IMAGE2 = 600
@@ -799,6 +829,55 @@ def strips_suite(ext):
     check('a unit queued after the pieces (in front) is not', all(px(*k) == UNIT for k in shape), True)
     new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
 
+    # zoomed out the game's clip is in draw rows (bottom 2192 here) while the blitter halves them:
+    # a unit low on the screen must be copied at half its draw rows, never past the 2076-row
+    # surface (the game crashed reading row 2076 before)
+    surface_end = SURFACE + 2076 * PITCH
+    plain_page = h.m.page
+
+    def guarded_page(number):
+        if surface_end >> 12 <= number < (SURFACE + 0x2000000) >> 12:
+            raise Halt('read past the map surface at page %X' % (number << 12))
+        return plain_page(number)
+
+    zy, zux, zuy = 2250, bx - 60, 2150
+    half = [(xx, yy) for yy in range(zuy // 2, (zuy + uh) // 2) for xx in range(zux // 2, (zux + uw) // 2)]
+    zshape = [k for k in half if k[0] < (zux + uw // 2) // 2]
+    zother = [k for k in half if k[0] >= (zux + uw // 2) // 2]
+
+    def zoomed_frame(with_unit):
+        new_frame(); clear()
+        h.put32(core + 0x54, 1); h.put32(core + 0x5C, 2192)
+        if with_unit:
+            queued(0)
+        piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, zy)
+        if not with_unit:
+            return {k: px(*k) for k in half}
+        for k in zother:
+            h.m.write(SURFACE + k[1] * PITCH + k[0] * 2, FOREIGN)
+        h.put32(RS + 0x18B770, 1)
+        h.run(note, until=unit_path, regs={'ebp': zux, 'edi': zuy}, stack=[0, 0, 0, uw, uh, 9, 0, 0, 0, RS, 0])
+        for (xx, yy) in zshape:
+            h.m.write(SURFACE + yy * PITCH + xx * 2, UNIT)
+        h.run(done, until=done + 7, stack=[0] * 16)
+
+    for _ in range(2):
+        zoomed_frame(False)
+    zplain = zoomed_frame(False)
+    h.m.page = guarded_page
+    try:
+        zoomed_frame(True)
+        crashed = None
+    except Halt as e:
+        crashed = str(e)
+    h.m.page = plain_page
+    check('zoomed out, a unit at the bottom of the screen stays inside the map surface', crashed, None)
+    zover = [k for k in zshape if zplain[k] != bytes(2)]
+    check('zoomed out the overlay goes over the unit at half its draw position',
+          (len(zover) > 10, sum(1 for k in zover if px(*k) not in (UNIT, bytes(2)))), (True, len(zover)))
+    check('zoomed out, pixels the unit did not draw are left alone', all(px(*k) == FOREIGN for k in zother), True)
+    h.put32(core + 0x54, 0)
+
     # the camera moved one tile column right since the last frame: the strips move with it
     for _ in range(2):
         new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
@@ -809,7 +888,81 @@ def strips_suite(ext):
     check('the camera is followed', (any(bx - 96 <= c < bx - 64 for c in cols), any(bx - 64 <= c < bx - 32 for c in cols)), (True, False))
 
 
+def keep_door_suite(ext, fixed=True):
+    print('=== keep entrance %s%s' % ('Extreme' if ext else 'vanilla', '' if fixed else ' (setting off)'))
+    fresh_work()
+    h = Host(extreme=ext, config={} if fixed else {'keep_entrance': {'enabled': False}},
+             foreign_patches=False, aic=False)
+    E = h.E
+    site = E.find('66 3D 49 00 0F 85 ? ? ? ? 83 BE ? ? ? ? 00 74 ? 0F BF 8E')[0] + 0x41
+    check('keep entrance hook is in', h.m.read(site, 1) == bytes([0xE9]), fixed)
+    func = E.find('83 EC 0C 53 55 56 8B 74 24 1C 69 F6 2C 03 00 00')
+    check('updateBuildingGraphicsLayer found once', len(func), 1)
+    func = func[0]
+    tiles = E.u32(E.find('A1 ? ? ? ? 85 C0 53 55 56 57 8B E9 BF 08 00 00 00 74 22')[0] + 1) - 0x55489C
+    base = E.u32(site + 0x29)                  # building +0: the first picture of its type
+    first = E.u32(site + 0x1B)
+    gfx = tiles + E.u32(site - 0x41 + 0x38)
+    h.put32(tiles + 0x5548C4, 1)               # the ordinary view (zero = V view)
+    h.put32(tiles + 0x5548C8, 0)
+    h.put16(first + 52 * 4, 1000)              # tile_castle's first frame
+    index = 7
+    b = base + index * STRIDE
+
+    def frame(btype, sprite, style, turn, map_turn):
+        h.m.write(b, bytes(STRIDE))
+        h.put32(b, sprite); h.put32(b + 4, 52); h.put32(b + 0xA8, style); h.put32(b + 0xAC, 1326)
+        h.put16(b + 0x92, turn); h.put16(b + 0xD2, btype); h.put16(b + 0xEE, 40); h.put16(b + 0xF0, 50)
+        h.put32(b + 0xF8, 1)
+        h.put32(tiles + 0x55489C, map_turn)
+        h.m.write(gfx, bytes(400 * 400 * 2))
+        h.run(func, regs={'ecx': tiles}, stack=[index])
+        data = h.m.read(gfx, 400 * 400 * 2)
+        words = [w for w in struct.unpack('<%dH' % (400 * 400), data) if w]
+        return words[0] if len(words) == 1 else words
+
+    # UpdateKeepDoor resets every door piece to style 0 each tick, so style 0 is what is seen
+    wrong = []
+    for turn in (0, 2, 4, 6):
+        for map_turn in (0, 2, 4, 6):
+            side = frame(71, 1314, 0, turn, map_turn) - (1000 + 1314 - 1)
+            middle = frame(73, 1322, 0, turn, map_turn) - (1000 + 1322 - 1)
+            if fixed and middle != side:
+                wrong.append((turn, map_turn, side, middle))
+            if not fixed and (middle == side) != (turn in (0, 4)):
+                wrong.append((turn, map_turn, side, middle))
+    check('middle entrance tile ' + ('matches the side pieces in every turn' if fixed
+          else "is the game's own (wrong on keeps turned 2 and 6)"), wrong, [])
+
+    # the thin pillar UpdateKeepDoor puts over the middle piece every tick: lit (0x1C, manor
+    # house 0x20) exactly when the side pieces are lit
+    door = E.find('56 57 8B 3D ? ? ? ? 8B C7 69 C0 2C 03 00 00 0F BF 88 ? ? ? ? 69 C9 2C 03 00 00 66 8B 91')
+    check('UpdateKeepDoor found once', len(door), 1)
+    door = door[0]
+    current = E.u32(door + 4)
+    rotation = E.u32(E.find('8B 0D ? ? ? ? 3B CE C7 80 ? ? ? ? ? ? ? ? C7 80')[0] + 2)
+    keep_index = 9
+    k = base + keep_index * STRIDE
+    wrong = []
+    for keep_type, lit_frame in ((40, 0x20), (41, 0x1C), (42, 0x1C)):
+        for turn in (0, 2, 4, 6):
+            for map_turn in (0, 2, 4, 6):
+                side = frame(71, 1314, 0, turn, map_turn) - (1000 + 1314 - 1)
+                h.m.write(k, bytes(STRIDE)); h.put16(k + 0xD2, keep_type); h.put16(k + 0x92, turn)
+                h.m.write(b, bytes(STRIDE)); h.put16(b + 0xD2, 73); h.put16(b + 0x192, keep_index)
+                h.put16(b + 0xCE, 0x52A if keep_type != 40 else 0x52F)   # no picture change: no redraw
+                h.put32(current, index); h.put32(rotation, map_turn); h.put32(tiles + 0x55489C, map_turn)
+                h.run(door)
+                pillar = h.u32(b + 0x1C)
+                if (pillar == lit_frame) != (side == 0) if fixed else (pillar == lit_frame) != (map_turn in (0, 4)):
+                    wrong.append((keep_type, turn, map_turn, side, pillar))
+    check('entrance pillar picture ' + ('matches the side pieces in every turn' if fixed
+          else "is the game's own (by map rotation only)"), wrong, [])
+
+
 for which in (sys.argv[1:] or ['van', 'ext']):
+    keep_door_suite(which == 'ext')
+    keep_door_suite(which == 'ext', fixed=False)
     strips_suite(which == 'ext')
     foreign_suite(which == 'ext')
     suite(which == 'ext')

@@ -41,6 +41,7 @@ local DEFAULTS = {
   editor = { enabled = true },
   drawing = { tile_by_tile = true, hide_units = false },
   mouse = { hover_only = false },
+  keep_entrance = { enabled = true },
 }
 
 -- Overlays a plugin may add on top of the ones in overlay_list.lua.
@@ -1558,6 +1559,93 @@ local function patchVanillaOverlays(tail, values)
 end
 
 ---------------------------------------------------------------------------------------
+-- The keep entrance (a game bug)
+---------------------------------------------------------------------------------------
+
+---placeKeep puts three one-tile pieces in front of a keep: BT_KEEPDOOR_LEFT (71), _RIGHT (72)
+---and the middle BT_KEEPDOOR (73). Each side piece has a picture for an entrance facing lower
+---left and one for lower right, picked by map rotation + 2 for a keep turned 2 or 6. The
+---middle one goes by map rotation alone, so on keeps turned 2 or 6 it is the wrong one - twice:
+---its tile picture (updateBuildingGraphicsLayer) and the thin pillar picture UpdateKeepDoor
+---draws over it every tick (anim_castle 0x1C/0x1E, manor house 0x20/0x22, with its offsets).
+---Both choices get the keep's turn added here.
+local function fixKeepDoor()
+  local site = scan("66 3D 49 00 0F 85 ? ? ? ? 83 BE ? ? ? ? 00 74 ? 0F BF 8E ? ? ? ? 66 8B 14 8D "
+    .. "? ? ? ? 66 03 96 ? ? ? ? 66 03 96 ? ? ? ? 66 83 EA 01 66 89 94 5F ? ? ? ? E9 ? ? ? ? "
+    .. "8B 87 ? ? ? ? 83 F8 02 74 ? 83 F8 06 74", "the keep entrance picture")
+  local sides = scan("0F B7 8E ? ? ? ? 66 83 F9 06 8B 87 ? ? ? ? 74 06 66 83 F9 02 75",
+    "the keep entrance side pictures")
+  local hook = site + 0x41
+  local values = {
+    MAP_ORI = core.readInteger(hook + 0x02), SHEET = core.readInteger(hook + 0x13),
+    FIRST = core.readInteger(hook + 0x1B), STYLE = core.readInteger(hook + 0x22),
+    SPRITE = core.readInteger(hook + 0x29), ORIENT = core.readInteger(sides + 3),
+    GFX = core.readInteger(site + 0x38), DONE = site + 0x41 + core.readInteger(site + 0x3D),
+  }
+  if values.MAP_ORI ~= core.readInteger(sides + 0x0D) then
+    error("the keep entrance pictures are not the code this module knows")
+  end
+  -- UpdateKeepDoor: `mov ecx, [map rotation] / cmp ecx, esi`, once for the manor house and
+  -- once for the stone keep and stronghold
+  local pillars = {}
+  local pattern = "8B 0D ? ? ? ? 3B CE C7 80 ? ? ? ? ? ? ? ? C7 80 ? ? ? ? ? ? ? ? 89 B0 ? ? ? ? 74 ? 83 F9 04 74"
+  local from = scan(pattern, "the keep entrance pillar")
+  pillars[1] = from
+  local ok, second = pcall(core.AOBScan, pattern, from + 1)
+  if not ok or second == nil or second - from > 0x100 then
+    error("the keep entrance pillar is not the code this module knows")
+  end
+  pillars[2] = second
+  local turned = assemble([[
+mov ecx, [ROTATION]
+push edx
+movzx edx, word [eax + ORIENT]
+cmp edx, 2
+je kp_turn
+cmp edx, 6
+jne kp_done
+kp_turn:
+add ecx, 2
+and ecx, 7
+kp_done:
+pop edx
+ret
+]], { ROTATION = core.readInteger(from + 2), ORIENT = values.ORIENT })
+  local blob = assemble([[
+movzx ecx, word [esi + ORIENT]
+mov eax, [edi + MAP_ORI]
+cmp ecx, 2
+je kd_turn
+cmp ecx, 6
+jne kd_pick
+kd_turn:
+add eax, 2
+kd_pick:
+and eax, 7
+xor edx, edx
+cmp eax, 2
+je kd_shaded
+cmp eax, 6
+jne kd_lit
+kd_shaded:
+mov edx, 1
+kd_lit:
+movsx eax, word [esi + SHEET]
+mov cx, word [eax*4 + FIRST]
+add cx, word [esi + STYLE]
+add cx, word [esi + SPRITE]
+add cx, dx
+sub cx, 1
+mov word [edi + ebx*2 + GFX], cx
+jmp DONE
+]], values)
+  core.writeCode(hook, { 0xE9, core.itob(core.getRelativeAddress(hook, blob, -5)), 0x90 })
+  for _, address in ipairs(pillars) do
+    core.writeCode(address, { 0xE8, core.itob(core.getRelativeAddress(address, turned, -5)), 0x90 })
+  end
+end
+
+---------------------------------------------------------------------------------------
 -- Enable
 ---------------------------------------------------------------------------------------
 
@@ -1659,6 +1747,7 @@ local function enable(self, config)
       values.OWNER_GLOBAL = readOperand(f1, { 0x33, { 0xA3 } }, "the drawn owner colour")
       values.SPRITE_GLOBAL = readOperand(f1, { 0xFF, { 0xC7, 0x05 } }, "the drawn sprite")
       values.DRAW_KIND, values.DRAW_ALPHA = core.allocate(4, true), core.allocate(4, true)
+      values.KEY = core.allocate(4, true)
       values.DRAW_OWNER, values.DRAW_SPRITE = core.allocate(4, true), core.allocate(4, true)
       values.CAMERA = assemble(strips.CAMERA_SCRIPT, values)
       values.LOG_MAX, values.LOG_ENTRY = strips.LOG_MAX, strips.LOG_ENTRY
@@ -1684,7 +1773,7 @@ local function enable(self, config)
         u.MARK_B = core.allocate(4, true)
         u.MARK_SCRATCH = core.allocate(8, true)
         for _, name in ipairs({ "UX", "UX2", "UY", "UY2", "ZJ_END", "N_B", "Q_FROM", "ACTIVE", "COVER_HIT",
-          "COVER_DRAW", "RX0", "RX1", "RY0", "RY1" }) do
+          "COVER_DRAW", "RX0", "RX1", "RY0", "RY1", "DY0", "DY1" }) do
           u[name] = core.allocate(4, true)
         end
         u.CLIP_TOP, u.CLIP_BOTTOM = values.RENDER_CORE + 0x58, values.RENDER_CORE + 0x5C
@@ -1697,7 +1786,7 @@ local function enable(self, config)
         u.FIRST_FRAMES = core.readInteger(renderGm + RENDER_GM_FIRST_FRAMES)
         u.WIDTHS = core.readInteger(renderGm + RENDER_GM_WIDTHS)
         u.MAX_SIDE = strips.MAX_SIDE
-        u.PITCH, u.SURFACE_W = strips.PITCH, strips.PITCH // 2
+        u.PITCH, u.SURFACE_W, u.SURFACE_H = strips.PITCH, strips.PITCH // 2, strips.SURFACE_H
         u.SURFACE_PTR = core.readInteger(values.BLIT + 0x50)
         u.SNAP = core.allocate((strips.MAX_SIDE + 32) * strips.MAX_SIDE * 2, true)
         u.AFTER = core.allocate((strips.MAX_SIDE + 32) * strips.MAX_SIDE * 2, true)
@@ -1772,6 +1861,13 @@ local function enable(self, config)
     if not ok then
       log(WARNING, MODULE_NAME .. ": the overlay tool in the building panel is off: "
         .. tostring(message))
+    end
+  end
+
+  if setting(config, "keep_entrance", "enabled") then
+    local ok, message = pcall(fixKeepDoor)
+    if not ok then
+      log(WARNING, MODULE_NAME .. ": the keep entrance stays as the game draws it: " .. tostring(message))
     end
   end
 

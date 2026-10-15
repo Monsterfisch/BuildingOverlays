@@ -23,7 +23,7 @@ strips.R_STRIPS, strips.R_STRIP_COUNT, strips.R_PHASE = 0x34, 0x38, 0x3C
 -- A picture is drawn the way the game would have drawn it (DRAW_KIND / DRAW_ALPHA, and for the
 -- game's colour-indexed pictures the owner colour and sprite the game had set): kind 0 a 16 bit
 -- TGX picture (faded with DRAW_ALPHA 1..31), kind 2 a colour-indexed one.
-strips.SLOT_SIZE, strips.ENTRY_SIZE, strips.ENTRIES_SIZE, strips.MAX_ENTRIES = 0x710, 56, 0x380, 16
+strips.SLOT_SIZE, strips.ENTRY_SIZE, strips.ENTRIES_SIZE, strips.MAX_ENTRIES = 0x790, 60, 0x3C0, 16
 strips.AOB_TILE_PIECE = "03 05 ? ? ? ? 52 8B 15 ? ? ? ? 2B 15 ? ? ? ? 2B D1 03 15 ? ? ? ? B9 ? ? ? ? "
   .. "52 50 E8 ? ? ? ? 83 7C 24 24 00"
 strips.TILE_X_OPERAND, strips.TILE_HOOK, strips.TILE_HOOK_SIZE = 2, 0x27, 5
@@ -184,8 +184,11 @@ ret
 -- but not this one (all of them for a picture that was not shown last frame) and notes the
 -- picture for the pieces of the next frame, with the strips the pieces covered this frame.
 -- Entry: { record, map x, map y, drawn by pieces this frame[3], covered by pieces the frame
--- before[3], frame its overhang was drawn, kind, alpha, owner colour, sprite }.
+-- before[3], frame its overhang was drawn, kind, alpha, owner colour, sprite, key }. The key
+-- (KEY) finds last frame's entry: the record for this module's pictures, the call's info for the
+-- game's, so an animation that moved on to its next picture still counts as the same one.
 strips.REMEMBER_SCRIPT = [[
+mov [KEY],ecx
 mov dword [DRAW_KIND],0
 mov dword [DRAW_ALPHA],0
 push eax
@@ -224,10 +227,11 @@ jne m_all
 mov ebx,[ebp+8+eax*4]
 imul eax,eax,ENTRIES_SIZE
 lea edx,[ebp+0x10+eax]
+mov eax,[KEY]
 m_find:
 test ebx,ebx
 je m_all
-cmp [edx],ecx
+cmp [edx+56],eax
 je m_found
 add edx,ENTRY_SIZE
 dec ebx
@@ -300,6 +304,8 @@ mov eax,[DRAW_OWNER]
 mov [edx+48],eax
 mov eax,[DRAW_SPRITE]
 mov [edx+52],eax
+mov eax,[KEY]
+mov [edx+56],eax
 mov eax,[OLD]
 test eax,eax
 je m_done
@@ -610,6 +616,7 @@ mov eax,[esp+0x28]
 mov [SY],eax
 mov eax,[CURRENT]
 mov [SCRATCH+16],eax
+mov [KEY],ecx
 push ecx
 mov ecx,edx
 call REMEMBER_AT
@@ -913,6 +920,8 @@ ret
 -- Where renderUnits starts on an entry (ebp = x, edi = y; [esp+0x18] = the unit, -1 / 0 = a
 -- picture: set ecx / eax, frame esi; for a unit [esp+0x10] / [esp+0x14] = width / height;
 -- [esp+0x28] = the render state, [esp+0x2C] = the entry's place in its bucket).
+-- Zoomed out the blitter halves draw coordinates, so [DY0, DY1) stays in draw rows for the
+-- game's clip while [RX0, RX1) x [RY0, RY1) is in surface pixels, inside the 4056 x 2076 surface.
 strips.NOTE_SCRIPT = [[
 pushad
 mov dword [ACTIVE],0
@@ -995,21 +1004,6 @@ n_queued:
 call COVER
 test eax,eax
 je n_out
-mov eax,[UX]
-sub eax,16
-jge n_left
-xor eax,eax
-n_left:
-mov [RX0],eax
-mov eax,[UX2]
-add eax,16
-cmp eax,SURFACE_W
-jle n_right
-mov eax,SURFACE_W
-n_right:
-mov [RX1],eax
-cmp eax,[RX0]
-jle n_out
 mov eax,[UY]
 cmp eax,[CLIP_TOP]
 jge n_top
@@ -1019,14 +1013,48 @@ test eax,eax
 jge n_top_ok
 xor eax,eax
 n_top_ok:
-mov [RY0],eax
+mov [DY0],eax
 mov eax,[UY2]
 cmp eax,[CLIP_BOTTOM]
 jle n_bottom
 mov eax,[CLIP_BOTTOM]
 n_bottom:
+mov [DY1],eax
+cmp eax,[DY0]
+jle n_out
+xor ecx,ecx
+cmp dword [ZOOMED_OUT],0
+setne cl
+mov eax,[DY0]
+sar eax,cl
+mov [RY0],eax
+mov eax,[DY1]
+add eax,ecx
+sar eax,cl
+cmp eax,SURFACE_H
+jle n_rows
+mov eax,SURFACE_H
+n_rows:
 mov [RY1],eax
 cmp eax,[RY0]
+jle n_out
+mov eax,[UX]
+sub eax,16
+sar eax,cl
+jge n_left
+xor eax,eax
+n_left:
+mov [RX0],eax
+mov eax,[UX2]
+add eax,16
+add eax,ecx
+sar eax,cl
+cmp eax,SURFACE_W
+jle n_right
+mov eax,SURFACE_W
+n_right:
+mov [RX1],eax
+cmp eax,[RX0]
 jle n_out
 mov edi,SNAP
 call KEEP
@@ -1078,9 +1106,9 @@ mov edi,AFTER
 call KEEP
 push dword [CLIP_TOP]
 push dword [CLIP_BOTTOM]
-mov eax,[RY0]
+mov eax,[DY0]
 mov [CLIP_TOP],eax
-mov eax,[RY1]
+mov eax,[DY1]
 mov [CLIP_BOTTOM],eax
 mov dword [LOG_OFF],1
 mov dword [COVER_DRAW],1
@@ -1127,6 +1155,7 @@ jmp REDRAW_RESUME
 
 strips.LOG_MAX, strips.LOG_ENTRY = 16384, 40   -- the strips drawn in a frame
 strips.MAX_SIDE, strips.PITCH = 256, 0x1FB0     -- largest unit picture handled; map surface row
+strips.SURFACE_H = 2076                          -- map surface rows (the game creates it 4056 x 2076)
 strips.MAX_UNITS = 10000
 
 strips.ROOF_READ = [[

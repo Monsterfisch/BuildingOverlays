@@ -48,3 +48,13 @@ hide_units_tooltip: |
   Troops standing on a tower, gatehouse or keep are not drawn while its roof is showing, so no
   part of them pokes through the roof. Units walking through a gatehouse stay visible. Works
   together with "Let buildings in front cover the overlays" (needs it on).
+
+keep_entrance_group: Keep entrance
+keep_entrance_group_descr: |
+  Fixes a picture bug of the game at the entrance in front of a keep.
+keep_entrance_enabled: Draw the middle of the keep entrance right
+keep_entrance_enabled_tooltip: |
+  On keeps turned one of two ways, the game draws the middle of the entrance in the wrong
+  light: a bright pillar between shaded towers, or a dark one through a bright archway. With
+  this on, the middle matches the two towers beside it. Takes effect within a moment, or when
+  the map is turned.

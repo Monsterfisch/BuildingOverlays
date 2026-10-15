@@ -14,6 +14,13 @@ An empty large gatehouse gets a picture over its towers (one for a gatehouse who
 looks to the lower left, one for the lower right). When troops go onto the gatehouse the
 picture goes away. Can be switched off in the settings.
 
+## Keep entrance
+
+A fix for a bug of the game itself: on keeps turned one of two ways, the middle of the entrance
+in front of the keep was drawn in the wrong light - a bright pillar between shaded towers, or a
+dark one through a bright archway. Now it matches the towers beside it. Can be switched off in
+the settings.
+
 ## Troops on the building
 
 An overlay goes away while any unit stands on the building - except the lord, who always

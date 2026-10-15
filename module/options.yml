@@ -74,3 +74,18 @@ options:
     contents:
       type: boolean
       value: false
+
+- display: GroupBox
+  category: [Building Overlays]
+  header: '{{keep_entrance_group}}'
+  text: '{{keep_entrance_group_descr}}'
+  hasHeader: true
+  children:
+  - url: building-overlays.keep_entrance.enabled
+    name: building-overlays-keep-entrance-enabled
+    text: '{{keep_entrance_enabled}}'
+    tooltip: '{{keep_entrance_enabled_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
