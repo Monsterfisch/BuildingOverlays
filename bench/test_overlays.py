@@ -746,6 +746,17 @@ def strips_suite(ext):
     check('next frame a piece draws them with the remembered colour and sprite',
           (len(seen) > 0, set((o, s) for _, _, o, s in seen)), (True, {(1, 0x19)}))
     check('the globals are restored after the piece', (h.u32(owner_g), h.u32(sprite_g)), (7, 0x55))
+    # the V view: no piece draws strips there, so the game draws its picture whole, every frame
+    h.put32(v_flag, 0)
+    for n in range(3):
+        del seen[:]
+        new_frame(); clear()
+        h.run(func, stack=[3, 566, 450, 0], limit=3_000_000)
+        check('V view frame %d: the picture is drawn whole by the game' % (n + 1),
+              [w for _, w, _, _ in seen], [40])
+    h.put32(v_flag, 1)
+    for _ in range(2):
+        new_frame(); clear(); h.run(func, stack=[3, 566, 450, 0], limit=3_000_000)
     del h.cpu.hooks[indexed]
 
     # units are queued while their row is drawn and drawn rows later (renderUnits): the strips
@@ -827,6 +838,184 @@ def strips_suite(ext):
     new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); queued(0)
     unit_drawn(0, shape)
     check('a unit queued after the pieces (in front) is not', all(px(*k) == UNIT for k in shape), True)
+    new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
+
+    # a flag standing on the building (a picture, anim_flag_small 0xBD) is not drawn where
+    # renderUnits gets to it but once the map is done, after every overlay strip; another picture
+    # there is covered like a unit
+    IMAGE3 = 700
+    for gm in (0xBD, 0x62):
+        h.put32(first_frames + gm * 4, IMAGE3)
+    h.m.write(widths + IMAGE3 * 16, struct.pack('<HH', uw, uh))
+
+    def picture_drawn(gm):
+        h.put32(RS + 0x18B770, 1)
+        h.run(note, until=note + 7, regs={'ebp': ux, 'edi': uy, 'ecx': gm, 'esi': 1},
+              stack=[0, 0, 0, uw, uh, -1, 0, 0, 0, RS, 0])
+        for (xx, yy) in shape:
+            h.m.write(SURFACE + yy * PITCH + xx * 2, UNIT)
+        h.run(done, until=done + 7, stack=[0] * 16)
+
+    for _ in range(2):
+        overlay_only()
+    new_frame(); clear(); queued(0); piece_drawn(bx - 64); piece_drawn(bx - 32)
+    picture_drawn(0x62)
+    check('another picture behind the pieces is covered', sum(1 for k in over if px(*k) == plain[k]), len(over))
+    for _ in range(2):
+        overlay_only()
+    new_frame(); clear(); queued(0); piece_drawn(bx - 64); piece_drawn(bx - 32)
+    h.put32(RS + 0x18B770, 1)
+    cpu = h.run(note, until=done, regs={'ebp': ux, 'edi': uy, 'ecx': 0xBD, 'esi': 3},
+                stack=[0, 0, 0, 0, 0, -1, 0, 0, 0, RS, 0], limit=20000)
+    check('a flag is not drawn where renderUnits gets to it', cpu.eip, done)
+    units_done = E.find('8B CB E8 ? ? ? ? 81 3D ? ? ? ? A0 00 00 00 0F 85')[0] + 7
+    check('map-done hook in place', h.m.read(units_done, 1), bytes([0xE9]))
+    plain_pic = note + 0x49 + 5 + struct.unpack('<i', E.data[E.va2off(note + 0x4A):][:4])[0]
+    drawn_flags = []
+    h.stub(plain_pic, ret_bytes=0x10, record=drawn_flags)
+    h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
+    check('once the map is done the flag is drawn: gm, frame, x, y',
+          [tuple(a[:4]) for _, a in drawn_flags], [(0xBD, 3, ux, uy)])
+    del drawn_flags[:]
+    h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
+    check('... and only once', drawn_flags, [])
+    # an entity flag (keeps' corner flags, ET_FLAG: id 0, gm in eax, mode word with bit 4 = set
+    # the sprite and the local player's colour) is held back the same way
+    entity = E.find('8B 4C 24 14 F6 C1 04 74 ? 8A D1 80 E2 10 F6 DA A3 ? ? ? ? 1B D2 F7 D2 23 15')[0]
+    local_player = struct.unpack('<I', E.data[E.va2off(entity) + 0x1B:][:4])[0]
+    owner_global = struct.unpack('<I', E.data[E.va2off(entity) + 0x24:][:4])[0]
+    h.put32(local_player, 3)
+    seen_owner = []
+    new_frame(); clear()
+    h.put32(RS + 0x18B770, 1)
+    cpu = h.run(note, until=done, regs={'ebp': ux, 'edi': uy, 'eax': 0x4C, 'esi': 4},
+                stack=[0, 0, 0, 0, 4, 0, 0, 0, 0, RS, 0], limit=20000)
+    check('an entity flag is not drawn where renderUnits gets to it', cpu.eip, done)
+    h.stub(plain_pic, ret_bytes=0x10, record=drawn_flags)
+    original_hook = h.cpu.hooks[plain_pic]
+    def both(cpu):
+        seen_owner.append(h.u32(owner_global))
+        original_hook(cpu)
+    h.cpu.hooks[plain_pic] = both
+    h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
+    check("once the map is done the entity flag is drawn, in the local player's colour",
+          ([tuple(a[:4]) for _, a in drawn_flags], seen_owner), ([(0x4C, 4, ux, uy)], [3]))
+    del h.cpu.hooks[plain_pic]
+    # renderMap's entity pass draws the flags on keeps at their tile: such a call is held back and
+    # made once the map is done, with the same arguments; any other picture there is drawn at once
+    pass_start = E.find('0F BF 96 ? ? ? ? 83 FA 76 89 15 ? ? ? ? 74 08 81 FA 90 00 00 00 75')[0]
+    plain_sites = [a for a in range(pass_start, pass_start + 0x5D0)
+                   if h.m.read(a, 1) == bytes([0xE8])
+                   and E.data[E.va2off(a)] == 0xE8
+                   and a + 5 + struct.unpack('<i', E.data[E.va2off(a) + 1:][:4])[0] == plain_pic]
+    check('entity pass plain calls found', len(plain_sites) >= 2, True)
+    site = plain_sites[0]
+    stub = site + 5 + struct.unpack('<i', h.m.read(site + 1, 4))[0]
+    check('entity pass plain call goes through a stub', stub != plain_pic, True)
+    calls = []
+    h.stub(plain_pic, ret_bytes=0x10, record=calls)
+    h.run(stub, regs={'ecx': core}, stack=[0x62, 7, 100, 200])
+    check('another picture in the entity pass is drawn at once', [tuple(a[:4]) for _, a in calls], [(0x62, 7, 100, 200)])
+    del calls[:]
+    h.run(stub, regs={'ecx': core}, stack=[0x4C, 5, 110, 210])
+    check('a flag in the entity pass is held back', calls, [])
+    h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
+    check('... and drawn once the map is done', [tuple(a[:4]) for _, a in calls], [(0x4C, 5, 110, 210)])
+    del calls[:]
+    h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
+    check('... only once', calls, [])
+    # the flag at the back: while the building's roof overlay shows, a flag on it that comes before
+    # the building's first piece of the frame (its back-most row) is drawn at once, behind the roof
+    orientation_at = struct.unpack('<I', E.data[E.va2off(E.find('A1 ? ? ? ? 85 C0 53 55 56 57 8B E9 BF 08 00 00 00 74 22')[0]) + 1:][:4])[0]
+    building_layer = orientation_at - 0x55489C + 0x2029B0
+    h.put16(building_layer + 5000 * 2, 1)
+    h.put16(unit_tiles + 11 * 2, 0)
+    for _ in range(2):
+        overlay_only()
+    new_frame(); clear()
+    del calls[:]
+    h.run(stub, regs={'ecx': core}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, 5000])
+    check('the back flag is drawn at once (behind the roof)', [tuple(a[:4]) for _, a in calls], [(0x4C, 6, 120, 220)])
+    piece_drawn(bx - 64)
+    del calls[:]
+    h.run(stub, regs={'ecx': core}, stack=[0x4C, 6, 130, 230, 0, 0, 0, 0, 5000])
+    check("a flag after the building's first piece is held back", calls, [])
+    piece_drawn(bx - 32); corner(bx, by)
+    h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
+    check('... and drawn once the map is done', [tuple(a[:4]) for _, a in calls], [(0x4C, 6, 130, 230)])
+    # flags along the back edges (by map rotation) keep the game's place too, a flag on a front
+    # edge - the side corners among them - is held back
+    entities = struct.unpack('<I', E.data[E.va2off(pass_start) + 3:][:4])[0] - 0x1A
+    e7 = entities + 7 * 0xE8
+    results = {}
+    for rot in (0, 2, 4, 6):
+        for (fx, fy) in ((10, 11), (10, 12)):
+            new_frame(); clear(); piece_drawn(bx - 64)
+            h.put32(orientation_at, rot)
+            h.put16(e7 + 0x4C, fx * 8 + 4); h.put16(e7 + 0x4E, fy * 8 + 4)
+            del calls[:]
+            h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, 5000])
+            results[(rot, fx, fy)] = 'game' if calls else 'held'
+            piece_drawn(bx - 32); corner(bx, by)
+            h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
+    h.put32(orientation_at, 0)
+    h.put16(building_layer + 5000 * 2, 0)
+    # a building standing in front of a flag (the next tile toward the viewer) lets it through at
+    # once, so it is covered; the keep's own entrance pieces do not count
+    row_translate = struct.unpack('<I', E.data[E.va2off(ufn) + 0x30:][:4])[0]
+    for row in range(400):                  # the game fills its tile row table when a map starts
+        h.put32(row_translate + row * 12, row * 200)
+    new_frame(); clear(); piece_drawn(bx - 64)
+    h.put32(orientation_at, 0)
+    h.put16(e7 + 0x4C, 10 * 8 + 4); h.put16(e7 + 0x4E, 12 * 8 + 4)     # the front corner at rotation 0
+    other_b = buildings + 6 * STRIDE
+    h.m.write(other_b, bytes(STRIDE)); h.put16(other_b + 0xD2, 78)
+    tile_of = lambda x, y: struct.unpack('<i', h.m.read(row_translate + y * 12, 4))[0] + x
+    h.put16(building_layer + tile_of(11, 12) * 2, 6)
+    del calls[:]
+    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_of(10, 12)])
+    check('a building in front lets the flag through at once (it covers it)', len(calls), 1)
+    h.put16(other_b + 0xD2, 72)
+    del calls[:]
+    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_of(10, 12)])
+    check("the keep's entrance pieces do not count", len(calls), 0)
+    h.put16(other_b + 0xD2, 20)
+    del calls[:]
+    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_of(10, 12)])
+    check("a low building in front does not count (the keep's overlay still covers its flags from it)", len(calls), 0)
+    h.put16(building_layer + tile_of(11, 12) * 2, 0)
+    h.put16(other_b + 0xD2, 77)
+    h.put16(building_layer + tile_of(13, 10) * 2, 6)          # three tiles to one side, still toward the viewer
+    del calls[:]
+    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_of(10, 12)])
+    check('a tower a few tiles in front lets the flag through (it covers it)', len(calls), 1)
+    h.put16(building_layer + tile_of(13, 10) * 2, 0)
+    h.put16(building_layer + tile_of(7, 12) * 2, 6)           # behind the flag: no
+    del calls[:]
+    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_of(10, 12)])
+    check('a tower behind the flag does not', len(calls), 0)
+    h.put16(building_layer + tile_of(7, 12) * 2, 0)
+    check("back-edge flags keep the game's place by rotation, side corners are held back",
+          [results[(r, 10, 11)] for r in (0, 2, 4, 6)] + [results[(r, 10, 12)] for r in (0, 2, 4, 6)],
+          ['game', 'held', 'held', 'game', 'held', 'held', 'held', 'game'])
+    h.put16(building_layer + 5000 * 2, 0)
+    del h.cpu.hooks[plain_pic]
+    # faded (mode > 0) and alpha-masked (mode < 0) flags go through the same routines as in renderUnits
+    blend_pic = note + 0x36 + 5 + struct.unpack('<i', E.data[E.va2off(note + 0x37):][:4])[0]
+    alpha_pic = note + 0x20 + 5 + struct.unpack('<i', E.data[E.va2off(note + 0x21):][:4])[0]
+    blended, masked = [], []
+    h.stub(blend_pic, ret_bytes=0x14, record=blended)
+    h.stub(alpha_pic, ret_bytes=0x1C, record=masked)
+    for mode, extra in ((9, 0), (-5, 0x77)):
+        new_frame(); clear()
+        h.put32(RS + 0x18B770, 1)
+        h.run(note, until=done, regs={'ebp': ux, 'edi': uy, 'ecx': 0x4C, 'esi': 2, 'eax': extra},
+              stack=[0, 0, 0, 0, mode & MASK, -1, 0, 0, 0, RS, 0], limit=20000)
+        h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
+    check('a faded flag: gm, frame, x, y, alpha', [tuple(a[:5]) for _, a in blended], [(0x4C, 2, ux, uy, 9)])
+    check('an alpha-masked flag: gm, frame, x, y, gm', [tuple(a[:5]) for _, a in masked], [(0x4C, 2, ux, uy, 0x4C)])
+    del h.cpu.hooks[blend_pic]
+    del h.cpu.hooks[alpha_pic]
     new_frame(); clear(); piece_drawn(bx - 64); piece_drawn(bx - 32); corner(bx, by)
 
     # zoomed out the game's clip is in draw rows (bottom 2192 here) while the blitter halves them:
@@ -960,8 +1149,58 @@ def keep_door_suite(ext, fixed=True):
           else "is the game's own (by map rotation only)"), wrong, [])
 
 
+def flag_turn_suite(ext):
+    print('=== flags follow the map turn %s' % ('Extreme' if ext else 'vanilla'))
+    fresh_work()
+    h = Host(extreme=ext, config={}, foreign_patches=False, aic=False)
+    E = h.E
+    turn = E.find('56 8B F1 B9 ? ? ? ? E8 ? ? ? ? 8B 44 24 08 B9 ? ? ? ? A3 ? ? ? ? E8 ? ? ? ? 8B CE E8')[0]
+    check('turn hook in place', h.m.read(turn + 0x20, 1), bytes([0xE9]))
+    rotation = struct.unpack('<I', E.data[E.va2off(turn) + 0x17:][:4])[0]
+    redraw = turn + 0x27 + struct.unpack('<i', E.data[E.va2off(turn) + 0x23:][:4])[0]
+    entities = struct.unpack('<I', E.data[E.va2off(E.find('0F BF 96 ? ? ? ? 83 FA 76 89 15 ? ? ? ? 74 08 81 FA 90 00 00 00 75')[0]) + 3:][:4])[0] - 0x1A
+    redraws = []
+    h.stub(redraw, record=redraws)
+    h.put32(entities + 4, 6)
+    for i, gm in ((3, 0x4C), (4, 0x22)):
+        e = entities + i * 0xE8
+        h.m.write(e, bytes(0xE8))
+        h.put16(e + 0x3C, 1); h.put16(e + 0x1A, gm)
+        h.put16(e + 0x4C, 10 * 8 + 4); h.put16(e + 0x4E, 20 * 8 + 4)
+        h.put16(e + 0x20, 99); h.put16(e + 0x22, 99)
+    h.put32(rotation, 2)
+    h.run(turn + 0x20, until=turn + 0x27, regs={'esi': 0x1000})
+    flag = entities + 3 * 0xE8
+    check('a flag gets the draw offset of the new rotation', (h.u16(flag + 0x20), h.u16(flag + 0x22)), (16, 7))
+    check('other entities are left alone', (h.u16(entities + 4 * 0xE8 + 0x20), h.u16(entities + 4 * 0xE8 + 0x22)), (99, 99))
+    check('the game still redraws the map', len(redraws), 1)
+    # a flag on a building's corner tile moves out to the building's edge when it updates
+    update = E.find('A1 ? ? ? ? 69 C0 E8 00 00 00 0F BF 88 ? ? ? ? 0F BF 90 ? ? ? ? 56 0F BF B0')[0]
+    check('flag update hooked', h.m.read(update, 1), bytes([0xE8]))
+    current = struct.unpack('<I', E.data[E.va2off(update) + 1:][:4])[0]
+    orientation_at = struct.unpack('<I', E.data[E.va2off(E.find('A1 ? ? ? ? 85 C0 53 55 56 57 8B E9 BF 08 00 00 00 74 22')[0]) + 1:][:4])[0]
+    building_layer = orientation_at - 0x55489C + 0x2029B0
+    tail = E.find('0F B7 85 ? ? ? ? 0F BF C0 8B 04 85 ? ? ? ? 33 C9 3B C1 89 4C 24 30 89 4C 24 34 89 44 24 24')[0]
+    buildings = struct.unpack('<I', E.data[E.va2off(tail) + 3:][:4])[0] - 0xD2
+    b = buildings + 5 * STRIDE
+    h.m.write(b, bytes(STRIDE))
+    h.put16(b + 0xEE, 10); h.put16(b + 0xF0, 20); h.put32(b + 0xF8, 3)
+    h.put16(building_layer + 10 * 2, 5)          # the tile rows are empty here: tile (10, 22) = 10
+    h.put16(flag + 0x4C, 10 * 8 + 4); h.put16(flag + 0x4E, 22 * 8 + 4)
+    h.put32(current, 3); h.put32(rotation, 0)
+    h.run(update, until=update + 5)
+    check("the flag stands on the building's corner (x at its near edge, y at its far edge)",
+          (h.u16(flag + 0x4C), h.u16(flag + 0x4E)), (10 * 8, 22 * 8 + 7))
+    check('... and its draw offset is worked out for it', (h.u16(flag + 0x20), h.u16(flag + 0x22)), (0, 7))
+    h.put16(flag + 0x4C, 11 * 8 + 4); h.put16(flag + 0x4E, 21 * 8 + 4)
+    h.put16(building_layer + 11 * 2, 5)
+    h.run(update, until=update + 5)
+    check('a flag inside the building stays in the middle of its tile', (h.u16(flag + 0x4C), h.u16(flag + 0x4E)), (11 * 8 + 4, 21 * 8 + 4))
+
+
 for which in (sys.argv[1:] or ['van', 'ext']):
     keep_door_suite(which == 'ext')
+    flag_turn_suite(which == 'ext')
     keep_door_suite(which == 'ext', fixed=False)
     strips_suite(which == 'ext')
     foreign_suite(which == 'ext')

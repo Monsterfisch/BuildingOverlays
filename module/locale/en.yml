@@ -49,6 +49,19 @@ hide_units_tooltip: |
   part of them pokes through the roof. Units walking through a gatehouse stay visible. Works
   together with "Let buildings in front cover the overlays" (needs it on).
 
+flags_on_top: Show flags in front of the overlays
+flags_on_top_tooltip: |
+  Flags standing on a keep or another building are drawn last, after the whole map, so this
+  module's overlay pictures never hide any part of them. A building standing in front of a
+  flag does not hide it either. Works together with "Let buildings in front cover the
+  overlays" (needs it on).
+
+back_flag_behind: Keep the flag at the back behind the building
+back_flag_behind_tooltip: |
+  The flag on a building's far corner stays behind the building and the units on it, where the
+  game draws it, instead of in front of the overlays. Needs "Show flags in front of the
+  overlays".
+
 keep_entrance_group: Keep entrance
 keep_entrance_group_descr: |
   Fixes a picture bug of the game at the entrance in front of a keep.
@@ -58,3 +71,17 @@ keep_entrance_enabled_tooltip: |
   light: a bright pillar between shaded towers, or a dark one through a bright archway. With
   this on, the middle matches the two towers beside it. Takes effect within a moment, or when
   the map is turned.
+
+flags_group: Flags
+flags_group_descr: |
+  Fixes how the game places flags on buildings.
+flags_follow_turn: Keep flags in their spot when the map is turned
+flags_follow_turn_tooltip: |
+  The game works out where a flag's pole stands on screen only when the flag is put up, for the
+  view at that moment. After turning the map the poles stand a few pixels off, away from the
+  edge of the building. With this on they move along with every turn of the map.
+flags_on_edges: Put flags on the building's edge
+flags_on_edges_tooltip: |
+  The game puts a flag up in the middle of its tile, so a flag on a building's corner stands half
+  a tile in from the edge. With this on its pole moves out to the edge (the corner itself on a
+  corner tile), in every view.

@@ -39,9 +39,10 @@ local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this t
 local DEFAULTS = {
   large_gatehouse = { enabled = true, swap_sides = false },
   editor = { enabled = true },
-  drawing = { tile_by_tile = true, hide_units = false },
+  drawing = { tile_by_tile = true, hide_units = false, flags_on_top = true, back_flag_behind = true },
   mouse = { hover_only = false },
   keep_entrance = { enabled = true },
+  flags = { follow_turn = true, on_edges = true },
 }
 
 -- Overlays a plugin may add on top of the ones in overlay_list.lua.
@@ -1646,6 +1647,141 @@ jmp DONE
 end
 
 ---------------------------------------------------------------------------------------
+-- Flags keep their spot when the map is turned (a game bug)
+---------------------------------------------------------------------------------------
+
+---A flag is an entity standing at a point inside its tile (eighths, +0x4C / +0x4E). Where that
+---point is on screen depends on the map rotation (calculateEntityDrawOffset mirrors it), but the
+---game works it out only when the flag is placed, so after turning the map the pole stands a few
+---pixels off. Right after changeMapOrientation has set the new rotation, every flag gets it again.
+local function fixFlagTurn()
+  local turn = scan("56 8B F1 B9 ? ? ? ? E8 ? ? ? ? 8B 44 24 08 B9 ? ? ? ? A3 ? ? ? ? E8 ? ? ? ? 8B CE E8",
+    "the map turning") + 0x20
+  local offset = scan("8B 44 24 04 69 C0 E8 00 00 00 8D 14 08 0F B6 4A 4C 0F B6 42 4E 56 8B 35",
+    "the entity draw offset")
+  local entities = core.readInteger(scan(strips.AOB_ENTITY_PASS, "the map's entity drawing") + 3) - 0x1A
+  local blob = assemble([[
+pushad
+mov ebx,1
+ft_next:
+cmp ebx,[ENTITIES+4]
+jge ft_done
+imul eax,ebx,0xE8
+add eax,ENTITIES
+cmp word [eax+0x3C],0
+je ft_skip
+movzx ecx,word [eax+0x1A]
+cmp ecx,0x4C
+je ft_flag
+cmp ecx,0xBD
+je ft_flag
+cmp ecx,0xC9
+jne ft_skip
+ft_flag:
+push ebx
+mov ecx,ENTITIES
+call OFFSET
+ft_skip:
+inc ebx
+jmp ft_next
+ft_done:
+popad
+mov ecx,esi
+call REDRAW
+jmp RESUME
+]], { ENTITIES = entities, OFFSET = offset, REDRAW = turn + 7 + core.readInteger(turn + 3),
+    RESUME = turn + 7 })
+  core.writeCode(turn, { 0xE9, core.itob(core.getRelativeAddress(turn, blob, -5)), 0x90, 0x90 })
+end
+
+---Flags are put up in the middle of a tile (4/8, 4/8), so on a building's corner the pole stands
+---half a tile in from the edge. Each tick a flag updates (UpdateFlag_1_2_4_Entity /
+---UpdateFlag3Entity, both start with `mov eax, [current entity]`), its point inside the tile is moved
+---to the edge of the building it stands on wherever its tile lies on that edge (0 or 7 eighths), and
+---its draw offset is worked out again for the current map rotation.
+local function flagsOnEdges(values)
+  local offset = scan("8B 44 24 04 69 C0 E8 00 00 00 8D 14 08 0F B6 4A 4C 0F B6 42 4E 56 8B 35",
+    "the entity draw offset")
+  local entities = core.readInteger(scan(strips.AOB_ENTITY_PASS, "the map's entity drawing") + 3) - 0x1A
+  local updates = {
+    scan("A1 ? ? ? ? 69 C0 E8 00 00 00 0F BF 88 ? ? ? ? 0F BF 90 ? ? ? ? 56 0F BF B0", "the flag update"),
+    scan("A1 ? ? ? ? 69 C0 E8 00 00 00 0F BF 88 ? ? ? ? 89 88 ? ? ? ? 0F B6 90 ? ? ? ? 83 E2 1F 3B 15",
+      "the flag update (3)"),
+  }
+  local current = core.readInteger(updates[1] + 1)
+  if current ~= core.readInteger(updates[2] + 1) then
+    error("the flag updates are not the code this module knows")
+  end
+  local snap = assemble([[
+pushad
+mov esi,[CURRENT]
+imul edi,esi,0xE8
+add edi,ENTITIES
+movzx eax,word [edi+0x4C]
+shr eax,3
+movzx edx,word [edi+0x4E]
+shr edx,3
+lea ecx,[edx+edx*2]
+mov ecx,[ecx*4+TRANSLATE]
+add ecx,eax
+cmp ecx,MAX_TILES
+jae fe_done
+movsx ebx,word [BUILDING_LAYER+ecx*2]
+test ebx,ebx
+jle fe_done
+cmp ebx,MAX_BUILDINGS
+jae fe_done
+imul ebx,ebx,BUILDING_SIZE
+add ebx,BUILDINGS
+mov ecx,4
+movsx ebp,word [ebx+B_X]
+cmp eax,ebp
+jne fe_x_far
+xor ecx,ecx
+jmp fe_x_set
+fe_x_far:
+add ebp,[ebx+B_SIZE]
+dec ebp
+cmp eax,ebp
+jne fe_x_set
+mov ecx,7
+fe_x_set:
+shl eax,3
+add eax,ecx
+mov [edi+0x4C],ax
+mov ecx,4
+movsx ebp,word [ebx+B_Y]
+cmp edx,ebp
+jne fe_y_far
+xor ecx,ecx
+jmp fe_y_set
+fe_y_far:
+add ebp,[ebx+B_SIZE]
+dec ebp
+cmp edx,ebp
+jne fe_y_set
+mov ecx,7
+fe_y_set:
+shl edx,3
+add edx,ecx
+mov [edi+0x4E],dx
+fe_done:
+push esi
+mov ecx,ENTITIES
+call OFFSET
+popad
+mov eax,[CURRENT]
+ret
+]], { CURRENT = current, ENTITIES = entities, OFFSET = offset, TRANSLATE = values.TRANSLATE,
+    MAX_TILES = 80400, BUILDING_LAYER = (values.MAP_ORIENTATION - 0x55489C + 0x2029B0) & 0xFFFFFFFF,
+    MAX_BUILDINGS = MAX_BUILDINGS, BUILDING_SIZE = BUILDING_SIZE, BUILDINGS = values.BUILDINGS,
+    B_X = B_X, B_Y = B_Y, B_SIZE = B_SIZE })
+  for _, address in ipairs(updates) do
+    core.writeCode(address, { 0xE8, core.itob(core.getRelativeAddress(address, snap, -5)) })
+  end
+end
+
+---------------------------------------------------------------------------------------
 -- Enable
 ---------------------------------------------------------------------------------------
 
@@ -1727,6 +1863,7 @@ local function enable(self, config)
   end
   values.TILE_STRIPS = 0
   values.REMEMBER = 0
+  values.FLAGS_ON_TOP = setting(config, "drawing", "flags_on_top") and 1 or 0
   if setting(config, "drawing", "tile_by_tile") then
     local ok, problem = pcall(function()
       local piece = scan(strips.AOB_TILE_PIECE, "where the map draws a building piece")
@@ -1794,6 +1931,32 @@ local function enable(self, config)
         u.PICTURE_PATH = note + 7
         u.REDRAW_RESUME = done + 7
         u.UNIT_SKIP = done
+        u.FLAG_SIZE, u.FLAG_MAX = strips.FLAG_SIZE, strips.FLAG_MAX
+        u.FLAGS = core.allocate(strips.FLAG_SIZE * strips.FLAG_MAX, true)
+        u.FLAG_COUNT = core.allocate(4, true)
+        u.CALL_SIZE, u.CALL_MAX = strips.CALL_SIZE, strips.CALL_MAX
+        u.CALLS = core.allocate(strips.CALL_SIZE * strips.CALL_MAX, true)
+        u.CALL_COUNT = core.allocate(4, true)
+        u.HIDE_BACK = setting(config, "drawing", "back_flag_behind") and 1 or 0
+        u.MAX_TILES = 80400
+        u.BUILDING_LAYER = (orientation - 0x55489C + 0x2029B0) & 0xFFFFFFFF
+        local mapUnitsDone = 0
+        if values.FLAGS_ON_TOP == 1 then
+          mapUnitsDone = scan(strips.AOB_MAP_UNITS_DONE, "where the map is done with its units")
+            + strips.MAP_UNITS_DONE_HOOK
+          if core.readInteger(note + 0x1C) ~= values.RENDER_CORE then
+            error("the map's picture drawing is not the code this module knows")
+          end
+          u.PIC_ALPHA = readCallTarget(note, 0x20, "the map's alpha picture drawing")
+          u.PIC_BLEND = readCallTarget(note, 0x36, "the map's faded picture drawing")
+          u.PIC_PLAIN = readCallTarget(note, 0x49, "the map's picture drawing")
+          u.FLAG_RESUME = mapUnitsDone + strips.MAP_UNITS_DONE_SIZE
+          local entity = scan("8B 4C 24 14 F6 C1 04 74 ? 8A D1 80 E2 10 F6 DA A3 ? ? ? ? 1B D2 F7 D2 23 15",
+            "the map's entity picture drawing")
+          u.LOCAL_PLAYER = core.readInteger(entity + 0x1B)
+        else
+          u.FLAGS_ON_TOP = 0
+        end
         u.COVER = assemble(strips.COVER_SCRIPT, u)
         u.KEEP = assemble(strips.KEEP_SCRIPT, u)
         local queueHook = assemble(strips.QUEUE_SCRIPT, u)
@@ -1805,6 +1968,50 @@ local function enable(self, config)
         core.writeCode(queue, { 0xE9, core.itob(core.getRelativeAddress(queue, queueHook, -5)), 0x90 })
         core.writeCode(note, { 0xE9, core.itob(core.getRelativeAddress(note, noteHook, -5)), 0x90, 0x90 })
         core.writeCode(done, { 0xE9, core.itob(core.getRelativeAddress(done, redrawHook, -5)), 0x90, 0x90 })
+        if mapUnitsDone ~= 0 then
+          local bytes = {}
+          for offset = 0, strips.MAP_UNITS_DONE_SIZE - 1 do
+            bytes[#bytes + 1] = string.format("0x%02X", core.readByte(mapUnitsDone + offset) & 0xFF)
+          end
+          local flagDraw = assemble(strips.FLAG_DRAW_SCRIPT:gsub("ORIGINAL", "db " .. table.concat(bytes, ",")), u)
+          core.writeCode(mapUnitsDone, { 0xE9, core.itob(core.getRelativeAddress(mapUnitsDone, flagDraw, -5)),
+            0x90, 0x90, 0x90, 0x90, 0x90 })
+          -- the entity pass: its picture calls go through a stub that holds flags back
+          local pass = scan(strips.AOB_ENTITY_PASS, "the map's entity drawing")
+          local routines = { [u.PIC_ALPHA] = 7, [u.PIC_BLEND] = 5, [u.PIC_PLAIN] = 4 }
+          local frontStep = core.allocate(32, true)
+          for index, step in ipairs({ { 1, 1 }, { -1, 1 }, { -1, -1 }, { 1, -1 } }) do
+            core.writeInteger(frontStep + (index - 1) * 8, step[1] & 0xFFFFFFFF)
+            core.writeInteger(frontStep + (index - 1) * 8 + 4, step[2] & 0xFFFFFFFF)
+          end
+          local hooked = 0
+          local address = pass
+          while address < pass + strips.ENTITY_PASS_SIZE do
+            if (core.readByte(address) & 0xFF) == 0xE8 then
+              local target = (address + 5 + core.readInteger(address + 1)) & 0xFFFFFFFF
+              local args = routines[target]
+              if args ~= nil then
+                local stub = assemble(strips.ENTITY_CALL_SCRIPT, { TARGET = target, ARGS = args,
+                  CALLS = u.CALLS, CALL_COUNT = u.CALL_COUNT, CALL_SIZE = u.CALL_SIZE, CALL_MAX = u.CALL_MAX,
+                  SPRITE_GLOBAL = u.SPRITE_GLOBAL, OWNER_GLOBAL = u.OWNER_GLOBAL, HIDE_BACK = u.HIDE_BACK,
+                  MAX_TILES = u.MAX_TILES, BUILDING_LAYER = u.BUILDING_LAYER, MAX_BUILDINGS = MAX_BUILDINGS,
+                  FRAME = values.FRAME, MARKED = values.MARKED, ENTITIES = core.readInteger(pass + 3) - 0x1A,
+                  ENTITY_SPAN = 3000 * 0xE8, BUILDING_SIZE = BUILDING_SIZE, BUILDINGS = values.BUILDINGS,
+                  B_X = B_X, B_Y = B_Y, B_SIZE = B_SIZE, MAP_ROTATION = values.MAP_ORIENTATION,
+                  TRANSLATE = values.TRANSLATE, FRONT_STEP = frontStep, BTYPE = B_TYPE,
+                  FIRST_TOWER = FIRST_TOWER, TOWER_SPAN = LAST_TOWER - FIRST_TOWER, REACH = 5,
+                  FLAG_TMP = core.allocate(32, true) })
+                core.writeCode(address + 1, { bytesOf(stub - (address + 5)) })
+                hooked = hooked + 1
+                address = address + 4
+              end
+            end
+            address = address + 1
+          end
+          if hooked == 0 then
+            log(WARNING, MODULE_NAME .. ": flags on keeps may still show behind overlays (entity drawing not found)")
+          end
+        end
         core.writeInteger(values.LOG_OFF, 0)
       end)
       if not sortOk then
@@ -1861,6 +2068,19 @@ local function enable(self, config)
     if not ok then
       log(WARNING, MODULE_NAME .. ": the overlay tool in the building panel is off: "
         .. tostring(message))
+    end
+  end
+
+  if setting(config, "flags", "follow_turn") then
+    local ok, message = pcall(fixFlagTurn)
+    if not ok then
+      log(WARNING, MODULE_NAME .. ": flags keep the game's spot when the map is turned: " .. tostring(message))
+    end
+  end
+  if setting(config, "flags", "on_edges") then
+    local ok, message = pcall(flagsOnEdges, values)
+    if not ok then
+      log(WARNING, MODULE_NAME .. ": flags stay in the middle of their tiles: " .. tostring(message))
     end
   end
 

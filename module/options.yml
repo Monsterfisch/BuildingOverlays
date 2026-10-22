@@ -74,6 +74,22 @@ options:
     contents:
       type: boolean
       value: false
+  - url: building-overlays.drawing.flags_on_top
+    name: building-overlays-drawing-flags-on-top
+    text: '{{flags_on_top}}'
+    tooltip: '{{flags_on_top_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+  - url: building-overlays.drawing.back_flag_behind
+    name: building-overlays-drawing-back-flag-behind
+    text: '{{back_flag_behind}}'
+    tooltip: '{{back_flag_behind_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
 
 - display: GroupBox
   category: [Building Overlays]
@@ -85,6 +101,29 @@ options:
     name: building-overlays-keep-entrance-enabled
     text: '{{keep_entrance_enabled}}'
     tooltip: '{{keep_entrance_enabled_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+
+- display: GroupBox
+  category: [Building Overlays]
+  header: '{{flags_group}}'
+  text: '{{flags_group_descr}}'
+  hasHeader: true
+  children:
+  - url: building-overlays.flags.follow_turn
+    name: building-overlays-flags-follow-turn
+    text: '{{flags_follow_turn}}'
+    tooltip: '{{flags_follow_turn_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+  - url: building-overlays.flags.on_edges
+    name: building-overlays-flags-on-edges
+    text: '{{flags_on_edges}}'
+    tooltip: '{{flags_on_edges_tooltip}}'
     display: Switch
     contents:
       type: boolean

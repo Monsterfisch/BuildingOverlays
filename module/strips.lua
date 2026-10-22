@@ -553,7 +553,11 @@ end
 -- The tile by tile path for one of the game's pictures (called from SITE_COMMON with the
 -- building pushed: [esp+4]; ecx = the call's info, kept). Returns eax 0 = draw it the game's way,
 -- 1 / 2 = it was handed to the strips (renderGM / its faded variant: the call is to be skipped).
+-- In the V view the pieces draw no strips, so the game draws its pictures whole there (the goods
+-- in a granary or armory stay; keeps, gate buildings and towers were already left out).
 strips.STRIP_GAME_SCRIPT = [[
+cmp dword [V_VIEW],0
+je g_none
 mov eax,[ecx+I_PLAIN]
 test eax,eax
 je g_none
@@ -919,6 +923,9 @@ ret
 
 -- Where renderUnits starts on an entry (ebp = x, edi = y; [esp+0x18] = the unit, -1 / 0 = a
 -- picture: set ecx / eax, frame esi; for a unit [esp+0x10] / [esp+0x14] = width / height;
+-- flags (gm anim_flags 0x4C, anim_flag_small 0xBD, the crusader flag 0xC9) stand on top of a
+-- building: with FLAGS_ON_TOP they are not drawn here but noted (FLAGS) and drawn by FLAG_DRAW
+-- once the whole map is drawn, so no overlay strip of a piece in front can go over them;
 -- [esp+0x28] = the render state, [esp+0x2C] = the entry's place in its bucket).
 -- Zoomed out the blitter halves draw coordinates, so [DY0, DY1) stays in draw rows for the
 -- game's clip while [RX0, RX1) x [RY0, RY1) is in surface pixels, inside the 4056 x 2076 surface.
@@ -958,6 +965,16 @@ test eax,eax
 jne n_set
 mov ecx,[esp+0x1C]
 n_set:
+mov esi,FLAGS_ON_TOP
+test esi,esi
+je n_not_flag
+cmp ecx,0x4C
+je n_flag
+cmp ecx,0xBD
+je n_flag
+cmp ecx,0xC9
+je n_flag
+n_not_flag:
 cmp ecx,GM_LIMIT
 jae n_out
 mov esi,[esp+4]
@@ -1059,6 +1076,33 @@ jle n_out
 mov edi,SNAP
 call KEEP
 mov dword [ACTIVE],1
+jmp n_out
+n_flag:
+cmp dword [esp+0x38],0
+jg n_out
+mov eax,[FLAG_COUNT]
+cmp eax,FLAG_MAX
+jae n_out
+inc dword [FLAG_COUNT]
+imul eax,eax,FLAG_SIZE
+add eax,FLAGS
+mov [eax],ecx
+mov edx,[esp+4]
+mov [eax+4],edx
+mov edx,[esp+8]
+mov [eax+8],edx
+mov edx,[esp]
+mov [eax+12],edx
+mov edx,[esp+0x34]
+mov [eax+16],edx
+mov edx,[esp+0x1C]
+mov [eax+20],edx
+mov edx,[OWNER_GLOBAL]
+mov [eax+24],edx
+mov edx,[esp+0x38]
+mov [eax+28],edx
+popad
+jmp UNIT_SKIP
 n_out:
 popad
 cmp dword [esp+0x18],-1
@@ -1154,6 +1198,341 @@ jmp REDRAW_RESUME
 ]]
 
 strips.LOG_MAX, strips.LOG_ENTRY = 16384, 40   -- the strips drawn in a frame
+-- After renderMap's last renderUnits: the flags NOTE held back, drawn the way renderUnits draws a
+-- picture, then the instruction the hook replaced. Entry: { gm, frame, x, y, mode, eax, owner,
+-- id }. Id -1: mode < 0 alpha-masked, > 0 blended, 0 plain, with the owner colour it had. Id 0
+-- (entities): mode bit 4 sets the sprite and owner (none with bit 0x10, else the local
+-- player), bit 0x20 alpha-masked, else the high word blends.
+strips.FLAG_SIZE, strips.FLAG_MAX = 32, 64
+strips.AOB_MAP_UNITS_DONE = "8B CB E8 ? ? ? ? 81 3D ? ? ? ? A0 00 00 00 0F 85"
+strips.MAP_UNITS_DONE_HOOK, strips.MAP_UNITS_DONE_SIZE = 7, 10
+strips.FLAG_DRAW_SCRIPT = [[
+pushad
+push dword [OWNER_GLOBAL]
+push dword [SPRITE_GLOBAL]
+xor ebx,ebx
+f_next:
+cmp ebx,[FLAG_COUNT]
+jae f_done
+imul esi,ebx,FLAG_SIZE
+add esi,FLAGS
+mov eax,[esi]
+mov [SPRITE_GLOBAL],eax
+mov eax,[esi+24]
+mov [OWNER_GLOBAL],eax
+mov edx,[esi+16]
+cmp dword [esi+28],0
+je f_entity
+test edx,edx
+jl f_alpha
+jg f_blend
+f_plain:
+push dword [esi+12]
+push dword [esi+8]
+push dword [esi+4]
+push dword [esi]
+mov ecx,RENDER_CORE
+call PIC_PLAIN
+jmp f_step
+f_blend:
+push edx
+push dword [esi+12]
+push dword [esi+8]
+push dword [esi+4]
+push dword [esi]
+mov ecx,RENDER_CORE
+call PIC_BLEND
+jmp f_step
+f_alpha:
+mov eax,-1
+sub eax,edx
+push eax
+push dword [esi+20]
+push dword [esi]
+push dword [esi+12]
+push dword [esi+8]
+push dword [esi+4]
+push dword [esi]
+mov ecx,RENDER_CORE
+call PIC_ALPHA
+jmp f_step
+f_entity:
+test dl,4
+je f_entity_draw
+mov eax,[esi]
+mov [SPRITE_GLOBAL],eax
+xor eax,eax
+test dl,0x10
+jne f_entity_owner
+mov eax,[LOCAL_PLAYER]
+f_entity_owner:
+mov [OWNER_GLOBAL],eax
+f_entity_draw:
+test dl,0x20
+jne f_entity_alpha
+test edx,0xFFFF0000
+je f_plain
+sar edx,16
+jmp f_blend
+f_entity_alpha:
+sar edx,16
+add edx,[esi+4]
+push 0
+push edx
+push dword [esi]
+push dword [esi+12]
+push dword [esi+8]
+push dword [esi+4]
+push dword [esi]
+mov ecx,RENDER_CORE
+call PIC_ALPHA
+f_step:
+inc ebx
+jmp f_next
+f_done:
+mov dword [FLAG_COUNT],0
+xor ebx,ebx
+c_next:
+cmp ebx,[CALL_COUNT]
+jae c_done
+imul esi,ebx,CALL_SIZE
+add esi,CALLS
+mov eax,[esi+8]
+mov [SPRITE_GLOBAL],eax
+mov eax,[esi+12]
+mov [OWNER_GLOBAL],eax
+mov ecx,[esi+4]
+c_push:
+dec ecx
+push dword [esi+16+ecx*4]
+test ecx,ecx
+jne c_push
+mov ecx,RENDER_CORE
+call dword [esi]
+inc ebx
+jmp c_next
+c_done:
+mov dword [CALL_COUNT],0
+pop dword [SPRITE_GLOBAL]
+pop dword [OWNER_GLOBAL]
+popad
+ORIGINAL
+jmp FLAG_RESUME
+]]
+
+-- renderMap's entity pass draws some entities - the flags on keeps among them - at their tile,
+-- not through renderUnits. Each picture call there goes through one of these (TARGET = the
+-- routine, ARGS its argument count, the gm first): a flag's call is noted (CALLS) and skipped,
+-- and FLAG_DRAW makes it once the map is done; anything else goes straight on. Entry: { routine,
+-- argument count, sprite, owner, arguments[7] }.
+-- A held flag with a tall building (cathedral 38, keeps and gatehouses 40 - 47, towers FIRST_TOWER
+-- .. +TOWER_SPAN) standing in front of it is let through at once, so that building covers it:
+-- e_front looks at every tile within REACH steps of the flag toward the viewer (FRONT_STEP: dx, dy
+-- per rotation 0 / 2 / 4 / 6 = +1 +1, -1 +1, -1 -1, +1 -1, so offsets a, b with a + b > 0 along
+-- those axes), via the tile row table; another tall building on one of them counts (keep door
+-- pieces and low buildings do not - the keep's own overlay still covers its flags from them).
+-- With HIDE_BACK the flags along a building's back keep the game's place, behind its tiles and
+-- the units on it. renderMap's [esp+0x10] is the tile and esi the entity. A building whose
+-- overlays are not drawn (never stamped in MARKED at a first piece this frame) keeps the game's
+-- order for all its flags, and so does its back corner (on its back-most row, before its first
+-- piece). Otherwise the flag's tile is checked against the footprint: on one of the two edges
+-- through the back corner and on neither front edge = at the back. Which edges are at the back
+-- goes by the map rotation like calculateEntityDrawOffset: x low / y low at 0, x high / y low at
+-- 2, both high at 4, x low / y high at 6 (nibbles of 0x9A65: bit 1 x low, 2 x high, 4 y low, 8 y
+-- high).
+strips.CALL_SIZE, strips.CALL_MAX = 44, 64
+strips.AOB_ENTITY_PASS = "0F BF 96 ? ? ? ? 83 FA 76 89 15 ? ? ? ? 74 08 81 FA 90 00 00 00 75"
+strips.ENTITY_PASS_SIZE = 0x5D0
+strips.ENTITY_CALL_SCRIPT = [[
+cmp dword [esp+4],0x4C
+je e_flag
+cmp dword [esp+4],0xBD
+je e_flag
+cmp dword [esp+4],0xC9
+jne e_draw
+e_flag:
+mov eax,HIDE_BACK
+test eax,eax
+je e_hold_now
+pushad
+mov eax,[esp+36+ARGS*4+0x10]
+cmp eax,MAX_TILES
+jae e_held
+movsx eax,word [BUILDING_LAYER+eax*2]
+test eax,eax
+jle e_held
+cmp eax,MAX_BUILDINGS
+jae e_held
+mov edx,[FRAME]
+cmp [MARKED+eax*4],edx
+jne e_game
+cmp esi,ENTITY_SPAN
+jae e_held
+imul ebx,eax,BUILDING_SIZE
+add ebx,BUILDINGS
+movzx eax,word [esi+ENTITIES+0x4C]
+shr eax,3
+movzx edx,word [esi+ENTITIES+0x4E]
+shr edx,3
+xor ebp,ebp
+movsx edi,word [ebx+B_X]
+cmp eax,edi
+jne e_x_low
+or ebp,1
+e_x_low:
+add edi,[ebx+B_SIZE]
+dec edi
+cmp eax,edi
+jne e_x_high
+or ebp,2
+e_x_high:
+movsx edi,word [ebx+B_Y]
+cmp edx,edi
+jne e_y_low
+or ebp,4
+e_y_low:
+add edi,[ebx+B_SIZE]
+dec edi
+cmp edx,edi
+jne e_y_high
+or ebp,8
+e_y_high:
+mov ecx,[MAP_ROTATION]
+and ecx,6
+shl ecx,1
+mov edx,0x9A65
+shr edx,cl
+and edx,15
+mov eax,edx
+xor eax,15
+test ebp,eax
+jne e_held
+test ebp,edx
+je e_held
+e_game:
+popad
+jmp TARGET
+e_held:
+popad
+e_front:
+pushad
+mov eax,[esp+36+ARGS*4+0x10]
+cmp eax,MAX_TILES
+jae e_front_no
+movsx ebx,word [BUILDING_LAYER+eax*2]
+movzx eax,word [esi+ENTITIES+0x4C]
+shr eax,3
+mov [FLAG_TMP],eax
+movzx eax,word [esi+ENTITIES+0x4E]
+shr eax,3
+mov [FLAG_TMP+4],eax
+mov ecx,[MAP_ROTATION]
+and ecx,6
+lea ebp,[FRONT_STEP+ecx*4]
+mov eax,[ebp]
+mov [FLAG_TMP+8],eax
+mov eax,[ebp+4]
+mov [FLAG_TMP+12],eax
+mov dword [FLAG_TMP+16],-REACH
+f_a:
+mov dword [FLAG_TMP+20],-REACH
+f_b:
+mov eax,[FLAG_TMP+16]
+add eax,[FLAG_TMP+20]
+jle f_next
+mov eax,[FLAG_TMP+16]
+imul eax,[FLAG_TMP+8]
+add eax,[FLAG_TMP]
+mov edx,[FLAG_TMP+20]
+imul edx,[FLAG_TMP+12]
+add edx,[FLAG_TMP+4]
+call e_other
+test eax,eax
+jne e_front_yes
+f_next:
+inc dword [FLAG_TMP+20]
+cmp dword [FLAG_TMP+20],REACH
+jle f_b
+inc dword [FLAG_TMP+16]
+cmp dword [FLAG_TMP+16],REACH
+jle f_a
+e_front_no:
+popad
+jmp e_hold_now
+e_front_yes:
+popad
+jmp TARGET
+e_other:
+cmp eax,400
+jae e_other_no
+cmp edx,400
+jae e_other_no
+push edx
+lea edx,[edx+edx*2]
+mov edx,[edx*4+TRANSLATE]
+add edx,eax
+cmp edx,MAX_TILES
+jae e_other_pop
+movsx ecx,word [BUILDING_LAYER+edx*2]
+pop edx
+test ecx,ecx
+jle e_other_no
+cmp ecx,ebx
+je e_other_no
+cmp ecx,MAX_BUILDINGS
+jae e_other_no
+imul ecx,ecx,BUILDING_SIZE
+movzx ecx,word [ecx+BUILDINGS+BTYPE]
+cmp ecx,38
+je e_other_yes
+mov eax,ecx
+sub eax,40
+cmp eax,7
+jbe e_other_yes
+sub ecx,FIRST_TOWER
+cmp ecx,TOWER_SPAN
+ja e_other_no
+e_other_yes:
+mov eax,1
+ret
+e_other_pop:
+pop edx
+e_other_no:
+xor eax,eax
+ret
+e_hold_now:
+push eax
+mov eax,[CALL_COUNT]
+cmp eax,CALL_MAX
+jae e_full
+inc dword [CALL_COUNT]
+imul eax,eax,CALL_SIZE
+add eax,CALLS
+push ecx
+push edx
+mov dword [eax],TARGET
+mov dword [eax+4],ARGS
+mov edx,[SPRITE_GLOBAL]
+mov [eax+8],edx
+mov edx,[OWNER_GLOBAL]
+mov [eax+12],edx
+xor ecx,ecx
+e_copy:
+mov edx,[esp+16+ecx*4]
+mov [eax+16+ecx*4],edx
+inc ecx
+cmp ecx,ARGS
+jb e_copy
+pop edx
+pop ecx
+pop eax
+ret ARGS*4
+e_full:
+pop eax
+e_draw:
+jmp TARGET
+]]
+
 strips.MAX_SIDE, strips.PITCH = 256, 0x1FB0     -- largest unit picture handled; map surface row
 strips.SURFACE_H = 2076                          -- map surface rows (the game creates it 4056 x 2076)
 strips.MAX_UNITS = 10000
