@@ -707,6 +707,23 @@ def strips_suite(ext):
     for _ in range(2):
         new_frame(); clear(); tower_piece(566 - 32); tower_corner()
 
+    # pictures late in the game's numbering (body_gate, the portcullis, starts near image 43700) are
+    # sliced like the others
+    HIGH = 45000
+    h.put32(first_frames + 0x36 * 4, HIGH)
+    h.put32(offsets + HIGH * 4, 0x300000)
+    h.m.write(widths + HIGH * 16, struct.pack('<HH', 40, 10))
+    h.m.write(data + 0x300000, row * 10)
+    for _ in range(2):
+        new_frame(); clear(); tower_piece(566 - 32); tower_corner()
+    new_frame(); clear()
+    tower_piece(566 - 32)
+    check('a picture past image 32768 is drawn by the pieces', tower_pixels(), 400)
+    clear()
+    tower_corner()
+    check('... and not again at the front corner', tower_pixels(), 0)
+    h.put32(first_frames + 0x36 * 4, IMAGE)
+
     # a civilian building's colour-indexed picture (gm 0x19, type 2): drawn in strips by the
     # game's indexed routine, with the owner colour and sprite the game had set for it
     IMAGE2 = 600
@@ -960,41 +977,41 @@ def strips_suite(ext):
             h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
     h.put32(orientation_at, 0)
     h.put16(building_layer + 5000 * 2, 0)
-    # a building standing in front of a flag (the next tile toward the viewer) lets it through at
-    # once, so it is covered; the keep's own entrance pieces do not count
+    # a held flag is drawn right after the overlay of its own building (the corner), and once;
+    # whatever the game draws later - buildings and walls in front - covers it as usual
     row_translate = struct.unpack('<I', E.data[E.va2off(ufn) + 0x30:][:4])[0]
     for row in range(400):                  # the game fills its tile row table when a map starts
         h.put32(row_translate + row * 12, row * 200)
-    new_frame(); clear(); piece_drawn(bx - 64)
+    tile_a = 10 * 200 + 12
+    h.put16(building_layer + tile_a * 2, 1)
     h.put32(orientation_at, 0)
-    h.put16(e7 + 0x4C, 10 * 8 + 4); h.put16(e7 + 0x4E, 12 * 8 + 4)     # the front corner at rotation 0
-    other_b = buildings + 6 * STRIDE
-    h.m.write(other_b, bytes(STRIDE)); h.put16(other_b + 0xD2, 78)
-    tile_of = lambda x, y: struct.unpack('<i', h.m.read(row_translate + y * 12, 4))[0] + x
-    h.put16(building_layer + tile_of(11, 12) * 2, 6)
+    h.put16(e7 + 0x4C, 10 * 8 + 4); h.put16(e7 + 0x4E, 12 * 8 + 4)     # a front edge at rotation 0
+    for _ in range(2):
+        overlay_only()
+    new_frame(); clear(); piece_drawn(bx - 64)
     del calls[:]
-    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_of(10, 12)])
-    check('a building in front lets the flag through at once (it covers it)', len(calls), 1)
-    h.put16(other_b + 0xD2, 72)
+    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_a])
+    check('a front flag is held back while its building is drawn', len(calls), 0)
+    piece_drawn(bx - 32)
+    check('... and still after the pieces', len(calls), 0)
+    corner(bx, by)
+    check('... then drawn right after the overlay of its building', [tuple(a[:4]) for _, a in calls], [(0x4C, 6, 120, 220)])
     del calls[:]
-    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_of(10, 12)])
-    check("the keep's entrance pieces do not count", len(calls), 0)
-    h.put16(other_b + 0xD2, 20)
+    h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
+    check('... and not again at the end of the map', len(calls), 0)
+    new_frame(); clear(); piece_drawn(bx - 64)
+    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 140, 240, 0, 0, 0, 0, tile_a])
     del calls[:]
-    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_of(10, 12)])
-    check("a low building in front does not count (the keep's overlay still covers its flags from it)", len(calls), 0)
-    h.put16(building_layer + tile_of(11, 12) * 2, 0)
-    h.put16(other_b + 0xD2, 77)
-    h.put16(building_layer + tile_of(13, 10) * 2, 6)          # three tiles to one side, still toward the viewer
+    clear(); tower_corner()
+    check("the corner of another building does not draw it", len(calls), 0)
+    piece_drawn(bx - 32); corner(bx, by)
+    check("... its own building's corner does", [tuple(a[:4]) for _, a in calls], [(0x4C, 6, 140, 240)])
+    new_frame(); clear(); piece_drawn(bx - 64)
+    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 150, 250, 0, 0, 0, 0, tile_a])
     del calls[:]
-    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_of(10, 12)])
-    check('a tower a few tiles in front lets the flag through (it covers it)', len(calls), 1)
-    h.put16(building_layer + tile_of(13, 10) * 2, 0)
-    h.put16(building_layer + tile_of(7, 12) * 2, 6)           # behind the flag: no
-    del calls[:]
-    h.run(stub, regs={'ecx': core, 'esi': 7 * 0xE8}, stack=[0x4C, 6, 120, 220, 0, 0, 0, 0, tile_of(10, 12)])
-    check('a tower behind the flag does not', len(calls), 0)
-    h.put16(building_layer + tile_of(7, 12) * 2, 0)
+    h.run(units_done, until=units_done + 10, regs={'ebx': VIEW})
+    check('a flag whose building never reaches its corner comes at the end of the map', [tuple(a[:4]) for _, a in calls], [(0x4C, 6, 150, 250)])
+    h.put16(building_layer + tile_a * 2, 0)
     check("back-edge flags keep the game's place by rotation, side corners are held back",
           [results[(r, 10, 11)] for r in (0, 2, 4, 6)] + [results[(r, 10, 12)] for r in (0, 2, 4, 6)],
           ['game', 'held', 'held', 'game', 'held', 'held', 'held', 'game'])

@@ -51,9 +51,9 @@ hide_units_tooltip: |
 
 flags_on_top: Show flags in front of the overlays
 flags_on_top_tooltip: |
-  Flags standing on a keep or another building are drawn last, after the whole map, so this
-  module's overlay pictures never hide any part of them. A building standing in front of a
-  flag does not hide it either. Works together with "Let buildings in front cover the
+  Flags standing on a keep or another building are drawn right after that building's overlay
+  pictures, so its own overlay never hides any part of them. Walls and buildings in front of
+  it still cover the flag as usual. Works together with "Let buildings in front cover the
   overlays" (needs it on).
 
 back_flag_behind: Keep the flag at the back behind the building

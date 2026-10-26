@@ -319,6 +319,14 @@ add ecx,RECORD_SIZE
 dec edx
 jne next
 done:
+mov eax,CALLS_DRAW
+test eax,eax
+je no_calls
+cmp dword [CALL_COUNT],0
+je no_calls
+mov eax,[esp+0x50]
+call CALLS_DRAW
+no_calls:
 popad
 popfd
 ORIGINAL
@@ -681,7 +689,7 @@ local FIRST_TOWER, LAST_TOWER = 74, 78   -- lookout tower .. round tower
 local CASTLE_FIRST, CASTLE_LAST = 41, 49
 -- The game's own pictures drawn tile by tile: keeps from the manor house on, gate buildings and
 -- towers. Their cuts (strips per picture and phase) are made the first time they are drawn.
-local STRIP_FIRST, MAX_IMAGES = 40, 32768
+local STRIP_FIRST, MAX_IMAGES = 40, 65536   -- the game numbers its pictures up to ~56000; body_gate starts near 43700
 local B_ROOF = 0x60                      -- a tower's roof picture
 local STUB_SIZE, INFO_SIZE = 10, 0x20    -- push info / jmp COMMON; info per call
 local I_TARGET, I_XO, I_YO, I_RECORDS, I_PLAIN = 0, 4, 8, 0xC, 0x10
@@ -1863,6 +1871,7 @@ local function enable(self, config)
   end
   values.TILE_STRIPS = 0
   values.REMEMBER = 0
+  values.CALL_COUNT, values.CALLS_DRAW = core.allocate(4, true), 0
   values.FLAGS_ON_TOP = setting(config, "drawing", "flags_on_top") and 1 or 0
   if setting(config, "drawing", "tile_by_tile") then
     local ok, problem = pcall(function()
@@ -1936,7 +1945,7 @@ local function enable(self, config)
         u.FLAG_COUNT = core.allocate(4, true)
         u.CALL_SIZE, u.CALL_MAX = strips.CALL_SIZE, strips.CALL_MAX
         u.CALLS = core.allocate(strips.CALL_SIZE * strips.CALL_MAX, true)
-        u.CALL_COUNT = core.allocate(4, true)
+        u.CALL_COUNT = values.CALL_COUNT
         u.HIDE_BACK = setting(config, "drawing", "back_flag_behind") and 1 or 0
         u.MAX_TILES = 80400
         u.BUILDING_LAYER = (orientation - 0x55489C + 0x2029B0) & 0xFFFFFFFF
@@ -1954,6 +1963,8 @@ local function enable(self, config)
           local entity = scan("8B 4C 24 14 F6 C1 04 74 ? 8A D1 80 E2 10 F6 DA A3 ? ? ? ? 1B D2 F7 D2 23 15",
             "the map's entity picture drawing")
           u.LOCAL_PLAYER = core.readInteger(entity + 0x1B)
+          u.CALLS_DRAW = assemble(strips.CALLS_DRAW_SCRIPT, u)
+          values.CALLS_DRAW = u.CALLS_DRAW
         else
           u.FLAGS_ON_TOP = 0
         end
@@ -1979,11 +1990,6 @@ local function enable(self, config)
           -- the entity pass: its picture calls go through a stub that holds flags back
           local pass = scan(strips.AOB_ENTITY_PASS, "the map's entity drawing")
           local routines = { [u.PIC_ALPHA] = 7, [u.PIC_BLEND] = 5, [u.PIC_PLAIN] = 4 }
-          local frontStep = core.allocate(32, true)
-          for index, step in ipairs({ { 1, 1 }, { -1, 1 }, { -1, -1 }, { 1, -1 } }) do
-            core.writeInteger(frontStep + (index - 1) * 8, step[1] & 0xFFFFFFFF)
-            core.writeInteger(frontStep + (index - 1) * 8 + 4, step[2] & 0xFFFFFFFF)
-          end
           local hooked = 0
           local address = pass
           while address < pass + strips.ENTITY_PASS_SIZE do
@@ -1998,9 +2004,7 @@ local function enable(self, config)
                   FRAME = values.FRAME, MARKED = values.MARKED, ENTITIES = core.readInteger(pass + 3) - 0x1A,
                   ENTITY_SPAN = 3000 * 0xE8, BUILDING_SIZE = BUILDING_SIZE, BUILDINGS = values.BUILDINGS,
                   B_X = B_X, B_Y = B_Y, B_SIZE = B_SIZE, MAP_ROTATION = values.MAP_ORIENTATION,
-                  TRANSLATE = values.TRANSLATE, FRONT_STEP = frontStep, BTYPE = B_TYPE,
-                  FIRST_TOWER = FIRST_TOWER, TOWER_SPAN = LAST_TOWER - FIRST_TOWER, REACH = 5,
-                  FLAG_TMP = core.allocate(32, true) })
+                  BUILDINGS = values.BUILDINGS })
                 core.writeCode(address + 1, { bytesOf(stub - (address + 5)) })
                 hooked = hooked + 1
                 address = address + 4

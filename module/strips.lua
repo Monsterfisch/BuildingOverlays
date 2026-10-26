@@ -1291,28 +1291,8 @@ inc ebx
 jmp f_next
 f_done:
 mov dword [FLAG_COUNT],0
-xor ebx,ebx
-c_next:
-cmp ebx,[CALL_COUNT]
-jae c_done
-imul esi,ebx,CALL_SIZE
-add esi,CALLS
-mov eax,[esi+8]
-mov [SPRITE_GLOBAL],eax
-mov eax,[esi+12]
-mov [OWNER_GLOBAL],eax
-mov ecx,[esi+4]
-c_push:
-dec ecx
-push dword [esi+16+ecx*4]
-test ecx,ecx
-jne c_push
-mov ecx,RENDER_CORE
-call dword [esi]
-inc ebx
-jmp c_next
-c_done:
-mov dword [CALL_COUNT],0
+mov eax,-1
+call CALLS_DRAW
 pop dword [SPRITE_GLOBAL]
 pop dword [OWNER_GLOBAL]
 popad
@@ -1324,13 +1304,10 @@ jmp FLAG_RESUME
 -- not through renderUnits. Each picture call there goes through one of these (TARGET = the
 -- routine, ARGS its argument count, the gm first): a flag's call is noted (CALLS) and skipped,
 -- and FLAG_DRAW makes it once the map is done; anything else goes straight on. Entry: { routine,
--- argument count, sprite, owner, arguments[7] }.
--- A held flag with a tall building (cathedral 38, keeps and gatehouses 40 - 47, towers FIRST_TOWER
--- .. +TOWER_SPAN) standing in front of it is let through at once, so that building covers it:
--- e_front looks at every tile within REACH steps of the flag toward the viewer (FRONT_STEP: dx, dy
--- per rotation 0 / 2 / 4 / 6 = +1 +1, -1 +1, -1 -1, +1 -1, so offsets a, b with a + b > 0 along
--- those axes), via the tile row table; another tall building on one of them counts (keep door
--- pieces and low buildings do not - the keep's own overlay still covers its flags from them).
+-- argument count, sprite, owner, arguments[7], building }. A flag that is held back is drawn by
+-- CALLS_DRAW right after the overlays of its own building (the tail of renderGmOverlayBuilding),
+-- so nothing of that building covers it - but whatever the game draws later (walls, buildings in
+-- front) does - or at the end of the map if that tail never came.
 -- With HIDE_BACK the flags along a building's back keep the game's place, behind its tiles and
 -- the units on it. renderMap's [esp+0x10] is the tile and esi the entity. A building whose
 -- overlays are not drawn (never stamped in MARKED at a first piece this frame) keeps the game's
@@ -1340,7 +1317,7 @@ jmp FLAG_RESUME
 -- goes by the map rotation like calculateEntityDrawOffset: x low / y low at 0, x high / y low at
 -- 2, both high at 4, x low / y high at 6 (nibbles of 0x9A65: bit 1 x low, 2 x high, 4 y low, 8 y
 -- high).
-strips.CALL_SIZE, strips.CALL_MAX = 44, 64
+strips.CALL_SIZE, strips.CALL_MAX = 48, 64
 strips.AOB_ENTITY_PASS = "0F BF 96 ? ? ? ? 83 FA 76 89 15 ? ? ? ? 74 08 81 FA 90 00 00 00 75"
 strips.ENTITY_PASS_SIZE = 0x5D0
 strips.ENTITY_CALL_SCRIPT = [[
@@ -1414,92 +1391,6 @@ popad
 jmp TARGET
 e_held:
 popad
-e_front:
-pushad
-mov eax,[esp+36+ARGS*4+0x10]
-cmp eax,MAX_TILES
-jae e_front_no
-movsx ebx,word [BUILDING_LAYER+eax*2]
-movzx eax,word [esi+ENTITIES+0x4C]
-shr eax,3
-mov [FLAG_TMP],eax
-movzx eax,word [esi+ENTITIES+0x4E]
-shr eax,3
-mov [FLAG_TMP+4],eax
-mov ecx,[MAP_ROTATION]
-and ecx,6
-lea ebp,[FRONT_STEP+ecx*4]
-mov eax,[ebp]
-mov [FLAG_TMP+8],eax
-mov eax,[ebp+4]
-mov [FLAG_TMP+12],eax
-mov dword [FLAG_TMP+16],-REACH
-f_a:
-mov dword [FLAG_TMP+20],-REACH
-f_b:
-mov eax,[FLAG_TMP+16]
-add eax,[FLAG_TMP+20]
-jle f_next
-mov eax,[FLAG_TMP+16]
-imul eax,[FLAG_TMP+8]
-add eax,[FLAG_TMP]
-mov edx,[FLAG_TMP+20]
-imul edx,[FLAG_TMP+12]
-add edx,[FLAG_TMP+4]
-call e_other
-test eax,eax
-jne e_front_yes
-f_next:
-inc dword [FLAG_TMP+20]
-cmp dword [FLAG_TMP+20],REACH
-jle f_b
-inc dword [FLAG_TMP+16]
-cmp dword [FLAG_TMP+16],REACH
-jle f_a
-e_front_no:
-popad
-jmp e_hold_now
-e_front_yes:
-popad
-jmp TARGET
-e_other:
-cmp eax,400
-jae e_other_no
-cmp edx,400
-jae e_other_no
-push edx
-lea edx,[edx+edx*2]
-mov edx,[edx*4+TRANSLATE]
-add edx,eax
-cmp edx,MAX_TILES
-jae e_other_pop
-movsx ecx,word [BUILDING_LAYER+edx*2]
-pop edx
-test ecx,ecx
-jle e_other_no
-cmp ecx,ebx
-je e_other_no
-cmp ecx,MAX_BUILDINGS
-jae e_other_no
-imul ecx,ecx,BUILDING_SIZE
-movzx ecx,word [ecx+BUILDINGS+BTYPE]
-cmp ecx,38
-je e_other_yes
-mov eax,ecx
-sub eax,40
-cmp eax,7
-jbe e_other_yes
-sub ecx,FIRST_TOWER
-cmp ecx,TOWER_SPAN
-ja e_other_no
-e_other_yes:
-mov eax,1
-ret
-e_other_pop:
-pop edx
-e_other_no:
-xor eax,eax
-ret
 e_hold_now:
 push eax
 mov eax,[CALL_COUNT]
@@ -1523,6 +1414,15 @@ mov [eax+16+ecx*4],edx
 inc ecx
 cmp ecx,ARGS
 jb e_copy
+mov edx,[esp+16+ARGS*4+0x10]
+cmp edx,MAX_TILES
+jae e_no_building
+movsx edx,word [BUILDING_LAYER+edx*2]
+mov [eax+44],edx
+jmp e_building_set
+e_no_building:
+mov dword [eax+44],-1
+e_building_set:
 pop edx
 pop ecx
 pop eax
@@ -1531,6 +1431,53 @@ e_full:
 pop eax
 e_draw:
 jmp TARGET
+]]
+
+-- Draws the picture calls the entity pass held back (ENTITY_CALL_SCRIPT): eax = a building number
+-- for the ones of that building, -1 for all. Done ones are crossed out (argument count 0).
+strips.CALLS_DRAW_SCRIPT = [[
+pushad
+mov edi,eax
+push dword [OWNER_GLOBAL]
+push dword [SPRITE_GLOBAL]
+xor ebx,ebx
+c_next:
+cmp ebx,[CALL_COUNT]
+jae c_done
+imul esi,ebx,CALL_SIZE
+add esi,CALLS
+cmp dword [esi+4],0
+je c_skip
+cmp edi,-1
+je c_do
+cmp [esi+44],edi
+jne c_skip
+c_do:
+mov eax,[esi+8]
+mov [SPRITE_GLOBAL],eax
+mov eax,[esi+12]
+mov [OWNER_GLOBAL],eax
+mov ecx,[esi+4]
+c_push:
+dec ecx
+push dword [esi+16+ecx*4]
+test ecx,ecx
+jne c_push
+mov ecx,RENDER_CORE
+call dword [esi]
+mov dword [esi+4],0
+c_skip:
+inc ebx
+jmp c_next
+c_done:
+cmp edi,-1
+jne c_keep
+mov dword [CALL_COUNT],0
+c_keep:
+pop dword [SPRITE_GLOBAL]
+pop dword [OWNER_GLOBAL]
+popad
+ret
 ]]
 
 strips.MAX_SIDE, strips.PITCH = 256, 0x1FB0     -- largest unit picture handled; map surface row
