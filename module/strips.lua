@@ -28,29 +28,40 @@ strips.AOB_TILE_PIECE = "03 05 ? ? ? ? 52 8B 15 ? ? ? ? 2B 15 ? ? ? ? 2B D1 03 1
   .. "52 50 E8 ? ? ? ? 83 7C 24 24 00"
 strips.TILE_X_OPERAND, strips.TILE_HOOK, strips.TILE_HOOK_SIZE = 2, 0x27, 5
 
--- ebx = the view -> [CAM] = 32 * view column, [CAM+4] = 16 * view row - row bias
+-- ebx = the view -> [CAM] = 32 * view column, [CAM+4] = 16 * view row - row bias. Divided the way
+-- renderMap divides (cdq / and / add / sar: rounded toward zero, not down), or a view position below
+-- zero - zoomed out near the map's left or top edge - lands one column / row off from the frame
+-- before and the strips drawn from last frame's place jump while the camera moves.
 strips.CAMERA_SCRIPT = [[
 push eax
+push ecx
 push edx
-xor edx,edx
+xor ecx,ecx
 cmp dword [ebx+0x94],0
 je c_bias
-mov edx,0x40
+mov ecx,0x40
 cmp dword [ebx+0x90],0
 je c_bias
-mov edx,0x80
+mov ecx,0x80
 c_bias:
 mov eax,[ebx+0x78]
+cdq
+and edx,0x1F
+add eax,edx
 sar eax,5
 shl eax,5
 mov [CAM],eax
 mov eax,[ebx+0x7C]
+add eax,ecx
+cdq
+and edx,0xF
 add eax,edx
 sar eax,4
 shl eax,4
-sub eax,edx
+sub eax,ecx
 mov [CAM+4],eax
 pop edx
+pop ecx
 pop eax
 ret
 ]]
