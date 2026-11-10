@@ -1086,6 +1086,7 @@ end
 local state            -- everything the running hook uses; nil until enable has hooked
 local overlays = {}    -- every overlay in the table, in record order
 local pending = {}     -- plugin folders registered before enable finished
+local loadedSources = {} -- folders already read, so a plugin found by itself and also calling in counts once
 local firstSource      -- the first plugin folder: the game pictures' offsets are saved there
 
 ---Adds one overlay (an entry of overlay_list.lua or of a plugin's overlays.lua) to the table
@@ -1178,6 +1179,10 @@ local function registerOverlaySource(self, path)
   if folder:sub(-1) ~= "/" then
     folder = folder .. "/"
   end
+  if loadedSources[folder] then
+    return
+  end
+  loadedSources[folder] = true
   -- Spots saved while the plugin folder could not be written win over the plugin's own file.
   local spare = "ucp/building-overlays-" .. (folder:match("plugins/([^/]+)/") or "module") .. ".lua"
   local text = readFile("", spare)
@@ -2095,6 +2100,23 @@ local function enable(self, config)
     end
   end
 
+  -- Every active plugin with resources/modsupport/building-overlays/overlays.lua is read without
+  -- the plugin having to call in (a plugin re-exported by a tool loses its init.lua).
+  local ok, problem = pcall(function()
+    for _, extension in pairs(allActiveExtensions or {}) do
+      if extension.name ~= nil and extension:type() == "PluginLoader" then
+        local path = "ucp/plugins/" .. extension.name .. "-*/resources/modsupport/building-overlays/"
+        local file = io.open(path .. "overlays.lua", "rb")
+        if file ~= nil then
+          file:close()
+          pending[#pending + 1] = path
+        end
+      end
+    end
+  end)
+  if not ok then
+    log(WARNING, MODULE_NAME .. ": could not look through the plugins: " .. tostring(problem))
+  end
   for _, path in ipairs(pending) do
     registerOverlaySource(self, path)
   end
