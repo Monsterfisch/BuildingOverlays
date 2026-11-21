@@ -2,6 +2,7 @@
 execute, the game's own renderGmOverlayBuilding and picture routine draw into an emulated map
 surface, and the pixels are compared with the PNGs.  python test_overlays.py [van|ext]"""
 import os, sys, shutil, struct, tempfile
+from pathlib import Path
 import harness
 from harness import Host, SENTINEL, MASK
 from x86emu import Halt
@@ -25,6 +26,12 @@ _chdir = os.chdir
 harness.os.chdir = lambda path: _chdir(WORK)
 
 fails = []
+
+
+def saved_calibration(source='module'):
+    texts = [p.read_text() for p in (Path(WORK) / 'ucp').glob(f'building-overlays-{source}-?.lua')]
+    return max(texts, key=lambda text: int(text.splitlines()[0].split(': ')[1]))
+
 
 
 def check(label, got, want):
@@ -267,7 +274,7 @@ def suite(ext):
 
     def saved():
         click_save()
-        text = open(os.path.join(WORK, 'ucp', 'modules', 'building-overlays', 'calibration.lua')).read()
+        text = saved_calibration()
         import re
         return [tuple(map(int, m)) for m in re.findall(r'x = (-?\d+), y = (-?\d+) }', text)]
 
@@ -327,7 +334,7 @@ def suite(ext):
     draw(1, bx, by)
     moved = [args for _, args in gm_calls if args[0] == 0x36][0]
     check('the game picture moved by one step right and up', ((moved[2] - x0) & 0xFFFFFFFF, (moved[3] - y0) & 0xFFFFFFFF), (step, (-step) & 0xFFFFFFFF))
-    saved_text = open(os.path.join(WORK, 'ucp', 'modules', 'building-overlays', 'calibration.lua')).read()
+    saved_text = saved_calibration()
     check('its offset is saved as a game entry', ('{ game = %s, building = 45, x = %d, y = %d }' % (games[0][6:], step, -step)) in saved_text, True)
     put_building(2, 46)
     del gm_calls[:]
@@ -354,6 +361,8 @@ def suite(ext):
 
     # pictures bigger than 256 px (the keep picture is 348 x 309)
     from PIL import Image
+    plugin = os.path.join(WORK, 'plugin-keep')
+    os.makedirs(plugin)
     Image.new('RGBA', (348, 309), (200, 150, 100, 255)).save(os.path.join(plugin, 'big.png'))
     open(os.path.join(plugin, 'overlays.lua'), 'w').write(
         'return { { name = "keep", building = "stronghold", picture = "big", x = 0, y = 0 } }')
@@ -370,7 +379,10 @@ def suite(ext):
     check('another unit on the keep does', count(), 0)
     clear_units()
 
-    # a plugin overlay with one of the module's names takes its place; Save writes it back
+    # An overlay with one of the module's names takes its place.
+    plugin = os.path.join(WORK, 'plugin-gate')
+    os.makedirs(plugin)
+    shutil.copy(os.path.join(OVERLAYS, 'large_gatehouse_overlay_closed_left.png'), os.path.join(plugin, 'a.png'))
     open(os.path.join(plugin, 'overlays.lua'), 'w').write(
         'return { { name = "large_gatehouse_right", building = 45, picture = "a", entrance = "right", x = 1, y = 2 } }')
     h.mod[b'registerOverlaySource'](h.mod, plugin.encode())
@@ -381,8 +393,10 @@ def suite(ext):
     run_panel()
     check('panel still lists two gatehouse overlays', [s for s, _, _ in run_panel()][:2], ['LG left', 'LG right'])
     click_save()
-    written = open(os.path.join(plugin, 'overlays.lua')).read()
-    check('Save writes the plugin overlay back into the plugin', ('large_gatehouse_right' in written, 'x = 1, y = 2' in written, 'large_gatehouse_left' in written), (True, True, False))
+    original = Path(plugin, 'overlays.lua').read_bytes()
+    written = saved_calibration('plugin-gate')
+    check('Save writes the plugin overlay into local calibration', ('large_gatehouse_right' in written, 'x = 1, y = 2' in written, 'large_gatehouse_left' in written), (True, True, False))
+    check('Save preserves the plugin source', b'-- generation:' not in original, True)
     put_building(1, 45, shown=0)
     draw(1, bx, by)
     check('nothing for a building that is not shown', count(), 0)
