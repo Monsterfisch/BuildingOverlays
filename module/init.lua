@@ -32,6 +32,7 @@ local png = require("png")
 local list = require("overlay_list")
 local panel = require("panel")
 local strips = require("strips")
+local overlayData = require("overlay_data")
 
 local MODULE_NAME = "building-overlays"
 local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this to the active version
@@ -650,11 +651,11 @@ end
 
 ---Spots saved with the Save button: a list of overlay entries, used for x and y by name.
 local function loadCalibration()
-  local text = readFile(MODULE_FOLDERS[1], "calibration.lua")
-  local chunk = text and load(text, "calibration", "t", {})
-  local ok, result = pcall(chunk or function() end)
+  local result = overlayData.readCalibration("ucp/building-overlays-module")
+    or overlayData.read("ucp/building-overlays-module.lua")
+    or overlayData.read(MODULE_FOLDERS[1] .. "calibration.lua")
   local spots, games = {}, {}
-  if ok and type(result) == "table" then
+  if result then
     for _, entry in ipairs(result) do
       if type(entry) == "table" and entry.game ~= nil then
         games[#games + 1] = entry
@@ -1067,16 +1068,16 @@ end
 
 ---A saved offset for one of the game's own pictures: { game = n, building = type, x, y }.
 local function applyGameEntry(entry)
-  local site = sites[tonumber(entry.game) or 0]
-  local kind = tonumber(entry.building)
+  local site = sites[math.tointeger(tonumber(entry.game) or 0)]
+  local kind = math.tointeger(tonumber(entry.building) or -1)
   if site == nil or kind == nil or kind < 0 or kind >= TYPE_COUNT then
     log(WARNING, string.format("%s: no game overlay #%s for building %s", MODULE_NAME,
       tostring(entry.game), tostring(entry.building)))
     return
   end
   local record = site.records + kind * RECORD_SIZE
-  core.writeInteger(record + R_X, tonumber(entry.x) or 0)
-  core.writeInteger(record + R_Y, tonumber(entry.y) or 0)
+  core.writeInteger(record + R_X, math.tointeger(tonumber(entry.x) or 0) or 0)
+  core.writeInteger(record + R_Y, math.tointeger(tonumber(entry.y) or 0) or 0)
 end
 
 ---------------------------------------------------------------------------------------
@@ -1092,6 +1093,11 @@ local firstSource      -- the first plugin folder: the game pictures' offsets ar
 ---Adds one overlay (an entry of overlay_list.lua or of a plugin's overlays.lua) to the table
 ---the hook walks. `folder` is where its picture lives.
 local function addOverlay(entry, folder, swap, source)
+  if type(entry.name) ~= "string" or type(entry.picture) ~= "string"
+      or entry.picture == "" or entry.picture:find('[/\\:"<>|?*%c]') then
+    log(WARNING, MODULE_NAME .. ": invalid overlay name or picture in " .. folder)
+    return
+  end
   local existing
   for _, overlay in ipairs(overlays) do
     if overlay.name == tostring(entry.name) then
@@ -1102,9 +1108,9 @@ local function addOverlay(entry, folder, swap, source)
     log(WARNING, MODULE_NAME .. ": too many overlays; " .. tostring(entry.name) .. " skipped")
     return
   end
-  local id = type(entry.building) == "number" and entry.building or BUILDINGS[entry.building]
+  local id = type(entry.building) == "number" and math.tointeger(entry.building) or BUILDINGS[entry.building]
   local picture, problem = loadPicture(folder, entry.picture or "")
-  if id == nil then
+  if id == nil or id < 0 or id >= TYPE_COUNT then
     log(WARNING, string.format("%s: %s: unknown building %s; skipped", MODULE_NAME,
       tostring(entry.name), tostring(entry.building)))
     return
@@ -1120,7 +1126,8 @@ local function addOverlay(entry, folder, swap, source)
   local overlay = {
     name = tostring(entry.name), id = id, entrance = entry.entrance or "any",
     units = entry.units or "empty", gate = entry.gate or "any", picture = entry.picture,
-    x = entry.x or 0, y = entry.y or 0, source = source,
+    x = math.tointeger(tonumber(entry.x) or 0) or 0, y = math.tointeger(tonumber(entry.y) or 0) or 0,
+    source = source,
   }
   local record
   if existing ~= nil then
@@ -1159,7 +1166,15 @@ local function addOverlay(entry, folder, swap, source)
   core.writeInteger(state.block, #overlays)
 end
 
----A plugin hands over a folder holding overlays.lua (the file the Save button writes) and the
+local function calibrationPrefix(folder)
+  if folder == nil then return "ucp/building-overlays-module" end
+  local plugin = folder:match("plugins/([^/]+)/")
+  local source = plugin or folder:gsub("/$", ""):match("([^/]+)$") or "plugin"
+  -- Store calibration outside the source package, including installed ZIPs.
+  return "ucp/building-overlays-" .. source:gsub("[^%w_.-]", "_")
+end
+
+---A plugin hands over a folder holding an overlays.lua data file and the
 ---PNGs it names. Called from the plugin's own enable, after this module's.
 ---e.g. modules["building-overlays"]:registerOverlaySource(
 ---  "ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
@@ -1182,21 +1197,15 @@ local function registerOverlaySource(self, path)
   if loadedSources[folder] then
     return
   end
-  loadedSources[folder] = true
-  -- Spots saved while the plugin folder could not be written win over the plugin's own file.
-  local spare = "ucp/building-overlays-" .. (folder:match("plugins/([^/]+)/") or "module") .. ".lua"
-  local text = readFile("", spare)
-  if text ~= nil then
-    log(INFO, MODULE_NAME .. ": using the spots saved in " .. spare)
-  else
-    text = readFile(folder, "overlays.lua")
-  end
-  local chunk = text and load(text, "overlays", "t", {})
-  local ok, entries = pcall(chunk or function() end)
-  if not ok or type(entries) ~= "table" then
-    log(WARNING, MODULE_NAME .. ": no readable overlays.lua in " .. folder)
+  local prefix = calibrationPrefix(folder)
+  local entries = overlayData.readCalibration(prefix)
+    or overlayData.read(prefix .. ".lua")
+    or overlayData.read(folder .. "overlays.lua")
+  if entries == nil then
+    log(WARNING, MODULE_NAME .. ": no readable overlay data in " .. folder)
     return
   end
+  loadedSources[folder] = true
   firstSource = firstSource or folder
   for _, entry in ipairs(entries) do
     if type(entry) == "table" and entry.game ~= nil then
@@ -1214,13 +1223,13 @@ end
 
 local function formatEntry(overlay)
   return string.format(
-    '  { name = "%s", building = %d, picture = "%s", entrance = "%s", units = "%s", '
-    .. 'gate = "%s", x = %d, y = %d },', overlay.name, overlay.id, overlay.picture,
+    '  { name = %q, building = %d, picture = %q, entrance = %q, units = %q, '
+    .. 'gate = %q, x = %d, y = %d },', overlay.name, overlay.id, overlay.picture,
     overlay.entrance, overlay.units, overlay.gate, overlay.x, overlay.y)
 end
 
-local function writeEntries(path, header, entries)
-  local lines = { header, "return {" }
+local function writeEntries(folder, entries)
+  local lines = { "return {" }
   for _, overlay in ipairs(entries) do
     if overlay.game ~= nil then
       lines[#lines + 1] = string.format("  { game = %d, building = %d, x = %d, y = %d },",
@@ -1230,38 +1239,16 @@ local function writeEntries(path, header, entries)
     end
   end
   lines[#lines + 1] = "}"
-  local ok, file = pcall(io.open, path, "wb")
-  if ok and file ~= nil then
-    file:write(table.concat(lines, "\n"), "\n")
-    file:close()
-    log(INFO, MODULE_NAME .. ": saved " .. path)
-    return true
-  end
-  -- UCP refuses to write inside extension folders: write next to the ucp folder instead, then
-  -- try to move the file into place. If that fails too the copy in ucp/ is kept (and read back
-  -- by registerOverlaySource), and the log says where it is.
-  local spare = "ucp/building-overlays-" .. (path:match("plugins/([^/]+)/") or "module") .. ".lua"
-  local opened, handle = pcall(io.open, spare, "wb")
-  if not opened or handle == nil then
-    log(WARNING, MODULE_NAME .. ": could not write " .. path .. " nor " .. spare
-      .. "; the entries are above")
+  local target, problem = overlayData.saveCalibration(calibrationPrefix(folder), lines)
+  if target == nil then
+    log(WARNING, MODULE_NAME .. ": could not save calibration: " .. tostring(problem))
     return false
   end
-  handle:write(table.concat(lines, "\n"), "\n")
-  handle:close()
-  pcall(os.remove, path)
-  local moved = select(2, pcall(os.rename, spare, path))
-  if moved then
-    log(INFO, MODULE_NAME .. ": saved " .. path)
-  else
-    log(WARNING, MODULE_NAME .. ": UCP does not allow writing " .. path .. "; saved to " .. spare
-      .. " instead - copy it over the plugin's overlays.lua")
-  end
+  log(INFO, MODULE_NAME .. ": saved " .. target)
   return true
 end
 
----The Save button: a plugin's overlays go back into that plugin's own overlays.lua, the module's
----own ones into calibration.lua in the module folder (which wins over overlay_list.lua).
+---Save local calibration without modifying the installed module or texture packs.
 local function writeCalibration()
   local bySource, sources, own = {}, {}, {}
   for _, overlay in ipairs(overlays) do
@@ -1301,13 +1288,10 @@ local function writeCalibration()
   end
   local saved = true
   for _, source in ipairs(sources) do
-    saved = writeEntries(source .. "overlays.lua", "-- Building Overlays: written by the Save button.",
-      bySource[source]) and saved
+    saved = writeEntries(source, bySource[source]) and saved
   end
   if #own > 0 then
-    saved = writeEntries(MODULE_FOLDERS[1] .. "calibration.lua",
-      "-- Written by Building Overlays (the Save button). A plugin uses the same format as its\n"
-      .. "-- resources/modsupport/building-overlays/overlays.lua, next to the PNGs it names.", own) and saved
+    saved = writeEntries(nil, own) and saved
   end
   return saved
 end
