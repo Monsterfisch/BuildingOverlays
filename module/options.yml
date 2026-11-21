@@ -1,130 +1,133 @@
 options:
 - display: GroupBox
-  category: [Building Overlays]
+  category:
+  - '{{bugfixes}}'
   header: '{{large_gatehouse_group}}'
   text: '{{large_gatehouse_group_descr}}'
   hasHeader: true
   children:
   - url: building-overlays.large_gatehouse.enabled
     name: building-overlays-large-gatehouse-enabled
-    text: '{{large_gatehouse_enabled}}'
-    tooltip: '{{large_gatehouse_enabled_tooltip}}'
-    display: Switch
+    text: '{{large_gatehouse_enabled_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: true
+    header: '{{large_gatehouse_enabled}}'
   - url: building-overlays.large_gatehouse.swap_sides
     name: building-overlays-large-gatehouse-swap-sides
-    text: '{{large_gatehouse_swap_sides}}'
-    tooltip: '{{large_gatehouse_swap_sides_tooltip}}'
-    display: Switch
+    text: '{{large_gatehouse_swap_sides_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: false
-
+    header: '{{large_gatehouse_swap_sides}}'
 - display: GroupBox
-  category: [Building Overlays]
+  category:
+  - '{{misc}}'
   header: '{{editor_group}}'
   text: '{{editor_group_descr}}'
   hasHeader: true
   children:
   - url: building-overlays.editor.enabled
     name: building-overlays-editor-enabled
-    text: '{{editor_enabled}}'
-    tooltip: '{{editor_enabled_tooltip}}'
-    display: Switch
+    text: '{{editor_enabled_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: true
-
+    header: '{{editor_enabled}}'
 - display: GroupBox
-  category: [Building Overlays]
+  category:
+  - '{{qol}}'
   header: '{{mouse_group}}'
   text: '{{mouse_group_descr}}'
   hasHeader: true
   children:
   - url: building-overlays.mouse.hover_only
     name: building-overlays-mouse-hover-only
-    text: '{{hover_only}}'
-    tooltip: '{{hover_only_tooltip}}'
-    display: Switch
+    text: '{{hover_only_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: false
-
+    header: '{{hover_only}}'
 - display: GroupBox
-  category: [Building Overlays]
+  category:
+  - '{{bugfixes}}'
   header: '{{drawing_group}}'
   text: '{{drawing_group_descr}}'
   hasHeader: true
   children:
   - url: building-overlays.drawing.tile_by_tile
     name: building-overlays-drawing-tile-by-tile
-    text: '{{tile_by_tile}}'
-    tooltip: '{{tile_by_tile_tooltip}}'
-    display: Switch
+    text: '{{tile_by_tile_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: true
+    header: '{{tile_by_tile}}'
   - url: building-overlays.drawing.hide_units
     name: building-overlays-drawing-hide-units
-    text: '{{hide_units}}'
-    tooltip: '{{hide_units_tooltip}}'
-    display: Switch
+    text: '{{hide_units_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: false
+    header: '{{hide_units}}'
   - url: building-overlays.drawing.flags_on_top
     name: building-overlays-drawing-flags-on-top
-    text: '{{flags_on_top}}'
-    tooltip: '{{flags_on_top_tooltip}}'
-    display: Switch
+    text: '{{flags_on_top_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: true
+    header: '{{flags_on_top}}'
   - url: building-overlays.drawing.back_flag_behind
     name: building-overlays-drawing-back-flag-behind
-    text: '{{back_flag_behind}}'
-    tooltip: '{{back_flag_behind_tooltip}}'
-    display: Switch
+    text: '{{back_flag_behind_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: true
-
+    header: '{{back_flag_behind}}'
 - display: GroupBox
-  category: [Building Overlays]
+  category:
+  - '{{bugfixes}}'
   header: '{{keep_entrance_group}}'
   text: '{{keep_entrance_group_descr}}'
   hasHeader: true
   children:
   - url: building-overlays.keep_entrance.enabled
     name: building-overlays-keep-entrance-enabled
-    text: '{{keep_entrance_enabled}}'
-    tooltip: '{{keep_entrance_enabled_tooltip}}'
-    display: Switch
+    text: '{{keep_entrance_enabled_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: true
-
+    header: '{{keep_entrance_enabled}}'
 - display: GroupBox
-  category: [Building Overlays]
+  category:
+  - '{{bugfixes}}'
   header: '{{flags_group}}'
   text: '{{flags_group_descr}}'
   hasHeader: true
   children:
   - url: building-overlays.flags.follow_turn
     name: building-overlays-flags-follow-turn
-    text: '{{flags_follow_turn}}'
-    tooltip: '{{flags_follow_turn_tooltip}}'
-    display: Switch
+    text: '{{flags_follow_turn_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: true
+    header: '{{flags_follow_turn}}'
   - url: building-overlays.flags.on_edges
     name: building-overlays-flags-on-edges
-    text: '{{flags_on_edges}}'
-    tooltip: '{{flags_on_edges_tooltip}}'
-    display: Switch
+    text: '{{flags_on_edges_tooltip}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: true
+    header: '{{flags_on_edges}}'
+meta:
+  version: 1.0.0

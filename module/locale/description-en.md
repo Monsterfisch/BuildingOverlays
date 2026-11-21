@@ -47,8 +47,8 @@ own pictures the building is drawn with, as "Game #n" (those can be moved too; w
 stays the game's business). Click one to pick it: it is then shown on that building whatever is standing there,
 with a magenta frame, and blue arrow buttons appear on the right of the panel. Each click
 moves the picture by the step size; click "Step" to switch between 1, 5 and 20 pixels. Click
-the picked overlay again to stop. "Save" writes every overlay's spot to `calibration.lua` in
-the module folder; that file can go straight into a plugin as its `overlays.lua`. The tool
+the picked overlay again to stop. "Save" records changes under `ucp/building-overlays-*`.
+The newest valid calibration takes precedence over the pack defaults. The tool
 can be switched off in the settings.
 
 ## Adding or changing a picture
@@ -68,4 +68,4 @@ A plugin can bring its own overlays. Put the PNGs and an `overlays.lua` in the p
     end
 
 An overlay with the same name as one of the module's own replaces it. The Save button writes a
-plugin's overlays straight back into that plugin's `overlays.lua`.
+plugin’s calibration locally. The original `overlays.lua` stays available.
