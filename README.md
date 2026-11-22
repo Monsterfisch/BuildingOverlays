@@ -30,7 +30,8 @@ What the module does, in plain English, is in `module/locale/description-en.md`.
 
 ## Moving the game's own pictures
 
-The game draws its own overlay pictures on keeps, gatehouses and towers. Every place in its
+The game draws its own overlay pictures on keeps, gatehouses, the drawbridge and towers (and on
+many other buildings). Every place in its
 drawing code that draws one is numbered in code order, "Game #n" in the panel; the numbers are
 the same in Stronghold Crusader and Crusader Extreme 1.41. An `overlays.lua` entry with `game`
 instead of `name` moves that picture on every building of one type by `x` / `y` pixels from where
@@ -54,6 +55,8 @@ code, in drawing order:
 | Stronghold | 42 | 162 |
 | Large gatehouse | 45 | 136, 137, 138, 139, 140, 162 |
 | Small gatehouse | 46 | 141, 142, 143, 144, 145, 162 |
+| Wooden gatehouse | 47 | 146, 147, 148, 149, 150, 162 |
+| Drawbridge | 49 | 75, 162 |
 | Tower one (lookout tower) | 74 | 151, 162 |
 | Tower two | 75 | 152, 153, 162 |
 | Tower three | 76 | 154, 155, 162 |
@@ -61,7 +64,8 @@ code, in drawing order:
 | Tower five (round tower) | 78 | 160, 161, 162 |
 
 Game #162 is the last picture of each of these buildings: they share that call, and the entry's
-`building` decides whose picture moves.
+`building` decides whose picture moves. Many other buildings draw pictures through the same
+numbered calls and can be moved the same way; select one and its panel lists them.
 
 ## How it works
 
