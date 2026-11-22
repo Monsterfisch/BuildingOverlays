@@ -1,135 +1,40 @@
-back_flag_behind: Keep the flag at the back behind the building
-back_flag_behind_tooltip: 'The flag on a building''s far corner stays behind the building and the units on it, where
-  the
-
-  game draws it, instead of in front of the overlays. Needs "Show flags in front of the
-
-  overlays".
-
-  '
-drawing_group: Drawing
-drawing_group_descr: 'How overlay pictures are put on the map.
-
-  '
-editor_enabled: Show the overlay tool in the building panel
-editor_enabled_tooltip: 'Select any building: its panel lists its overlays - this module''s and the game''s own
-
-  pictures it is drawn with ("Game #n"). Click one to pick it - one of this module''s is then
-
-  shown on that building whatever stands there, with a magenta frame - and use the
-
-  blue arrows to move it (Step switches between 1, 5 and 20 pixels). Click the picked
-
-  overlay again to stop. Save writes every overlay''s spot to calibration.json in the module
-
-  folder, ready to go into a plugin as overlays.json.
-
-  '
-editor_group: Moving overlays in the game
-editor_group_descr: Select a building and click an overlay in its panel. Use the arrows and step-size control to
-  align it. Save records the offsets in the local UCP folder.
-flags_follow_turn: Keep flags in their spot when the map is turned
-flags_follow_turn_tooltip: 'The game works out where a flag''s pole stands on screen only when the flag is put up,
-  for the
-
-  view at that moment. After turning the map the poles stand a few pixels off, away from the
-
-  edge of the building. With this on they move along with every turn of the map.
-
-  '
-flags_group: Flags
-flags_group_descr: 'Fixes how the game places flags on buildings.
-
-  '
-flags_on_edges: Put flags on the building's edge
-flags_on_edges_tooltip: 'The game puts a flag up in the middle of its tile, so a flag on a building''s corner stands
-  half
-
-  a tile in from the edge. With this on its pole moves out to the edge (the corner itself on a
-
-  corner tile), in every view.
-
-  '
-flags_on_top: Show flags in front of the overlays
-flags_on_top_tooltip: 'Flags standing on a keep or another building are drawn right after that building''s overlay
-
-  pictures, so its own overlay never hides any part of them. Walls and buildings in front of
-
-  it still cover the flag as usual. Works together with "Let buildings in front cover the
-
-  overlays" (needs it on).
-
-  '
-hide_units: Hide units under roofs
-hide_units_tooltip: 'Troops standing on a tower, gatehouse or keep are not drawn while its roof is showing, so no
-
-  part of them pokes through the roof. Units walking through a gatehouse stay visible. Works
-
-  together with "Let buildings in front cover the overlays" (needs it on).
-
-  '
-hover_only: Only hide the overlays while the mouse is on the building
-hover_only_tooltip: 'Towers, gatehouses and keeps keep their walls and crenellations drawn even with troops on
-
-  them, so the troops stand behind the battlements. Point the mouse at the building to see
-
-  who is up there. Covers this module''s overlays and the roofs of the game''s towers. A tower''s crenellations
-
-  and every other game overlay keep the game''s own rules.
-
-  '
-keep_entrance_enabled: Draw the middle of the keep entrance right
-keep_entrance_enabled_tooltip: 'On keeps turned one of two ways, the game draws the middle of the entrance in the
-  wrong
-
-  light: a bright pillar between shaded towers, or a dark one through a bright archway. With
-
-  this on, the middle matches the two towers beside it. Takes effect within a moment, or when
-
-  the map is turned.
-
-  '
-keep_entrance_group: Keep entrance
-keep_entrance_group_descr: 'Fixes a picture bug of the game at the entrance in front of a keep.
-
-  '
-large_gatehouse_enabled: Draw the closed-up look on empty large gatehouses
-large_gatehouse_enabled_tooltip: 'Large gatehouses with no troops on them get a picture over their towers. As soon
-  as
-
-  troops step onto the gatehouse the picture goes away and they are shown as usual.
-
-  '
-large_gatehouse_group: Large gatehouse
-large_gatehouse_group_descr: 'A picture drawn over the towers of a large gatehouse while nobody is standing on it,
-  so
-
-  the walls look closed up instead of showing the empty walkway.
-
-  '
-large_gatehouse_swap_sides: Swap the left and right pictures
-large_gatehouse_swap_sides_tooltip: 'Use this if the picture meant for a gatehouse looking to the lower left shows
-  up on one
-
-  looking to the lower right (and the other way round).
-
-  '
-mouse_group: Seeing troops on towers, gatehouses and keeps
-mouse_group_descr: 'Normally a building''s overlay goes away while troops stand on it.
-
-  '
-tile_by_tile: Let buildings in front cover the overlays
-tile_by_tile_tooltip: 'The game draws its overlays in one piece at a building''s front corner, so they show through
-
-  towers and walls standing right next to the building. With this on, this module''s pictures
-
-  are drawn in narrow strips together with the building''s own tiles, and anything standing in
-
-  front covers them properly. The same goes for the game''s own overlay pictures on every
-
-  building (flags, animations, tower tops, ...).
-
-  '
-qol: Quality of Life
-bugfixes: Bugfixes
-misc: Miscellaneous
+large_gatehouse_group: Nagy kapuház
+large_gatehouse_group_descr: Kép, amely egy üres nagy kapuház tornyai fölé rajzolódik, hogy a falak zártnak tűnjenek az üres gyilokjáró helyett.
+large_gatehouse_enabled: Zárt megjelenés rajzolása üres nagy kapuházakra
+large_gatehouse_enabled_tooltip: Az üres nagy kapuházak fedőképet kapnak a tornyaikra. Amint csapatok lépnek a kapuházra, a kép eltűnik, és a szokásos módon látszanak.
+large_gatehouse_swap_sides: Bal és jobb oldali képek felcserélése
+large_gatehouse_swap_sides_tooltip: Akkor használd, ha a balra lefelé néző kapuházhoz szánt kép a jobbra lefelé nézőn jelenik meg (vagy fordítva).
+editor_group: Fedőképek mozgatása játék közben
+editor_group_descr: Válassz ki egy épületet, és kattints egy fedőképre a paneljén. A nyilakkal és a lépésközzel igazítsd a helyére. A mentés a helyi UCP mappába írja az eltolásokat.
+editor_enabled: Fedőkép-eszköz megjelenítése az épületpanelben
+editor_enabled_tooltip: |-
+  Válassz ki bármely épületet: a paneljén megjelennek a fedőképei — a modul sajátjai és a játék eredeti képei („Game #n”). Kattints egyre a kijelöléshez — a modul képe ekkor lila kerettel látszik az épületen attól függetlenül, áll-e ott valaki —, majd mozgasd a kék nyilakkal (a Step 1, 5 és 20 pixel között vált). A leállításhoz kattints rá újra. A Save elmenti az összes fedőkép helyzetét a modul mappájában lévő calibration.json fájlba, amely overlays.json néven beépíthető egy pluginba.
+mouse_group: Csapatok láthatósága tornyokon, kapuházakon és vártornyokon
+mouse_group_descr: Alapesetben egy épület fedőképe eltűnik, amíg csapatok állnak rajta.
+hover_only: Fedőképek elrejtése csak ha az egér az épület fölött van
+hover_only_tooltip: |-
+  A tornyok, kapuházak és vártornyok falai és lőrései csapatokkal a tetejükön is látszanak, így a katonák a pártázat mögött állnak. Vidd az egeret az épület fölé, hogy lásd, kik állnak fent. A modul fedőképeire és a játék tornyainak tetejére vonatkozik; a toronylőrések és más játékfedőképek megtartják a játék szabályait.
+drawing_group: Megjelenítés
+drawing_group_descr: Hogyan kerülnek a fedőképek a térképre.
+tile_by_tile: Az elöl álló épületek takarják a fedőképeket
+tile_by_tile_tooltip: |-
+  A játék egyetlen darabban rajzolja a fedőképeket az épület elülső sarkához, így átlátszanak a közvetlenül mellette álló tornyokon és falakon. Bekapcsolva a modul képei keskeny csíkokban, az épület mezőivel együtt rajzolódnak ki, így minden elöl álló elem rendesen takarja őket. Ugyanez vonatkozik a játék saját fedőképeire is minden épületen (zászlók, animációk, toronytetők…).
+hide_units: Egységek elrejtése tetők alatt
+hide_units_tooltip: A tornyon, kapuházon vagy vártornyon álló csapatok nem rajzolódnak ki, amíg a tető látszik, így nem lógnak át rajta. A kapuházon áthaladó egységek láthatók maradnak. Igényli „Az elöl álló épületek takarják a fedőképeket” beállítást.
+flags_on_top: Zászlók megjelenítése a fedőképek előtt
+flags_on_top_tooltip: A vártornyon vagy más épületen álló zászlók közvetlenül az épület fedőképei után rajzolódnak ki, így a saját fedőkép nem takarja el őket. Az elöl álló falak és épületek továbbra is takarják a zászlót. Igényli „Az elöl álló épületek takarják a fedőképeket” beállítást.
+back_flag_behind: Hátsó zászló hagyása az épület mögött
+back_flag_behind_tooltip: Az épület távoli sarkán lévő zászló az épület és a rajta álló egységek mögött marad, ahogy a játék rajzolja, nem a fedőképek előtt. Igényli a „Zászlók megjelenítése a fedőképek előtt” beállítást.
+keep_entrance_group: Vártorony bejárata
+keep_entrance_group_descr: Javítja a játék grafikai hibáját a vártorony előtti bejáratnál.
+keep_entrance_enabled: A vártorony bejáratának közepe helyesen rajzolódjon ki
+keep_entrance_enabled_tooltip: Négyből két térképforgatásnál a játék rossz megvilágítással rajzolja a bejárat közepét — világos pillér árnyékos tornyok között, vagy sötét pillér világos boltívben. Bekapcsolva a közepe illeszkedik a mellette lévő két toronyhoz. Egy pillanat múlva vagy a térkép elforgatásakor lép életbe.
+flags_group: Zászlók
+flags_group_descr: Javítja, hogyan helyezi el a játék a zászlókat az épületeken.
+flags_follow_turn: Zászlók helyben tartása a térkép elforgatásakor
+flags_follow_turn_tooltip: A játék csak a zászló felhelyezésekor számítja ki a rúd képernyőbeli helyét az akkori nézethez. A térkép elforgatása után a rudak pár pixellel elcsúsznak az épület szélétől. Bekapcsolva minden forgatással együtt mozognak.
+flags_on_edges: Zászlók áthelyezése az épület szélére
+flags_on_edges_tooltip: A játék a mező közepére teszi a zászlót, így a sarkon lévő zászló fél mezővel beljebb áll. Bekapcsolva a rúd minden nézetben a szélére (sarokmezőn magára a sarokra) kerül.
+qol: Kényelmi funkciók
+bugfixes: Hibajavítások
+misc: Egyéb

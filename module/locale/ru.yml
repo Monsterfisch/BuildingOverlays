@@ -1,135 +1,40 @@
-back_flag_behind: Keep the flag at the back behind the building
-back_flag_behind_tooltip: 'The flag on a building''s far corner stays behind the building and the units on it, where
-  the
-
-  game draws it, instead of in front of the overlays. Needs "Show flags in front of the
-
-  overlays".
-
-  '
-drawing_group: Drawing
-drawing_group_descr: 'How overlay pictures are put on the map.
-
-  '
-editor_enabled: Show the overlay tool in the building panel
-editor_enabled_tooltip: 'Select any building: its panel lists its overlays - this module''s and the game''s own
-
-  pictures it is drawn with ("Game #n"). Click one to pick it - one of this module''s is then
-
-  shown on that building whatever stands there, with a magenta frame - and use the
-
-  blue arrows to move it (Step switches between 1, 5 and 20 pixels). Click the picked
-
-  overlay again to stop. Save writes every overlay''s spot to calibration.json in the module
-
-  folder, ready to go into a plugin as overlays.json.
-
-  '
-editor_group: Moving overlays in the game
-editor_group_descr: Select a building and click an overlay in its panel. Use the arrows and step-size control to
-  align it. Save records the offsets in the local UCP folder.
-flags_follow_turn: Keep flags in their spot when the map is turned
-flags_follow_turn_tooltip: 'The game works out where a flag''s pole stands on screen only when the flag is put up,
-  for the
-
-  view at that moment. After turning the map the poles stand a few pixels off, away from the
-
-  edge of the building. With this on they move along with every turn of the map.
-
-  '
-flags_group: Flags
-flags_group_descr: 'Fixes how the game places flags on buildings.
-
-  '
-flags_on_edges: Put flags on the building's edge
-flags_on_edges_tooltip: 'The game puts a flag up in the middle of its tile, so a flag on a building''s corner stands
-  half
-
-  a tile in from the edge. With this on its pole moves out to the edge (the corner itself on a
-
-  corner tile), in every view.
-
-  '
-flags_on_top: Show flags in front of the overlays
-flags_on_top_tooltip: 'Flags standing on a keep or another building are drawn right after that building''s overlay
-
-  pictures, so its own overlay never hides any part of them. Walls and buildings in front of
-
-  it still cover the flag as usual. Works together with "Let buildings in front cover the
-
-  overlays" (needs it on).
-
-  '
-hide_units: Hide units under roofs
-hide_units_tooltip: 'Troops standing on a tower, gatehouse or keep are not drawn while its roof is showing, so no
-
-  part of them pokes through the roof. Units walking through a gatehouse stay visible. Works
-
-  together with "Let buildings in front cover the overlays" (needs it on).
-
-  '
-hover_only: Only hide the overlays while the mouse is on the building
-hover_only_tooltip: 'Towers, gatehouses and keeps keep their walls and crenellations drawn even with troops on
-
-  them, so the troops stand behind the battlements. Point the mouse at the building to see
-
-  who is up there. Covers this module''s overlays and the roofs of the game''s towers. A tower''s crenellations
-
-  and every other game overlay keep the game''s own rules.
-
-  '
-keep_entrance_enabled: Draw the middle of the keep entrance right
-keep_entrance_enabled_tooltip: 'On keeps turned one of two ways, the game draws the middle of the entrance in the
-  wrong
-
-  light: a bright pillar between shaded towers, or a dark one through a bright archway. With
-
-  this on, the middle matches the two towers beside it. Takes effect within a moment, or when
-
-  the map is turned.
-
-  '
-keep_entrance_group: Keep entrance
-keep_entrance_group_descr: 'Fixes a picture bug of the game at the entrance in front of a keep.
-
-  '
-large_gatehouse_enabled: Draw the closed-up look on empty large gatehouses
-large_gatehouse_enabled_tooltip: 'Large gatehouses with no troops on them get a picture over their towers. As soon
-  as
-
-  troops step onto the gatehouse the picture goes away and they are shown as usual.
-
-  '
-large_gatehouse_group: Large gatehouse
-large_gatehouse_group_descr: 'A picture drawn over the towers of a large gatehouse while nobody is standing on it,
-  so
-
-  the walls look closed up instead of showing the empty walkway.
-
-  '
-large_gatehouse_swap_sides: Swap the left and right pictures
-large_gatehouse_swap_sides_tooltip: 'Use this if the picture meant for a gatehouse looking to the lower left shows
-  up on one
-
-  looking to the lower right (and the other way round).
-
-  '
-mouse_group: Seeing troops on towers, gatehouses and keeps
-mouse_group_descr: 'Normally a building''s overlay goes away while troops stand on it.
-
-  '
-tile_by_tile: Let buildings in front cover the overlays
-tile_by_tile_tooltip: 'The game draws its overlays in one piece at a building''s front corner, so they show through
-
-  towers and walls standing right next to the building. With this on, this module''s pictures
-
-  are drawn in narrow strips together with the building''s own tiles, and anything standing in
-
-  front covers them properly. The same goes for the game''s own overlay pictures on every
-
-  building (flags, animations, tower tops, ...).
-
-  '
-qol: Quality of Life
-bugfixes: Bugfixes
-misc: Miscellaneous
+large_gatehouse_group: Большие ворота
+large_gatehouse_group_descr: Накладка поверх башен больших ворот, пока на них никого нет, благодаря чему стены выглядят закрытыми вместо пустой площадки.
+large_gatehouse_enabled: Рисовать закрытый вид на пустых больших воротах
+large_gatehouse_enabled_tooltip: Пустые большие ворота получают накладку поверх башен. Как только войска ступают на ворота, накладка исчезает, и бойцы отображаются как обычно.
+large_gatehouse_swap_sides: Поменять местами левую и правую накладки
+large_gatehouse_swap_sides_tooltip: Включите, если накладка для ворот, обращённых влево-вниз, показывается на воротах, обращённых вправо-вниз (и наоборот).
+editor_group: Перемещение накладок в игре
+editor_group_descr: Выберите здание и щёлкните накладку на его панели. Выровняйте её стрелками и шагом смещения. Кнопка сохранения записывает смещения в локальную папку UCP.
+editor_enabled: Показывать инструмент накладок на панели здания
+editor_enabled_tooltip: |-
+  Выберите любое здание: на панели перечислены его накладки — этого модуля и родные спрайты игры («Game #n»). Щёлкните нужную для выбора — накладка модуля отобразится на здании с пурпурной рамкой независимо от юнитов — и двигайте синими стрелками (Step переключает 1, 5 и 20 пикселей). Повторный щелчок завершает выбор. Save сохраняет позиции всех накладок в calibration.json в папке модуля, готовый к переносу как overlays.json в плагин.
+mouse_group: Отображение войск на башнях, воротах и цитаделях
+mouse_group_descr: Обычно накладка здания скрывается, пока на нём стоят войска.
+hover_only: Скрывать накладки только при наведении мыши на здание
+hover_only_tooltip: |-
+  Башни, ворота и цитадели сохраняют отрисовку стен и зубцов даже с войсками наверху, чтобы бойцы стояли за зубцами. Наведите курсор на здание, чтобы увидеть, кто наверху. Охватывает накладки этого модуля и крыши игровых башен; зубцы башен и прочие игровые накладки сохраняют правила игры.
+drawing_group: Отрисовка
+drawing_group_descr: Способ отображения накладок на карте.
+tile_by_tile: Здания спереди перекрывают накладки
+tile_by_tile_tooltip: |-
+  Игра рисует накладки целиком в переднем углу здания, из-за чего они просвечивают сквозь стоящие вплотную башни и стены. С этой опцией изображения модуля рисуются узкими полосами вместе с клетками здания, и всё стоящее впереди корректно их перекрывает. То же касается родных накладок игры на каждом здании (флаги, анимации, крыши башен…).
+hide_units: Скрывать юнитов под крышами
+hide_units_tooltip: Войска на башне, воротах или цитадели не отрисовываются, пока показана крыша, чтобы их части не торчали сквозь неё. Юниты, проходящие сквозь ворота, остаются видимыми. Требует включения «Здания спереди перекрывают накладки».
+flags_on_top: Показывать флаги поверх накладок
+flags_on_top_tooltip: Флаги на цитадели или другом здании рисуются сразу после его накладок, чтобы собственная накладка здания не закрывала их. Стены и здания спереди по-прежнему перекрывают флаг. Требует включения «Здания спереди перекрывают накладки».
+back_flag_behind: Оставлять задний флаг позади здания
+back_flag_behind_tooltip: Флаг на дальнем углу здания остаётся позади здания и юнитов на нём, где его рисует игра, а не поверх накладок. Требует включения «Показывать флаги поверх накладок».
+keep_entrance_group: Вход в цитадель
+keep_entrance_group_descr: Исправляет графическую ошибку игры у входа перед цитаделью.
+keep_entrance_enabled: Правильно отрисовывать середину входа цитадели
+keep_entrance_enabled_tooltip: При двух из четырёх поворотов карты игра рисует середину входа цитадели с неверным освещением — светлая колонна между затемнёнными башнями или тёмная в светлой арке. С этой опцией середина совпадает с соседними башнями. Вступает в силу через мгновение или при повороте карты.
+flags_group: Флаги
+flags_group_descr: Исправляет расположение флагов на зданиях.
+flags_follow_turn: Сохранять позицию флагов при повороте карты
+flags_follow_turn_tooltip: Игра вычисляет положение флагштока на экране лишь при установке флага для текущего ракурса. После поворота карты флагштоки смещаются на несколько пикселей от края здания. С этой опцией они корректно поворачиваются вместе с картой.
+flags_on_edges: Смещать флаги к краю здания
+flags_on_edges_tooltip: Игра ставит флаг по центру клетки, поэтому флаг на углу здания отступает на полклетки внутрь. С этой опцией флагшток сдвигается к самому краю (на угол в угловой клетке) в любом ракурсе.
+qol: Удобство игры
+bugfixes: Исправления
+misc: Разное
