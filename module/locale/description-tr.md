@@ -39,3 +39,5 @@ Bir eklenti kendi katmanlarını getirebilir. PNG'leri ve `overlays.lua` dosyas�
     end
 
 Modülünkiyle aynı adlı bir katman onun yerini alır. Save düğmesi eklentinin kalibrasyonunu yerel olarak kaydeder; özgün `overlays.lua` korunur.
+
+Aynı dosya oyunun kendi görsellerini de taşıyabilir. `{ game = 152, building = 75, x = 0, y = -4 }` satırı, 75 türündeki her binada (ikinci kule) panelde "Game #152" olarak listelenen görseli oyundaki özgün konumundan x / y piksel kaydırır. Bir oyun görselini taşıdığınızda Save tam olarak bu satırı yazar; böylece bir eklenti oyunun kuleleri, iç kaleleri ve kapı binaları için kendi hizalamasını paketleyebilir.

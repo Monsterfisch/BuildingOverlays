@@ -39,3 +39,5 @@ Un plugin peut fournir ses propres calques. Placez les PNG et un fichier `overla
     end
 
 Un calque portant le même nom que celui du module le remplace. Le bouton Save enregistre localement la calibration du plugin tout en conservant le fichier `overlays.lua` d'origine.
+
+Le même fichier peut déplacer les images propres au jeu. Une ligne `{ game = 152, building = 75, x = 0, y = -4 }` déplace l'image listée dans le panneau sous le nom "Game #152" sur chaque bâtiment de type 75 (tour deux) de x / y pixels par rapport à sa position d'origine dans le jeu. C'est la ligne qu'écrit Save lorsque vous déplacez une image du jeu, ce qui permet à un plugin de fournir son propre alignement des tours, donjons et portes du jeu.

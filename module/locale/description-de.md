@@ -39,3 +39,5 @@ Ein Plugin kann eigene Overlays mitbringen. Lege die PNGs und eine `overlays.lua
     end
 
 Ein gleichnamiges Overlay ersetzt das des Moduls. „Save“ speichert die Kalibrierung eines Plugins lokal; die ursprüngliche `overlays.lua` bleibt erhalten.
+
+Dieselbe Datei kann auch die eigenen Grafiken des Spiels verschieben. Eine Zeile `{ game = 152, building = 75, x = 0, y = -4 }` verschiebt die im Fenster als "Game #152" aufgeführte Grafik bei jedem Gebäude vom Typ 75 (Turm 2) um x / y Pixel gegenüber der Originalposition des Spiels. Genau diese Zeile schreibt „Save“ beim Verschieben einer Spielgrafik, sodass ein Plugin seine eigene Ausrichtung für die Türme, Bergfriede und Torhäuser des Spiels mitliefern kann.
