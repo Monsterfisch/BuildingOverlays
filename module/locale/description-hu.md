@@ -40,4 +40,4 @@ Egy plugin saját fedőképeket is hozhat. Tedd a PNG-ket és az `overlays.lua` 
 
 Az azonos nevű fedőkép lecseréli a modul sajátját. A Save gomb helyben menti a plugin kalibrációját, az eredeti `overlays.lua` érintetlen marad.
 
-Ugyanez a fájl a játék saját képeit is el tudja mozgatni. A `{ game = 152, building = 75, x = 0, y = -4 }` sor minden 75-ös típusú épületen (kettes torony) x / y pixellel eltolja a panelen "Game #152" néven listázott képet a játék eredeti helyéhez képest. Ezt a sort írja ki a Save, amikor egy játékképet elmozgatsz, így egy plugin saját igazítást is mellékelhet a játék tornyaihoz, vártornyaihoz és kapuházaihoz.
+Ugyanez a fájl a játék saját képeit is el tudja mozgatni, amelyeket a panel „Game #n” néven listáz.
