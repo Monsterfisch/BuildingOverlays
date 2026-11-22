@@ -23,7 +23,7 @@ Das Spiel zeichnet Overlays in einem Stück an der vorderen Ecke eines Gebäudes
 
 ## Overlays im Spiel verschieben
 
-Wähle ein beliebiges Gebäude. Sein Fenster listet links seine Overlays auf: die dieses Moduls sowie die eigenen Grafiken des Spiels als „Game #n“ (auch diese lassen sich verschieben; wann sie erscheinen, bleibt Sache des Spiels). Ein Klick wählt ein Overlay aus – es erscheint mit magentafarbenem Rahmen, und rechts im Fenster erscheinen blaue Pfeiltasten. Jeder Klick verschiebt um die Schrittweite („Step“ wechselt zwischen 1, 5 und 20 Pixeln); erneutes Anklicken beendet die Auswahl. „Save“ speichert Änderungen unter `ucp/building-overlays-*`. Die neueste gültige Kalibrierung hat Vorrang vor den Paket-Standardwerten. Das Werkzeug ist in den Einstellungen abschaltbar.
+Wähle ein beliebiges Gebäude. Sein Fenster listet links seine Overlays auf: die dieses Moduls sowie die eigenen Grafiken des Spiels als „Game #n“ (auch diese lassen sich verschieben; wann sie erscheinen, bleibt Sache des Spiels). Ein Klick wählt ein Overlay aus – es erscheint mit magentafarbenem Rahmen, und rechts im Fenster erscheinen blaue Pfeiltasten. Jeder Klick verschiebt um die Schrittweite („Step“ wechselt zwischen 1, 5 und 20 Pixeln); erneutes Anklicken beendet die Auswahl. „Save“ schreibt die Position jedes Overlays in eine Datei im `ucp`-Ordner des Spiels, und das Modul verwendet ab dann diese Positionen; die Datei hat das Format der `overlays.lua` eines Plugins. Das Werkzeug ist in den Einstellungen abschaltbar.
 
 ## Grafiken hinzufügen oder ändern
 
@@ -38,6 +38,6 @@ Ein Plugin kann eigene Overlays mitbringen. Lege die PNGs und eine `overlays.lua
       overlays:registerOverlaySource("ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
     end
 
-Ein gleichnamiges Overlay ersetzt das des Moduls. „Save“ speichert die Kalibrierung eines Plugins lokal; die ursprüngliche `overlays.lua` bleibt erhalten.
+Ein gleichnamiges Overlay ersetzt das des Moduls. Die Schaltfläche „Save“ schreibt auch die Positionen dieses Plugins in den `ucp`-Ordner; die eigene `overlays.lua` des Plugins bleibt unverändert.
 
 Dieselbe Datei kann auch die eigenen Grafiken des Spiels verschieben, die im Fenster als „Game #n“ aufgeführt werden.

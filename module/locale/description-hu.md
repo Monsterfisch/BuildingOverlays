@@ -23,7 +23,7 @@ A játék egy darabban rajzolja a fedőképeket az épület elülső sarkánál,
 
 ## Fedőképek mozgatása játék közben
 
-Válassz ki egy épületet: panelje bal oldalán láthatók a fedőképei (a moduléi és a játék „Game #n” képei). Kattints egyre a lila keretes kijelöléshez, majd a jobb oldali kék nyilakkal igazítsd („Step” 1, 5 és 20 pixel között vált). Újbóli kattintással állítsd le. A „Save” a `ucp/building-overlays-*` alá menti a kalibrációt; a legfrissebb érvényes kalibráció felülírja a csomag alapértékeit. Kikapcsolható a beállításokban.
+Válassz ki egy épületet: panelje bal oldalán láthatók a fedőképei (a moduléi és a játék „Game #n” képei). Kattints egyre a lila keretes kijelöléshez, majd a jobb oldali kék nyilakkal igazítsd („Step” 1, 5 és 20 pixel között vált). Újbóli kattintással állítsd le. A „Save” minden fedőkép helyét egy fájlba írja a játék `ucp` mappájában, és a modul onnantól ezeket a helyeket használja; a fájl formátuma megegyezik egy plugin `overlays.lua` fájljáéval. Kikapcsolható a beállításokban.
 
 ## Kép hozzáadása vagy módosítása
 
@@ -38,6 +38,6 @@ Egy plugin saját fedőképeket is hozhat. Tedd a PNG-ket és az `overlays.lua` 
       overlays:registerOverlaySource("ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
     end
 
-Az azonos nevű fedőkép lecseréli a modul sajátját. A Save gomb helyben menti a plugin kalibrációját, az eredeti `overlays.lua` érintetlen marad.
+Az azonos nevű fedőkép lecseréli a modul sajátját. A Save gomb a plugin fedőképeinek helyét is a `ucp` mappába írja; a plugin saját `overlays.lua` fájlja változatlan marad.
 
 Ugyanez a fájl a játék saját képeit is el tudja mozgatni, amelyeket a panel „Game #n” néven listáz.

@@ -8,7 +8,7 @@ editor_group: Overlays im Spiel verschieben
 editor_group_descr: Wähle ein Gebäude und klicke im Gebäudefenster auf ein Overlay. Nutze die Pfeile und die Schrittweite zum Ausrichten. Speichern schreibt die Versätze in den lokalen UCP-Ordner.
 editor_enabled: Overlay-Werkzeug im Gebäudefenster anzeigen
 editor_enabled_tooltip: |-
-  Wähle ein beliebiges Gebäude: Sein Fenster listet seine Overlays auf – die dieses Moduls sowie die eigenen Grafiken des Spiels („Game #n“). Klicke eines an, um es auszuwählen – ein Overlay dieses Moduls wird dann unabhängig von der Belegung mit einem magentafarbenen Rahmen auf dem Gebäude angezeigt – und verschiebe es mit den blauen Pfeilen (Step wechselt zwischen 1, 5 und 20 Pixeln). Klicke das gewählte Overlay erneut an, um zu beenden. Save speichert die Position aller Overlays in calibration.json im Modulordner, bereit zur Übernahme als overlays.json in ein Plugin.
+  Wähle ein beliebiges Gebäude: Sein Fenster listet seine Overlays auf – die dieses Moduls sowie die eigenen Grafiken des Spiels („Game #n“). Klicke eines an, um es auszuwählen – ein Overlay dieses Moduls wird dann unabhängig von der Belegung mit einem magentafarbenen Rahmen auf dem Gebäude angezeigt – und verschiebe es mit den blauen Pfeilen (Step wechselt zwischen 1, 5 und 20 Pixeln). Klicke das gewählte Overlay erneut an, um zu beenden. Save schreibt die Position jedes Overlays in eine Datei im ucp-Ordner des Spiels, im Format der overlays.lua eines Plugins.
 mouse_group: Truppen auf Türmen, Torhäusern und Bergfrieden sehen
 mouse_group_descr: Normalerweise wird das Overlay eines Gebäudes ausgeblendet, solange Truppen darauf stehen.
 hover_only: Overlays nur ausblenden, während der Mauszeiger auf dem Gebäude liegt

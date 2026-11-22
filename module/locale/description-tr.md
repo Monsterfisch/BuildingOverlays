@@ -23,7 +23,7 @@ Oyun katmanları binanın ön köşesinde tek parça çizdiğinden yanındaki ku
 
 ## Katmanları oyun içinde taşıma
 
-Herhangi bir binayı seçin; panelin solunda katmanları (modülün ve oyunun «Game #n» görselleri) listelenir. Birine tıklayıp eflatun çerçeveyle seçin ve sağdaki mavi oklarla taşıyın («Step» 1, 5 ve 20 piksel arasında geçer). Durdurmak için tekrar tıklayın. «Save» değişiklikleri `ucp/building-overlays-*` altına kaydeder; en yeni geçerli kalibrasyon paket varsayılanlarının önüne geçer. Ayarlardan kapatılabilir.
+Herhangi bir binayı seçin; panelin solunda katmanları (modülün ve oyunun «Game #n» görselleri) listelenir. Birine tıklayıp eflatun çerçeveyle seçin ve sağdaki mavi oklarla taşıyın («Step» 1, 5 ve 20 piksel arasında geçer). Durdurmak için tekrar tıklayın. «Save» her katmanın konumunu oyunun `ucp` klasöründeki bir dosyaya yazar ve modül bundan sonra bu konumları kullanır; dosya bir eklentinin `overlays.lua` biçimindedir. Ayarlardan kapatılabilir.
 
 ## Görsel ekleme veya değiştirme
 
@@ -38,6 +38,6 @@ Bir eklenti kendi katmanlarını getirebilir. PNG'leri ve `overlays.lua` dosyas�
       overlays:registerOverlaySource("ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
     end
 
-Modülünkiyle aynı adlı bir katman onun yerini alır. Save düğmesi eklentinin kalibrasyonunu yerel olarak kaydeder; özgün `overlays.lua` korunur.
+Modülünkiyle aynı adlı bir katman onun yerini alır. Save düğmesi o eklentinin konumlarını da `ucp` klasörüne yazar; eklentinin kendi `overlays.lua` dosyası olduğu gibi kalır.
 
 Aynı dosya, panelin «Game #n» olarak listelediği oyunun kendi görsellerini de taşıyabilir.

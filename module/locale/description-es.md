@@ -23,7 +23,7 @@ El juego dibuja las superposiciones de una pieza en la esquina frontal, atravesa
 
 ## Mover superposiciones en el juego
 
-Selecciona cualquier edificio: su panel lista a la izquierda sus superposiciones (las del módulo y las del juego como «Game #n»). Haz clic en una para seleccionarla con marco magenta y moverla con las flechas azules a la derecha («Step» alterna 1, 5 y 20 píxeles); vuelve a hacer clic para parar. «Save» guarda los cambios en `ucp/building-overlays-*` y la última calibración válida prevalece sobre el paquete. Desactivable en ajustes.
+Selecciona cualquier edificio: su panel lista a la izquierda sus superposiciones (las del módulo y las del juego como «Game #n»). Haz clic en una para seleccionarla con marco magenta y moverla con las flechas azules a la derecha («Step» alterna 1, 5 y 20 píxeles); vuelve a hacer clic para parar. «Save» escribe la posición de cada superposición en un archivo dentro de la carpeta `ucp` del juego, y el módulo usa esas posiciones a partir de entonces; el archivo tiene el formato del `overlays.lua` de un plugin. Desactivable en ajustes.
 
 ## Añadir o cambiar una imagen
 
@@ -38,6 +38,6 @@ Un plugin puede incluir sus propias superposiciones poniendo los PNG y un `overl
       overlays:registerOverlaySource("ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
     end
 
-Una superposición con el mismo nombre sustituye a la del módulo. El botón Save guarda localmente la calibración del plugin manteniendo disponible el `overlays.lua` original.
+Una superposición con el mismo nombre sustituye a la del módulo. El botón Save también escribe las posiciones de ese plugin en la carpeta `ucp`; el propio `overlays.lua` del plugin permanece tal cual.
 
 El mismo archivo también puede mover las imágenes propias del juego, las que el panel lista como «Game #n».

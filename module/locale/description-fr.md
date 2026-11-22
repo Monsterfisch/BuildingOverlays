@@ -23,7 +23,7 @@ Le jeu dessine les calques d'un bloc à l'angle avant du bâtiment, les faisant 
 
 ## Déplacer les calques en jeu
 
-Sélectionnez un bâtiment : son panneau liste à gauche ses calques (ceux du module et ceux du jeu en tant que « Game #n »). Cliquez sur l'un d'eux pour le sélectionner avec un cadre magenta et faire apparaître des flèches bleues à droite. Chaque clic déplace l'image selon le pas (« Step » alterne entre 1, 5 et 20 pixels) ; recliquez pour arrêter. « Save » enregistre sous `ucp/building-overlays-*`. La calibration valide la plus récente prévaut sur les valeurs par défaut du pack. Désactivable dans les paramètres.
+Sélectionnez un bâtiment : son panneau liste à gauche ses calques (ceux du module et ceux du jeu en tant que « Game #n »). Cliquez sur l'un d'eux pour le sélectionner avec un cadre magenta et faire apparaître des flèches bleues à droite. Chaque clic déplace l'image selon le pas (« Step » alterne entre 1, 5 et 20 pixels) ; recliquez pour arrêter. « Save » écrit la position de chaque calque dans un fichier du dossier `ucp` du jeu, et le module utilise ces positions par la suite ; le fichier a le format du `overlays.lua` d'un plugin. Désactivable dans les paramètres.
 
 ## Ajouter ou modifier une image
 
@@ -38,6 +38,6 @@ Un plugin peut fournir ses propres calques. Placez les PNG et un fichier `overla
       overlays:registerOverlaySource("ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
     end
 
-Un calque portant le même nom que celui du module le remplace. Le bouton Save enregistre localement la calibration du plugin tout en conservant le fichier `overlays.lua` d'origine.
+Un calque portant le même nom que celui du module le remplace. Le bouton Save écrit aussi les positions de ce plugin dans le dossier `ucp` ; le fichier `overlays.lua` du plugin reste tel quel.
 
 Le même fichier peut aussi déplacer les images propres au jeu, celles que le panneau liste en tant que « Game #n ».
