@@ -31,9 +31,9 @@ editor_enabled_tooltip: 'Select any building: its panel lists its overlays - thi
 
   blue arrows to move it (Step switches between 1, 5 and 20 pixels). Click the picked
 
-  overlay again to stop. Save writes every overlay''s spot to calibration.json in the module
+  overlay again to stop. Save writes every overlay''s spot to a file in the game''s ucp folder,
 
-  folder, ready to go into a plugin as overlays.json.
+  in the format of a plugin''s overlays.lua.
 
   '
 mouse_group: Seeing troops on towers, gatehouses and keeps
