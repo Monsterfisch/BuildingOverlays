@@ -1,0 +1,25 @@
+Copyright (c) 2026 Monsterfish (GitHub: Monsterfisch). All rights reserved.
+
+Permission for the Unofficial Crusader Patch project
+
+The author grants the Unofficial Crusader Patch project (the GitHub organisation
+"UnofficialCrusaderPatch", its maintainers and their successors, "UCP") a free,
+worldwide, non-exclusive permission to:
+
+1. Build, package, sign and distribute this extension, changed or unchanged,
+   free of charge through the UCP3 extensions store, UCP releases, test builds
+   and other UCP channels.
+2. Change it for that purpose: translations, packaging, compatibility fixes,
+   bug fixes and integration with other UCP extensions.
+3. Keep distributing every version already published through UCP, even if this
+   permission is changed or withdrawn for later versions.
+
+Players may download, install and use this extension for free.
+
+Any other use, such as selling it, republishing it outside UCP channels or using
+its code in other projects, needs the author's written permission.
+
+Contributions: by submitting a contribution (for example a pull request), the
+contributor allows the author and UCP to use it under these same terms.
+
+This extension is provided "as is", without warranty of any kind.
