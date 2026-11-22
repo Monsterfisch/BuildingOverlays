@@ -69,3 +69,8 @@ A plugin can bring its own overlays. Put the PNGs and an `overlays.lua` in the p
 
 An overlay with the same name as one of the module's own replaces it. The Save button writes a
 plugin’s calibration locally. The original `overlays.lua` stays available.
+
+The same file can move the game's own pictures. A line `{ game = 152, building = 75, x = 0, y = -4 }`
+moves the picture the panel lists as "Game #152" on every building of type 75 (tower two) by x / y
+pixels from the game's own place. This is the line Save writes when you move a game picture, so a
+plugin can ship its own alignment of the game's towers, keeps and gatehouses.

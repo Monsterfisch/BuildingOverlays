@@ -28,6 +28,41 @@ What the module does, in plain English, is in `module/locale/description-en.md`.
 4. Plugins: `modules["building-overlays"]:registerOverlaySource(folder)` loads `overlays.lua` and the
    PNGs from `resources/modsupport/building-overlays/` of the plugin.
 
+## Moving the game's own pictures
+
+The game draws its own overlay pictures on keeps, gatehouses and towers. Every place in its
+drawing code that draws one is numbered in code order, "Game #n" in the panel; the numbers are
+the same in Stronghold Crusader and Crusader Extreme 1.41. An `overlays.lua` entry with `game`
+instead of `name` moves that picture on every building of one type by `x` / `y` pixels from where
+the game puts it (`x = 0, y = 0` is the game's own place):
+
+```lua
+return {
+  -- tower two (building 75): its first picture 4 pixels higher
+  { game = 152, building = 75, x = 0, y = -4 },
+}
+```
+
+The Save button writes the same entry for a game picture, and a plugin can ship it in its
+`resources/modsupport/building-overlays/overlays.lua`. Which of its pictures a building draws
+depends on its state; its panel lists the ones it uses. The places in each building's drawing
+code, in drawing order:
+
+| Building | Type | Game # |
+|---|---|---|
+| Stone keep | 41 | 162 |
+| Stronghold | 42 | 162 |
+| Large gatehouse | 45 | 136, 137, 138, 139, 140, 162 |
+| Small gatehouse | 46 | 141, 142, 143, 144, 145, 162 |
+| Tower one (lookout tower) | 74 | 151, 162 |
+| Tower two | 75 | 152, 153, 162 |
+| Tower three | 76 | 154, 155, 162 |
+| Tower four | 77 | 156, 157, 158, 159, 162 |
+| Tower five (round tower) | 78 | 160, 161, 162 |
+
+Game #162 is the last picture of each of these buildings: they share that call, and the entry's
+`building` decides whose picture moves.
+
 ## How it works
 
 * One hook at the shared tail of `renderGmOverlayBuilding`, after the game's own overlays.
