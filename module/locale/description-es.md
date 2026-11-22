@@ -40,4 +40,4 @@ Un plugin puede incluir sus propias superposiciones poniendo los PNG y un `overl
 
 Una superposición con el mismo nombre sustituye a la del módulo. El botón Save guarda localmente la calibración del plugin manteniendo disponible el `overlays.lua` original.
 
-El mismo archivo puede mover las imágenes propias del juego. Una línea `{ game = 152, building = 75, x = 0, y = -4 }` mueve la imagen que el panel lista como "Game #152" en cada edificio de tipo 75 (torre dos) en x / y píxeles respecto a su posición original en el juego. Esta es la línea que escribe Save al mover una imagen del juego, de modo que un plugin puede incluir su propia alineación para las torres, fortalezas y puertas del juego.
+El mismo archivo también puede mover las imágenes propias del juego, las que el panel lista como «Game #n».
