@@ -1,135 +1,41 @@
-back_flag_behind: Keep the flag at the back behind the building
-back_flag_behind_tooltip: 'The flag on a building''s far corner stays behind the building and the units on it, where
-  the
-
-  game draws it, instead of in front of the overlays. Needs "Show flags in front of the
-
-  overlays".
-
-  '
-drawing_group: Drawing
-drawing_group_descr: 'How overlay pictures are put on the map.
-
-  '
-editor_enabled: Show the overlay tool in the building panel
-editor_enabled_tooltip: 'Select any building: its panel lists its overlays - this module''s and the game''s own
-
-  pictures it is drawn with ("Game #n"). Click one to pick it - one of this module''s is then
-
-  shown on that building whatever stands there, with a magenta frame - and use the
-
-  blue arrows to move it (Step switches between 1, 5 and 20 pixels). Click the picked
-
-  overlay again to stop. Save writes every overlay''s spot to calibration.json in the module
-
-  folder, ready to go into a plugin as overlays.json.
-
-  '
-editor_group: Moving overlays in the game
-editor_group_descr: Select a building and click an overlay in its panel. Use the arrows and step-size control to
-  align it. Save records the offsets in the local UCP folder.
-flags_follow_turn: Keep flags in their spot when the map is turned
-flags_follow_turn_tooltip: 'The game works out where a flag''s pole stands on screen only when the flag is put up,
-  for the
-
-  view at that moment. After turning the map the poles stand a few pixels off, away from the
-
-  edge of the building. With this on they move along with every turn of the map.
-
-  '
-flags_group: Flags
-flags_group_descr: 'Fixes how the game places flags on buildings.
-
-  '
-flags_on_edges: Put flags on the building's edge
-flags_on_edges_tooltip: 'The game puts a flag up in the middle of its tile, so a flag on a building''s corner stands
-  half
-
-  a tile in from the edge. With this on its pole moves out to the edge (the corner itself on a
-
-  corner tile), in every view.
-
-  '
-flags_on_top: Show flags in front of the overlays
-flags_on_top_tooltip: 'Flags standing on a keep or another building are drawn right after that building''s overlay
-
-  pictures, so its own overlay never hides any part of them. Walls and buildings in front of
-
-  it still cover the flag as usual. Works together with "Let buildings in front cover the
-
-  overlays" (needs it on).
-
-  '
-hide_units: Hide units under roofs
-hide_units_tooltip: 'Troops standing on a tower, gatehouse or keep are not drawn while its roof is showing, so no
-
-  part of them pokes through the roof. Units walking through a gatehouse stay visible. Works
-
-  together with "Let buildings in front cover the overlays" (needs it on).
-
-  '
-hover_only: Only hide the overlays while the mouse is on the building
-hover_only_tooltip: 'Towers, gatehouses and keeps keep their walls and crenellations drawn even with troops on
-
-  them, so the troops stand behind the battlements. Point the mouse at the building to see
-
-  who is up there. Covers this module''s overlays and the roofs of the game''s towers. A tower''s crenellations
-
-  and every other game overlay keep the game''s own rules.
-
-  '
-keep_entrance_enabled: Draw the middle of the keep entrance right
-keep_entrance_enabled_tooltip: 'On keeps turned one of two ways, the game draws the middle of the entrance in the
-  wrong
-
-  light: a bright pillar between shaded towers, or a dark one through a bright archway. With
-
-  this on, the middle matches the two towers beside it. Takes effect within a moment, or when
-
-  the map is turned.
-
-  '
-keep_entrance_group: Keep entrance
-keep_entrance_group_descr: 'Fixes a picture bug of the game at the entrance in front of a keep.
-
-  '
-large_gatehouse_enabled: Draw the closed-up look on empty large gatehouses
-large_gatehouse_enabled_tooltip: 'Large gatehouses with no troops on them get a picture over their towers. As soon
-  as
-
-  troops step onto the gatehouse the picture goes away and they are shown as usual.
-
-  '
-large_gatehouse_group: Large gatehouse
-large_gatehouse_group_descr: 'A picture drawn over the towers of a large gatehouse while nobody is standing on it,
-  so
-
-  the walls look closed up instead of showing the empty walkway.
-
-  '
-large_gatehouse_swap_sides: Swap the left and right pictures
-large_gatehouse_swap_sides_tooltip: 'Use this if the picture meant for a gatehouse looking to the lower left shows
-  up on one
-
-  looking to the lower right (and the other way round).
-
-  '
-mouse_group: Seeing troops on towers, gatehouses and keeps
-mouse_group_descr: 'Normally a building''s overlay goes away while troops stand on it.
-
-  '
-tile_by_tile: Let buildings in front cover the overlays
-tile_by_tile_tooltip: 'The game draws its overlays in one piece at a building''s front corner, so they show through
-
-  towers and walls standing right next to the building. With this on, this module''s pictures
-
-  are drawn in narrow strips together with the building''s own tiles, and anything standing in
-
-  front covers them properly. The same goes for the game''s own overlay pictures on every
-
-  building (flags, animations, tower tops, ...).
-
-  '
-qol: Quality of Life
-bugfixes: Bugfixes
-misc: Miscellaneous
+large_gatehouse_group: Büyük kapı binası
+large_gatehouse_group_descr: Üzerinde kimse yokken büyük bir kapı binasının kuleleri üzerine çizilen görsel; böylece boş geçit yerine duvarlar kapalı görünür.
+large_gatehouse_enabled: Boş büyük kapı binalarında kapalı görünümü çiz
+large_gatehouse_enabled_tooltip: Üzerinde asker bulunmayan büyük kapı binalarının kuleleri üzerine bir görsel çizilir. Birlikler kapı binasına çıkar çıkmaz görsel kaybolur ve birlikler her zamanki gibi görünür.
+large_gatehouse_swap_sides: Sol ve sağ görselleri değiştir
+large_gatehouse_swap_sides_tooltip: Sol alta bakan bir kapı binası için tasarlanan görsel sağ alta bakanda (veya tersi) görünüyorsa bunu kullanın.
+editor_group: Katmanları oyun içinde taşıma
+editor_group_descr: Bir bina seçin ve panelindeki bir katmana tıklayın. Hizalamak için okları ve adım boyutunu kullanın. Kaydetme, kaydırmaları yerel UCP klasörüne yazar.
+editor_enabled: Bina panelinde katman aracını göster
+editor_enabled_tooltip: |-
+  Herhangi bir binayı seçin: paneli katmanlarını — bu modülün katmanlarını ve oyunun kendi çizim görsellerini («Game #n») — listeler. Seçmek için birine tıklayın (bu modülün katmanı, üzerinde ne olursa olsun eflatun çerçeveyle gösterilir) ve mavi oklarla taşıyın (Step 1, 5 ve 20 piksel arasında geçer). Durdurmak için seçili katmana tekrar tıklayın. Save, her katmanın konumunu modül klasöründeki calibration.json dosyasına yazar; bir eklentiye overlays.json olarak aktarılmaya hazırdır.
+mouse_group: Kule, kapı binası ve iç kalelerdeki birlikleri görme
+mouse_group_descr: Normalde bir binanın üzerinde birlikler dururken katmanı kaybolur.
+hover_only: Katmanları yalnızca fare binanın üzerindeyken gizle
+hover_only_tooltip: |-
+  Kuleler, kapı binaları ve iç kaleler üzerlerinde birlik varken bile sur ve mazgallarını çizili tutar; böylece birlikler mazgalların arkasında durur. Yukarıda kimin olduğunu görmek için fareyi binanın üzerine getirin. Bu modülün katmanlarını ve oyun kulelerinin çatılarını kapsar; kule mazgalları ve diğer oyun katmanları oyunun kurallarını korur.
+drawing_group: Çizim
+drawing_group_descr: Katman görsellerinin haritada nasıl çizileceği.
+tile_by_tile: Öndeki binaların katmanları kapatmasına izin ver
+tile_by_tile_tooltip: |-
+  Oyun katmanlarını binanın ön köşesinde tek parça hâlinde çizdiğinden hemen yanındaki kule ve surların içinden görünürler. Bu ayar açıkken bu modülün görselleri binanın kendi kareleriyle birlikte dar şeritler hâlinde çizilir ve öndeki her şey onları doğru şekilde örter. Aynısı her binadaki oyunun kendi katman görselleri (bayraklar, animasyonlar, kule tepeleri…) için de geçerlidir.
+hide_units: Çatı altındaki birimleri gizle
+hide_units_tooltip: Bir kule, kapı binası veya iç kalenin çatısı görünürken üstündeki birlikler çizilmez, böylece hiçbir parçaları çatıdan dışarı taşmaz. Kapı binasından geçen birimler görünür kalır. «Öndeki binaların katmanları kapatmasına izin ver» ayarının açık olmasını gerektirir.
+flags_on_top: Bayrakları katmanların önünde göster
+flags_on_top_tooltip: İç kale veya başka bir binadaki bayraklar o binanın katman görsellerinden hemen sonra çizilir, böylece kendi katmanı hiçbir kısmını gizlemez. Önündeki surlar ve binalar bayrağı eskisi gibi örter. «Öndeki binaların katmanları kapatmasına izin ver» ayarının açık olmasını gerektirir.
+back_flag_behind: Arka bayrağı binanın arkasında tut
+back_flag_behind_tooltip: Binanın uzak köşesindeki bayrak katmanların önünde değil, oyunun çizdiği gibi binanın ve üzerindeki birimlerin arkasında kalır. «Bayrakları katmanların önünde göster» ayarını gerektirir.
+keep_entrance_group: İç kale girişi
+keep_entrance_group_descr: İç kale önündeki girişte bulunan bir oyun görseli hatasını düzeltir.
+keep_entrance_enabled: İç kale girişinin ortasını doğru çiz
+keep_entrance_enabled_tooltip: |-
+  Dört yönden ikisine dönük iç kalelerde oyun girişin ortasını yanlış ışıkta çizer: gölgeli kuleler arasında parlak bir sütun ya da parlak kemerde koyu bir sütun. Bu ayar açıkken orta kısım yanındaki iki kuleyle uyumlu olur. Bir an içinde veya harita döndürüldüğünde etkili olur.
+flags_group: Bayraklar
+flags_group_descr: Oyunun binalara bayrak yerleştirme şeklini düzeltir.
+flags_follow_turn: Harita döndürüldüğünde bayrakları yerinde tut
+flags_follow_turn_tooltip: Oyun bir bayrak direğinin ekran konumunu yalnızca bayrak dikildiğinde, o anki görünüm için hesaplar. Harita döndürüldükten sonra direkler binanın kenarından birkaç piksel kayar. Bu ayar açıkken haritanın her dönüşünde doğru yere taşınırlar.
+flags_on_edges: Bayrakları binanın kenarına yerleştir
+flags_on_edges_tooltip: Oyun bayrağı karenin ortasına koyduğundan köşedeki bir bayrak kenardan yarım kare içeride durur. Bu ayar açıkken direği her görünümde kenara (köşe karesinde tam köşeye) taşınır.
+qol: Yaşam kalitesi
+bugfixes: Hata düzeltmeleri
+misc: Diğer

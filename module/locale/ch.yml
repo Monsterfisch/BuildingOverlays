@@ -1,135 +1,40 @@
-back_flag_behind: Keep the flag at the back behind the building
-back_flag_behind_tooltip: 'The flag on a building''s far corner stays behind the building and the units on it, where
-  the
-
-  game draws it, instead of in front of the overlays. Needs "Show flags in front of the
-
-  overlays".
-
-  '
-drawing_group: Drawing
-drawing_group_descr: 'How overlay pictures are put on the map.
-
-  '
-editor_enabled: Show the overlay tool in the building panel
-editor_enabled_tooltip: 'Select any building: its panel lists its overlays - this module''s and the game''s own
-
-  pictures it is drawn with ("Game #n"). Click one to pick it - one of this module''s is then
-
-  shown on that building whatever stands there, with a magenta frame - and use the
-
-  blue arrows to move it (Step switches between 1, 5 and 20 pixels). Click the picked
-
-  overlay again to stop. Save writes every overlay''s spot to calibration.json in the module
-
-  folder, ready to go into a plugin as overlays.json.
-
-  '
-editor_group: Moving overlays in the game
-editor_group_descr: Select a building and click an overlay in its panel. Use the arrows and step-size control to
-  align it. Save records the offsets in the local UCP folder.
-flags_follow_turn: Keep flags in their spot when the map is turned
-flags_follow_turn_tooltip: 'The game works out where a flag''s pole stands on screen only when the flag is put up,
-  for the
-
-  view at that moment. After turning the map the poles stand a few pixels off, away from the
-
-  edge of the building. With this on they move along with every turn of the map.
-
-  '
-flags_group: Flags
-flags_group_descr: 'Fixes how the game places flags on buildings.
-
-  '
-flags_on_edges: Put flags on the building's edge
-flags_on_edges_tooltip: 'The game puts a flag up in the middle of its tile, so a flag on a building''s corner stands
-  half
-
-  a tile in from the edge. With this on its pole moves out to the edge (the corner itself on a
-
-  corner tile), in every view.
-
-  '
-flags_on_top: Show flags in front of the overlays
-flags_on_top_tooltip: 'Flags standing on a keep or another building are drawn right after that building''s overlay
-
-  pictures, so its own overlay never hides any part of them. Walls and buildings in front of
-
-  it still cover the flag as usual. Works together with "Let buildings in front cover the
-
-  overlays" (needs it on).
-
-  '
-hide_units: Hide units under roofs
-hide_units_tooltip: 'Troops standing on a tower, gatehouse or keep are not drawn while its roof is showing, so no
-
-  part of them pokes through the roof. Units walking through a gatehouse stay visible. Works
-
-  together with "Let buildings in front cover the overlays" (needs it on).
-
-  '
-hover_only: Only hide the overlays while the mouse is on the building
-hover_only_tooltip: 'Towers, gatehouses and keeps keep their walls and crenellations drawn even with troops on
-
-  them, so the troops stand behind the battlements. Point the mouse at the building to see
-
-  who is up there. Covers this module''s overlays and the roofs of the game''s towers. A tower''s crenellations
-
-  and every other game overlay keep the game''s own rules.
-
-  '
-keep_entrance_enabled: Draw the middle of the keep entrance right
-keep_entrance_enabled_tooltip: 'On keeps turned one of two ways, the game draws the middle of the entrance in the
-  wrong
-
-  light: a bright pillar between shaded towers, or a dark one through a bright archway. With
-
-  this on, the middle matches the two towers beside it. Takes effect within a moment, or when
-
-  the map is turned.
-
-  '
-keep_entrance_group: Keep entrance
-keep_entrance_group_descr: 'Fixes a picture bug of the game at the entrance in front of a keep.
-
-  '
-large_gatehouse_enabled: Draw the closed-up look on empty large gatehouses
-large_gatehouse_enabled_tooltip: 'Large gatehouses with no troops on them get a picture over their towers. As soon
-  as
-
-  troops step onto the gatehouse the picture goes away and they are shown as usual.
-
-  '
-large_gatehouse_group: Large gatehouse
-large_gatehouse_group_descr: 'A picture drawn over the towers of a large gatehouse while nobody is standing on it,
-  so
-
-  the walls look closed up instead of showing the empty walkway.
-
-  '
-large_gatehouse_swap_sides: Swap the left and right pictures
-large_gatehouse_swap_sides_tooltip: 'Use this if the picture meant for a gatehouse looking to the lower left shows
-  up on one
-
-  looking to the lower right (and the other way round).
-
-  '
-mouse_group: Seeing troops on towers, gatehouses and keeps
-mouse_group_descr: 'Normally a building''s overlay goes away while troops stand on it.
-
-  '
-tile_by_tile: Let buildings in front cover the overlays
-tile_by_tile_tooltip: 'The game draws its overlays in one piece at a building''s front corner, so they show through
-
-  towers and walls standing right next to the building. With this on, this module''s pictures
-
-  are drawn in narrow strips together with the building''s own tiles, and anything standing in
-
-  front covers them properly. The same goes for the game''s own overlay pictures on every
-
-  building (flags, animations, tower tops, ...).
-
-  '
-qol: Quality of Life
-bugfixes: Bugfixes
-misc: Miscellaneous
+large_gatehouse_group: 大型城门楼
+large_gatehouse_group_descr: 当大型城门楼上无人驻守时，在其两侧塔楼上方绘制覆盖贴图，使城墙呈现封闭外观，而不是露出空荡的城垛通道。
+large_gatehouse_enabled: 为空置的大型城门楼绘制封闭外观
+large_gatehouse_enabled_tooltip: 无人驻守的大型城门楼会在塔楼上方显示覆盖贴图；一旦有部队登上城门楼，贴图就会隐藏并照常显示部队。
+large_gatehouse_swap_sides: 互换左右两侧贴图
+large_gatehouse_swap_sides_tooltip: 如果朝向左下方的城门楼显示了朝向右下方的贴图（或相反），请启用此项。
+editor_group: 在游戏中移动覆盖层
+editor_group_descr: 选中一座建筑并在其面板中点击某个覆盖层，使用箭头与步长控件对齐位置。点击保存会将偏移写入本地 UCP 目录。
+editor_enabled: 在建筑面板中显示覆盖层工具
+editor_enabled_tooltip: |-
+  选中任意建筑，其面板会列出所有覆盖层——包括本模块的贴图和游戏自带的绘制图层（「Game #n」）。点击任意一项即可选中（本模块贴图无论是否站人都会带品红边框显示），再用蓝色箭头调整位置（Step 在 1、5 和 20 像素间切换）。再次点击已选项即可结束调整。Save 会将所有覆盖层坐标写入模块目录的 calibration.json，可直接作为 overlays.json 放入插件。
+mouse_group: 查看塔楼、城门楼与主堡上的部队
+mouse_group_descr: 默认情况下，只要建筑上有部队站立，该建筑的覆盖层就会隐藏。
+hover_only: 仅当鼠标悬停在建筑上时隐藏覆盖层
+hover_only_tooltip: |-
+  即使塔楼、城门楼和主堡上有部队驻守，仍保留绘制城墙与垛口，让部队看起来站在城垛后方；将鼠标移到建筑上即可看清上方部队。此设置适用于本模块的覆盖层及游戏自带塔楼屋顶，塔楼垛口和其他游戏覆盖层仍遵循原版规则。
+drawing_group: 绘制方式
+drawing_group_descr: 控制覆盖层贴图在地图上的绘制方式。
+tile_by_tile: 允许前方建筑遮挡覆盖层
+tile_by_tile_tooltip: |-
+  原版游戏会把覆盖层整块绘制在建筑前端角落，导致其穿透紧邻前方的塔楼与城墙显示。开启后，本模块贴图以及每座建筑的游戏自带覆盖层（旗帜、动画、塔顶等）会随建筑地块逐条带状绘制，让前方建筑正确遮挡它们。
+hide_units: 隐藏屋顶下方的单位
+hide_units_tooltip: 当塔楼、城门楼或主堡显示屋顶时，不绘制站在其上的部队，避免身体穿模露出屋顶；穿过城门的单位仍可见。需开启「允许前方建筑遮挡覆盖层」。
+flags_on_top: 在覆盖层前方显示旗帜
+flags_on_top_tooltip: 位于主堡或其他建筑上的旗帜紧随该建筑覆盖层之后绘制，避免被自身覆盖层挡住；前方的城墙与建筑仍照常遮挡旗帜。需开启「允许前方建筑遮挡覆盖层」。
+back_flag_behind: 将后方旗帜保持在建筑后方
+back_flag_behind_tooltip: 建筑远角处的旗帜继续按原版规则绘制在建筑与上方单位之后，而不是覆盖层之前。需开启「在覆盖层前方显示旗帜」。
+keep_entrance_group: 主堡入口
+keep_entrance_group_descr: 修复主堡前方入口处的游戏贴图光照错误。
+keep_entrance_enabled: 正确绘制主堡入口中部
+keep_entrance_enabled_tooltip: 在四个视角中的两个方向上，游戏会用错误光照绘制主堡入口中部——阴影双塔间出现明亮立柱，或明亮拱门中出现暗色立柱。开启后中部与两侧塔楼光照一致，片刻或旋转地图后立即生效。
+flags_group: 旗帜
+flags_group_descr: 修复游戏在建筑上放置旗帜的位置问题。
+flags_follow_turn: 旋转地图时保持旗帜位置正确
+flags_follow_turn_tooltip: 原版游戏只在插旗时按当时视角计算旗杆屏幕位置，旋转地图后旗杆会偏离建筑边缘数像素。开启后旗杆会随每次地图旋转同步对齐。
+flags_on_edges: 将旗帜移至建筑边缘
+flags_on_edges_tooltip: 原版游戏将旗帜放在地块正中，使建筑转角旗帜向内缩进半格。开启后旗杆在任意视角下都会对齐建筑边缘（转角处对齐墙角）。
+qol: 体验优化
+bugfixes: 错误修复
+misc: 其他
