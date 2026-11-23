@@ -14,7 +14,8 @@
               anchor point on screen (the point the game puts its own tower pictures at)
 
   In a game, select the building: its panel lists its overlays with arrow buttons to move
-  them, and Save writes calibration.lua in the module folder. Those spots win over x and y here.
+  them, and Save keeps their spots in the game's ucp folder (see README). Those spots win over
+  x and y here.
 ]]
 return {
   {

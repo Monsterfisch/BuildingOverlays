@@ -22,12 +22,22 @@ What the module does, in plain English, is in `module/locale/description-en.md`.
 2. `python tools/publish.py --bump`, then F5 and apply in the UCP GUI.
 3. Lining pictures up in game: select the building - its panel lists its overlays (left), a click
    picks one (shown and framed on that building whatever stands there), blue arrows move it by
-   the Step size (1 / 5 / 20). Save writes the positions into the game's `ucp` folder, one pair of
-   alternating files per source: `ucp/building-overlays-module-a.lua` / `-b.lua` for the module's
-   own overlays, and `ucp/building-overlays-<plugin folder>-a.lua` / `-b.lua` for each registered
-   plugin. Moved game pictures go into the first plugin's pair, or the module's if there is none.
-   The newest valid file of a pair takes precedence over that source's own `overlays.lua`; it has
-   the same format, so it can be copied into a plugin as its `overlays.lua`.
+   the Step size (1 / 5 / 20). Every move is saved at once and Save saves again; the button's
+   label says whether the last write worked. Positions go into the game's `ucp` folder, two
+   alternating files per source, so an interrupted write leaves the other one readable:
+   - `ucp/building-overlays-module-a.lua` / `-b.lua`: the module's own overlays. Their saved spots
+     win over `x` and `y` in `overlay_list.lua`.
+   - `ucp/building-overlays-<plugin folder>-a.lua` / `-b.lua`, for example
+     `ucp/building-overlays-MyPlugin-1.2.3-a.lua`: a registered plugin's overlays, written only
+     when that plugin has overlays to save. When the plugin loads, the newest readable file
+     replaces its whole `overlays.lua` list.
+   - Moved game pictures (`{ game = n, ... }` entries) go into the first loaded plugin's files, or
+     the module's if no plugin is loaded. If two sources set the same game picture and building,
+     the one loaded last wins.
+
+   A saved file has the format of `overlays.lua`. To ship it in a plugin, copy it as the plugin's
+   `overlays.lua` next to the PNGs it names, and test it with your local
+   `ucp/building-overlays-*` files moved aside, so the packaged file is the one that loads.
 4. Plugins: `modules["building-overlays"]:registerOverlaySource(folder)` loads `overlays.lua` and the
    PNGs from `resources/modsupport/building-overlays/` of the plugin.
 
