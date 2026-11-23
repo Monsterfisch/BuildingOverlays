@@ -7,7 +7,7 @@ large_gatehouse_swap_sides_tooltip: Sol alta bakan bir kapı binası için tasar
 editor_group: Katmanları oyun içinde taşıma
 editor_group_descr: Bir bina seçin ve panelindeki bir katmana tıklayın. Hizalamak için okları ve adım boyutunu kullanın. Kaydetme, kaydırmaları yerel UCP klasörüne yazar.
 editor_enabled: Bina panelinde katman aracını göster
-editor_enabled_tooltip: "Seçili binanın katmanlarını panelinde listeler: oklarla taşınır, Save konumlarını saklar."
+editor_enabled_tooltip: "Seçili binanın katmanlarını panelinde listeler. Katmanları oklarla taşıyabilir ve konumlarını «Save» düğmesiyle kaydedebilirsiniz."
 mouse_group: Kule, kapı binası ve iç kalelerdeki birlikleri görme
 mouse_group_descr: Normalde bir binanın üzerinde birlikler dururken katmanı kaybolur.
 hover_only: Katmanları yalnızca fare binanın üzerindeyken gizle
