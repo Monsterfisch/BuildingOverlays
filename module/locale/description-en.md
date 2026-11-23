@@ -47,10 +47,8 @@ own pictures the building is drawn with, as "Game #n" (those can be moved too; w
 stays the game's business). Click one to pick it: it is then shown on that building whatever is standing there,
 with a magenta frame, and blue arrow buttons appear on the right of the panel. Each click
 moves the picture by the step size; click "Step" to switch between 1, 5 and 20 pixels. Click
-the picked overlay again to stop. "Save" writes every overlay's spot to a file in the game's
-`ucp` folder, and the module uses those spots from then on; the file has the format of a
-plugin's `overlays.lua`. The tool
-can be switched off in the settings.
+the picked overlay again to stop. "Save" stores the positions in the game's `ucp` folder, and
+the module uses them from then on. The tool can be switched off in the settings.
 
 ## Adding or changing a picture
 

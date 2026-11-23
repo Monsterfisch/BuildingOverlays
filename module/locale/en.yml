@@ -23,19 +23,7 @@ editor_group: Moving overlays in the game
 editor_group_descr: Select a building and click an overlay in its panel. Use the arrows and step-size control to
   align it. Save records the offsets in the local UCP folder.
 editor_enabled: Show the overlay tool in the building panel
-editor_enabled_tooltip: 'Select any building: its panel lists its overlays - this module''s and the game''s own
-
-  pictures it is drawn with ("Game #n"). Click one to pick it - one of this module''s is then
-
-  shown on that building whatever stands there, with a magenta frame - and use the
-
-  blue arrows to move it (Step switches between 1, 5 and 20 pixels). Click the picked
-
-  overlay again to stop. Save writes every overlay''s spot to a file in the game''s ucp folder,
-
-  in the format of a plugin''s overlays.lua.
-
-  '
+editor_enabled_tooltip: "Lists the selected building's overlays in its panel, with arrows to move them and Save to keep their positions."
 mouse_group: Seeing troops on towers, gatehouses and keeps
 mouse_group_descr: 'Normally a building''s overlay goes away while troops stand on it.
 

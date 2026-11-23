@@ -22,9 +22,12 @@ What the module does, in plain English, is in `module/locale/description-en.md`.
 2. `python tools/publish.py --bump`, then F5 and apply in the UCP GUI.
 3. Lining pictures up in game: select the building - its panel lists its overlays (left), a click
    picks one (shown and framed on that building whatever stands there), blue arrows move it by
-   the Step size (1 / 5 / 20). Save writes calibration to alternating
-   `ucp/building-overlays-*-a.lua` and `ucp/building-overlays-*-b.lua` files. The newest valid
-   file takes precedence over the original pack and can be exported as `overlays.lua`.
+   the Step size (1 / 5 / 20). Save writes the positions into the game's `ucp` folder, one pair of
+   alternating files per source: `ucp/building-overlays-module-a.lua` / `-b.lua` for the module's
+   own overlays, and `ucp/building-overlays-<plugin folder>-a.lua` / `-b.lua` for each registered
+   plugin. Moved game pictures go into the first plugin's pair, or the module's if there is none.
+   The newest valid file of a pair takes precedence over that source's own `overlays.lua`; it has
+   the same format, so it can be copied into a plugin as its `overlays.lua`.
 4. Plugins: `modules["building-overlays"]:registerOverlaySource(folder)` loads `overlays.lua` and the
    PNGs from `resources/modsupport/building-overlays/` of the plugin.
 
