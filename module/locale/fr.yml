@@ -7,8 +7,7 @@ large_gatehouse_swap_sides_tooltip: Utilisez cette option si l'image prévue pou
 editor_group: Déplacer les calques en jeu
 editor_group_descr: Sélectionnez un bâtiment et cliquez sur un calque dans son panneau. Utilisez les flèches et la taille de pas pour l'aligner. Enregistrer inscrit les décalages dans le dossier UCP local.
 editor_enabled: Afficher l'outil de calques dans le panneau du bâtiment
-editor_enabled_tooltip: |-
-  Sélectionnez n'importe quel bâtiment : son panneau liste ses calques — ceux de ce module et les images propres au jeu (« Game #n »). Cliquez sur l'un d'eux pour le sélectionner — un calque de ce module s'affiche alors avec un cadre magenta quelle que soit la présence d'unités — puis déplacez-le avec les flèches bleues (Step alterne entre 1, 5 et 20 pixels). Cliquez de nouveau sur le calque sélectionné pour arrêter. Save écrit la position de chaque calque dans un fichier du dossier ucp du jeu, au format du overlays.lua d'un plugin.
+editor_enabled_tooltip: "Liste les calques du bâtiment sélectionné dans son panneau, avec des flèches pour les déplacer et Save pour garder leurs positions."
 mouse_group: Voir les troupes sur les tours, portes et donjons
 mouse_group_descr: Normalement, le calque d'un bâtiment disparaît lorsque des troupes se tiennent dessus.
 hover_only: Ne masquer les calques que lorsque la souris survole le bâtiment

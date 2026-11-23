@@ -23,7 +23,7 @@ Das Spiel zeichnet Overlays in einem Stück an der vorderen Ecke eines Gebäudes
 
 ## Overlays im Spiel verschieben
 
-Wähle ein beliebiges Gebäude. Sein Fenster listet links seine Overlays auf: die dieses Moduls sowie die eigenen Grafiken des Spiels als „Game #n“ (auch diese lassen sich verschieben; wann sie erscheinen, bleibt Sache des Spiels). Ein Klick wählt ein Overlay aus – es erscheint mit magentafarbenem Rahmen, und rechts im Fenster erscheinen blaue Pfeiltasten. Jeder Klick verschiebt um die Schrittweite („Step“ wechselt zwischen 1, 5 und 20 Pixeln); erneutes Anklicken beendet die Auswahl. „Save“ schreibt die Position jedes Overlays in eine Datei im `ucp`-Ordner des Spiels, und das Modul verwendet ab dann diese Positionen; die Datei hat das Format der `overlays.lua` eines Plugins. Das Werkzeug ist in den Einstellungen abschaltbar.
+Wähle ein beliebiges Gebäude. Sein Fenster listet links seine Overlays auf: die dieses Moduls sowie die eigenen Grafiken des Spiels als „Game #n“ (auch diese lassen sich verschieben; wann sie erscheinen, bleibt Sache des Spiels). Ein Klick wählt ein Overlay aus – es erscheint mit magentafarbenem Rahmen, und rechts im Fenster erscheinen blaue Pfeiltasten. Jeder Klick verschiebt um die Schrittweite („Step“ wechselt zwischen 1, 5 und 20 Pixeln); erneutes Anklicken beendet die Auswahl. „Save“ speichert die Positionen im `ucp`-Ordner des Spiels, und das Modul verwendet sie ab dann. Das Werkzeug ist in den Einstellungen abschaltbar.
 
 ## Grafiken hinzufügen oder ändern
 

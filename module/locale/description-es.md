@@ -23,7 +23,7 @@ El juego dibuja las superposiciones de una pieza en la esquina frontal, atravesa
 
 ## Mover superposiciones en el juego
 
-Selecciona cualquier edificio: su panel lista a la izquierda sus superposiciones (las del módulo y las del juego como «Game #n»). Haz clic en una para seleccionarla con marco magenta y moverla con las flechas azules a la derecha («Step» alterna 1, 5 y 20 píxeles); vuelve a hacer clic para parar. «Save» escribe la posición de cada superposición en un archivo dentro de la carpeta `ucp` del juego, y el módulo usa esas posiciones a partir de entonces; el archivo tiene el formato del `overlays.lua` de un plugin. Desactivable en ajustes.
+Selecciona cualquier edificio: su panel lista a la izquierda sus superposiciones (las del módulo y las del juego como «Game #n»). Haz clic en una para seleccionarla con marco magenta y moverla con las flechas azules a la derecha («Step» alterna 1, 5 y 20 píxeles); vuelve a hacer clic para parar. «Save» guarda las posiciones en la carpeta `ucp` del juego, y el módulo las usa a partir de entonces. Desactivable en ajustes.
 
 ## Añadir o cambiar una imagen
 

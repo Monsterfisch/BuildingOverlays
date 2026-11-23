@@ -23,7 +23,7 @@ Oyun katmanları binanın ön köşesinde tek parça çizdiğinden yanındaki ku
 
 ## Katmanları oyun içinde taşıma
 
-Herhangi bir binayı seçin; panelin solunda katmanları (modülün ve oyunun «Game #n» görselleri) listelenir. Birine tıklayıp eflatun çerçeveyle seçin ve sağdaki mavi oklarla taşıyın («Step» 1, 5 ve 20 piksel arasında geçer). Durdurmak için tekrar tıklayın. «Save» her katmanın konumunu oyunun `ucp` klasöründeki bir dosyaya yazar ve modül bundan sonra bu konumları kullanır; dosya bir eklentinin `overlays.lua` biçimindedir. Ayarlardan kapatılabilir.
+Herhangi bir binayı seçin; panelin solunda katmanları (modülün ve oyunun «Game #n» görselleri) listelenir. Birine tıklayıp eflatun çerçeveyle seçin ve sağdaki mavi oklarla taşıyın («Step» 1, 5 ve 20 piksel arasında geçer). Durdurmak için tekrar tıklayın. «Save» konumları oyunun `ucp` klasörüne kaydeder ve modül bundan sonra onları kullanır. Ayarlardan kapatılabilir.
 
 ## Görsel ekleme veya değiştirme
 

@@ -23,7 +23,7 @@ Le jeu dessine les calques d'un bloc à l'angle avant du bâtiment, les faisant 
 
 ## Déplacer les calques en jeu
 
-Sélectionnez un bâtiment : son panneau liste à gauche ses calques (ceux du module et ceux du jeu en tant que « Game #n »). Cliquez sur l'un d'eux pour le sélectionner avec un cadre magenta et faire apparaître des flèches bleues à droite. Chaque clic déplace l'image selon le pas (« Step » alterne entre 1, 5 et 20 pixels) ; recliquez pour arrêter. « Save » écrit la position de chaque calque dans un fichier du dossier `ucp` du jeu, et le module utilise ces positions par la suite ; le fichier a le format du `overlays.lua` d'un plugin. Désactivable dans les paramètres.
+Sélectionnez un bâtiment : son panneau liste à gauche ses calques (ceux du module et ceux du jeu en tant que « Game #n »). Cliquez sur l'un d'eux pour le sélectionner avec un cadre magenta et faire apparaître des flèches bleues à droite. Chaque clic déplace l'image selon le pas (« Step » alterne entre 1, 5 et 20 pixels) ; recliquez pour arrêter. « Save » enregistre les positions dans le dossier `ucp` du jeu, et le module les utilise ensuite. Désactivable dans les paramètres.
 
 ## Ajouter ou modifier une image
 

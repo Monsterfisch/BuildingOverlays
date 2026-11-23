@@ -7,8 +7,7 @@ large_gatehouse_swap_sides_tooltip: Akkor használd, ha a balra lefelé néző k
 editor_group: Fedőképek mozgatása játék közben
 editor_group_descr: Válassz ki egy épületet, és kattints egy fedőképre a paneljén. A nyilakkal és a lépésközzel igazítsd a helyére. A mentés a helyi UCP mappába írja az eltolásokat.
 editor_enabled: Fedőkép-eszköz megjelenítése az épületpanelben
-editor_enabled_tooltip: |-
-  Válassz ki bármely épületet: a paneljén megjelennek a fedőképei — a modul sajátjai és a játék eredeti képei („Game #n”). Kattints egyre a kijelöléshez — a modul képe ekkor lila kerettel látszik az épületen attól függetlenül, áll-e ott valaki —, majd mozgasd a kék nyilakkal (a Step 1, 5 és 20 pixel között vált). A leállításhoz kattints rá újra. A Save minden fedőkép helyét egy fájlba írja a játék ucp mappájában, egy plugin overlays.lua fájljának formátumában.
+editor_enabled_tooltip: "A kiválasztott épület fedőképeit a paneljén sorolja fel: a nyilakkal mozgathatók, a Save megőrzi a helyüket."
 mouse_group: Csapatok láthatósága tornyokon, kapuházakon és vártornyokon
 mouse_group_descr: Alapesetben egy épület fedőképe eltűnik, amíg csapatok állnak rajta.
 hover_only: Fedőképek elrejtése csak ha az egér az épület fölött van

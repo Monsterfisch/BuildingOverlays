@@ -7,8 +7,7 @@ large_gatehouse_swap_sides_tooltip: Úsalo si la imagen destinada a una puerta o
 editor_group: Mover superposiciones en el juego
 editor_group_descr: Selecciona un edificio y haz clic en una superposición de su panel. Usa las flechas y el tamaño de paso para alinearla. Guardar registra los desplazamientos en la carpeta local de UCP.
 editor_enabled: Mostrar la herramienta de superposiciones en el panel del edificio
-editor_enabled_tooltip: |-
-  Selecciona cualquier edificio: su panel lista sus superposiciones, tanto las de este módulo como las imágenes propias del juego («Game #n»). Haz clic en una para elegirla —una de este módulo se muestra con marco magenta haya quien haya encima— y muévela con las flechas azules (Step alterna entre 1, 5 y 20 píxeles). Vuelve a hacer clic en la superposición elegida para detenerte. Save escribe la posición de cada superposición en un archivo dentro de la carpeta ucp del juego, con el formato del overlays.lua de un plugin.
+editor_enabled_tooltip: "Muestra las superposiciones del edificio seleccionado en su panel, con flechas para moverlas y Save para guardar sus posiciones."
 mouse_group: Ver tropas en torres, puertas y fortalezas
 mouse_group_descr: Normalmente la superposición de un edificio desaparece mientras hay tropas encima.
 hover_only: Ocultar superposiciones solo mientras el ratón esté sobre el edificio

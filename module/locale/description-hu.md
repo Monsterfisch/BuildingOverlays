@@ -23,7 +23,7 @@ A játék egy darabban rajzolja a fedőképeket az épület elülső sarkánál,
 
 ## Fedőképek mozgatása játék közben
 
-Válassz ki egy épületet: panelje bal oldalán láthatók a fedőképei (a moduléi és a játék „Game #n” képei). Kattints egyre a lila keretes kijelöléshez, majd a jobb oldali kék nyilakkal igazítsd („Step” 1, 5 és 20 pixel között vált). Újbóli kattintással állítsd le. A „Save” minden fedőkép helyét egy fájlba írja a játék `ucp` mappájában, és a modul onnantól ezeket a helyeket használja; a fájl formátuma megegyezik egy plugin `overlays.lua` fájljáéval. Kikapcsolható a beállításokban.
+Válassz ki egy épületet: panelje bal oldalán láthatók a fedőképei (a moduléi és a játék „Game #n” képei). Kattints egyre a lila keretes kijelöléshez, majd a jobb oldali kék nyilakkal igazítsd („Step” 1, 5 és 20 pixel között vált). Újbóli kattintással állítsd le. A „Save” a játék `ucp` mappájába menti a helyeket, és a modul onnantól azokat használja. Kikapcsolható a beállításokban.
 
 ## Kép hozzáadása vagy módosítása
 
