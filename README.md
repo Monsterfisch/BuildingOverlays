@@ -88,6 +88,9 @@ numbered calls and can be moved the same way; select one and its panel lists the
 * A record table (type, occupancy, entrance direction on screen, gate state, offset, picture)
   walked in assembly; pictures are PNGs packed as TGX (RGB565 and RGB555) and drawn through the
   game's own picture routine, so clipping and the zoomed-out view come for free.
+* The PNGs are read by `png.lua`, not by GM Resource Modifier: that module shows a picture only in
+  a GM sheet slot (`ReserveGm` needs a base sheet of the same type and picture count, `SetGm`
+  replaces a game picture), and `LoadResourceFromImage` keeps 5 bits of green.
 * "Empty" = no unit on the building's tiles (the game's own `hasHumanPlayerUnitsOnBuilding`, which a
   gatehouse needs - its `+0xB0` flag stays 0) and `+0xB0 == 0`; entrance side from `+0x102` (0x50 = along x) flipped on map
   orientations 2 and 6.
