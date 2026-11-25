@@ -151,12 +151,14 @@ local GATES = { any = 0xF, open = 0x1, closing = 0x2, closed = 0x4, opening = 0x
 -- The building panel
 ---------------------------------------------------------------------------------------
 
--- MenuItem layout (0x50 bytes) and the panel's item table: found through the tower Repair
+-- MenuItem layout (0x50 bytes) and the panel's item table: found through the gatehouse Repair
 -- button (type 3 at 340, 466, 100 x 28), walking back to the end marker of the table before.
 local ITEM_SIZE = 0x50
 local ITEM_TYPE, ITEM_X, ITEM_Y, ITEM_ACTION, ITEM_RENDER = 0x00, 0x04, 0x08, 0x14, 0x1C
 local TYPE_EVERY_FRAME, TYPE_BLOCK, TYPE_LAST = 0x00, 0x64, 0x66
-local AOB_REPAIR_ITEM = "03 00 00 00 54 01 00 00 D2 01 00 00 64 00 00 00 1C 00 00 00"
+-- The next item is the gatehouse open/close control (type 0x01000000).
+local AOB_REPAIR_ITEM = "03 00 00 00 54 01 00 00 D2 01 00 00 64 00 00 00 1C 00 00 00 "
+  .. string.rep("? ", ITEM_SIZE - 0x14) .. "00 00 00 01"
 local STATUS_LINE = { 25, 570 }          -- the shared work status line every building shows
 
 -- handleMenuElementsCallbacks: the mouse and its "is the mouse in this box" test.
@@ -1342,7 +1344,14 @@ end
 
 ---The building panel's item table, its first every-frame item and its work status line.
 local function findBuildingMenu()
-  local repairItem = scan(AOB_REPAIR_ITEM, "the building panel's Repair button")
+  -- A cached match can hide an earlier duplicate even in a bounded AOBScan.
+  local repairItem = core.scanForAOB(AOB_REPAIR_ITEM)
+  if repairItem == nil then
+    error(MODULE_NAME .. ": could not find the building panel's Repair button")
+  end
+  if core.scanForAOB(AOB_REPAIR_ITEM, repairItem + 1) ~= nil then
+    error(MODULE_NAME .. ": multiple matches for the building panel's Repair button")
+  end
   local start, limit = repairItem, 400
   while core.readInteger(start - ITEM_SIZE + ITEM_TYPE) ~= TYPE_LAST and limit > 0 do
     start = start - ITEM_SIZE

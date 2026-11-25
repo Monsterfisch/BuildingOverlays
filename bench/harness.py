@@ -44,7 +44,7 @@ class Host:
             '%s: %s' % (level.decode(), message.decode('latin-1')))
         c = lua.table()
         c[b'AOBScan'] = self.scan
-        c[b'scanForAOB'] = self.scan
+        c[b'scanForAOB'] = lambda *args: self.scan(*args, required=False)
         c[b'readInteger'] = lambda a: self.m.s32(int(a))
         c[b'readByte'] = lambda a: struct.unpack('<b', self.m.read(int(a), 1))[0]
         c[b'readSmallInteger'] = lambda a: struct.unpack('<h', self.m.read(int(a), 2))[0]
@@ -129,7 +129,7 @@ class Host:
                 return bytes(page)
         return None
 
-    def scan(self, pattern, *rest):
+    def scan(self, pattern, *rest, required=True):
         """Scans the emulated memory (so earlier patches count), within the exe image."""
         pattern = pattern.decode('latin-1') if isinstance(pattern, bytes) else pattern
         hits = [h for h in self.E.find(pattern) if h is not None]
@@ -142,9 +142,9 @@ class Host:
             data = self.m.read(h, len(toks))
             if all(t == '?' or int(t, 16) == data[i] for i, t in enumerate(toks)):
                 good.append(h)
-        if not good:
+        if not good and required:
             raise lupa.LuaError('AOBScan: no match ' + pattern)
-        return good[0]
+        return good[0] if good else None
 
     def flatten(self, table):
         out = []
