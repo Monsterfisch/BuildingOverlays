@@ -34,7 +34,6 @@ local panel = require("panel")
 local strips = require("strips")
 local overlayData = require("overlay_data")
 
-local MODULE_NAME = "building-overlays"
 local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this to the active version
 
 local DEFAULTS = {
@@ -454,7 +453,7 @@ end
 local function scan(pattern, purpose)
   local ok, address = pcall(core.AOBScan, pattern)
   if not ok or address == nil then
-    error(MODULE_NAME .. ": could not find " .. purpose)
+    error("could not find " .. purpose)
   end
   return address
 end
@@ -462,7 +461,7 @@ end
 local function expectBytes(address, bytes, purpose)
   for index, byte in ipairs(bytes) do
     if (core.readByte(address + index - 1) & 0xFF) ~= byte then
-      error(string.format("%s: %s is not the code this module knows", MODULE_NAME, purpose))
+      error(purpose .. " is not the code this module knows")
     end
   end
 end
@@ -1200,20 +1199,9 @@ local function applyCalibration(source)
   end
 end
 
----A plugin hands over a folder holding an overlays.lua data file and the
----PNGs it names. Called from the plugin's own enable, after this module's.
----e.g. modules["building-overlays"]:registerOverlaySource(
----  "ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
-local function registerOverlaySource(self, path)
-  if not state then
-    pending[#pending + 1] = path
-    if state == false then
-      -- enable found every option off and no plugin overlays; it installs for these
-      local ok, problem = pcall(enable, self, {})
-      if not ok then log(WARNING, "plugin overlays are not drawn: " .. tostring(problem)) end
-    end
-    return
-  end
+---`path` with UCP's path aliases resolved and ending in a slash, and the entries of its
+---overlays.lua (nil after a warning when the reader rejects it).
+local function readSource(path)
   local folder = path
   if io.resolveAliasedPath ~= nil then
     local ok, resolved = pcall(io.resolveAliasedPath, path)
@@ -1225,12 +1213,32 @@ local function registerOverlaySource(self, path)
   if folder:sub(-1) ~= "/" then
     folder = folder .. "/"
   end
-  if loadedSources[folder] then
+  local entries, problem = overlayData.read(folder .. "overlays.lua")
+  if entries == nil then
+    log(WARNING, "no readable overlay data in " .. folder .. ": " .. tostring(problem))
+  end
+  return folder, entries
+end
+
+---A plugin hands over a folder holding an overlays.lua data file and the
+---PNGs it names. Called from the plugin's own enable, after this module's.
+---e.g. modules["building-overlays"]:registerOverlaySource(
+---  "ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
+local function registerOverlaySource(self, path)
+  local folder, entries = readSource(path)
+  if entries == nil then
     return
   end
-  local entries = overlayData.read(folder .. "overlays.lua")
-  if entries == nil then
-    log(WARNING, "no readable overlay data in " .. folder)
+  if not state then
+    pending[#pending + 1] = path
+    if state == false then
+      -- enable found every option off and no plugin overlays; it installs for these
+      local ok, problem = pcall(enable, self, {})
+      if not ok then log(WARNING, "plugin overlays are not drawn: " .. tostring(problem)) end
+    end
+    return
+  end
+  if loadedSources[folder] then
     return
   end
   local other = overlayData.claim(folder)
@@ -1358,10 +1366,10 @@ local function findBuildingMenu()
   -- A cached match can hide an earlier duplicate even in a bounded AOBScan.
   local repairItem = core.scanForAOB(AOB_REPAIR_ITEM)
   if repairItem == nil then
-    error(MODULE_NAME .. ": could not find the building panel's Repair button")
+    error("could not find the building panel's Repair button")
   end
   if core.scanForAOB(AOB_REPAIR_ITEM, repairItem + 1) ~= nil then
-    error(MODULE_NAME .. ": multiple matches for the building panel's Repair button")
+    error("multiple matches for the building panel's Repair button")
   end
   local start, limit = repairItem, 400
   while core.readInteger(start - ITEM_SIZE + ITEM_TYPE) ~= TYPE_LAST and limit > 0 do
@@ -1369,7 +1377,7 @@ local function findBuildingMenu()
     limit = limit - 1
   end
   if limit == 0 or core.readInteger(start + ITEM_TYPE) ~= TYPE_EVERY_FRAME then
-    error(MODULE_NAME .. ": the building panel is not the one this module knows")
+    error("the building panel is not the one this module knows")
   end
   local item = start
   while core.readInteger(item + ITEM_TYPE) ~= TYPE_BLOCK do
@@ -1379,7 +1387,7 @@ local function findBuildingMenu()
     end
     item = item + ITEM_SIZE
   end
-  error(MODULE_NAME .. ": the building panel's status line is not where this module expects it")
+  error("the building panel's status line is not where this module expects it")
 end
 
 ---Wraps the first every-frame item (clicks) and the work status line (drawing) in an item list.
@@ -1467,7 +1475,7 @@ local function installPanel(v)
   w.BUILD_BLEND = readCallTarget(blend, BLEND_BUILD_CALL, "the blend tables")
   w.BLEND_TABLES = core.readInteger(blend + BLEND_TABLES_OPERAND)
   if core.readInteger(blend + BLEND_TOP_OPERAND) ~= w.BLEND_TABLES + 32 * BLEND_LEVEL_SIZE then
-    error(MODULE_NAME .. ": the game's blend tables are not the ones this module knows")
+    error("the game's blend tables are not the ones this module knows")
   end
   w.BUILDING_SIZE, w.MAX_ROWS, w.TYPE_COUNT = BUILDING_SIZE, MAX_ROWS, TYPE_COUNT
   w.COLUMN_W, w.ROW_H, w.R_SEEN = COLUMN_W, ROW_H, R_SEEN
@@ -1813,7 +1821,10 @@ enable = function(self, config)
         local file = io.open(path .. "overlays.lua", "rb")
         if file ~= nil then
           file:close()
-          pending[#pending + 1] = path
+          local _, entries = readSource(path)
+          if entries ~= nil then
+            pending[#pending + 1] = path
+          end
         end
       end
     end
@@ -1847,7 +1858,7 @@ enable = function(self, config)
   local renderGm = tail + RENDER_GM_REL_OPERAND + 4 + core.readInteger(tail + RENDER_GM_REL_OPERAND)
   if (core.readByte(tail - 10) & 0xFF) ~= 0xB9 or (core.readByte(tail - 5) & 0xFF) ~= 0xE8
       or (core.readByte(renderGm + RENDER_GM_BLIT_CALL) & 0xFF) ~= 0xE8 then
-    error(MODULE_NAME .. ": the game's overlay drawing is not the one this module knows")
+    error("the game's overlay drawing is not the one this module knows")
   end
   local blit = renderGm + RENDER_GM_BLIT_CALL + 5
     + core.readInteger(renderGm + RENDER_GM_BLIT_CALL + 1)
