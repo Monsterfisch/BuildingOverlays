@@ -26,7 +26,7 @@ What the module does, in plain English, is in `module/locale/description-en.md`.
    label says whether the last write worked. Positions go into UCP's user data folder,
    `ucp/userdata/building-overlays/` in the game's folder under Documents, two alternating files
    per source, so an interrupted write leaves the other one readable:
-   - `module-a.lua` / `-b.lua`: the module's own overlays.
+   - `_module-a.lua` / `-b.lua`: the module's own overlays.
    - `<plugin name>-a.lua` / `-b.lua`, for example `MyPlugin-a.lua`: a registered
      plugin's overlays, written only when that plugin has overlays to save.
    - Moved game pictures (`{ game = n, ... }` entries) go into the first loaded plugin's files, or

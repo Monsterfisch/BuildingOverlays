@@ -28,7 +28,7 @@ harness.os.chdir = lambda path: _chdir(WORK)
 fails = []
 
 
-def saved_calibration(source='module'):
+def saved_calibration(source='_module'):
     texts = [p.read_text() for p in (Path(WORK) / harness.USERDATA).glob(f'{source}-?.lua')]
     return max(texts, key=lambda text: int(text.splitlines()[0].split(': ')[1]))
 

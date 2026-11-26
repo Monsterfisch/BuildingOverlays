@@ -3,10 +3,9 @@
 local data = {}
 local MAX_BYTES = 1024 * 1024
 local MAX_ENTRIES = 8192
-local fields = {
-  name = true, label = true, building = true, picture = true, entrance = true,
-  units = true, gate = true, x = true, y = true, game = true,
-}
+local ORDER = { "name", "label", "game", "building", "picture", "entrance", "units", "gate", "x", "y" }
+local fields = {}
+for _, key in ipairs(ORDER) do fields[key] = true end
 
 local function parse(text)
   local position = 1
@@ -96,16 +95,30 @@ function data.read(path, open)
   return entries, tonumber(text:match("^%-%- generation: (%d+)\n")) or 0
 end
 
----The name a source's calibration is saved under: "module", or the plugin's folder name.
+---One entry as a line of an overlays.lua list.
+function data.format(entry)
+  local parts = {}
+  for _, key in ipairs(ORDER) do
+    local value = entry[key]
+    if value ~= nil then
+      parts[#parts + 1] = string.format(type(value) == "string" and "%s = %q" or "%s = %d", key, value)
+    end
+  end
+  return "  { " .. table.concat(parts, ", ") .. " },"
+end
+
+---The name a source's calibration was saved under in the ucp folder: "module", or the plugin's
+---folder name.
 local function calibrationName(folder)
   if folder == nil then return "module" end
   return folder:match("plugins/([^/]+)/") or folder:gsub("/$", ""):match("([^/]+)$") or "plugin"
 end
 
----The file name of `folder`'s calibration in the user data folder, without the plugin's version,
----so a plugin update keeps it.
+---The file name of `folder`'s calibration in the user data folder: "_module" (a plugin's name has
+---no "_"), or the plugin's name without its version, so a plugin update keeps it.
 local function userName(folder)
-  return (calibrationName(folder):gsub("%-%d+%.%d+%.%d+$", ""):gsub("[^%w.~-]", "-"))
+  if folder == nil then return "_module" end
+  return (calibrationName(folder):gsub("%-%d+%.%d+%.%d+$", ""):gsub("[^%w.~-]", "-"):gsub("%.%.+", "."))
 end
 
 local function slots(prefix, open)
@@ -123,7 +136,9 @@ end
 function data.readCalibration(folder, ...)
   local entries = slots(userName(folder), userOpen)
   if entries ~= nil then return entries, false end
-  local legacy = "ucp/building-overlays-" .. calibrationName(folder):gsub("[^%w_.-]", "_")
+  local name = calibrationName(folder)
+  if folder ~= nil and name == "module" then return nil, false end -- the module's own files
+  local legacy = "ucp/building-overlays-" .. name:gsub("[^%w_.-]", "_")
   entries = slots(legacy)
   for _, path in ipairs({ legacy .. ".lua", ... }) do
     entries = entries or data.read(path)
