@@ -29,7 +29,7 @@ fails = []
 
 
 def saved_calibration(source='module'):
-    texts = [p.read_text() for p in (Path(WORK) / 'ucp').glob(f'building-overlays-{source}-?.lua')]
+    texts = [p.read_text() for p in (Path(WORK) / harness.USERDATA).glob(f'{source}-?.lua')]
     return max(texts, key=lambda text: int(text.splitlines()[0].split(': ')[1]))
 
 

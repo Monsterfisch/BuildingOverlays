@@ -651,24 +651,6 @@ local function loadPicture(folder, name)
   return { width = width, height = height, pixels = pixels }
 end
 
----Spots saved with the Save button: a list of overlay entries, used for x and y by name.
-local function loadCalibration()
-  local result = overlayData.readCalibration("ucp/building-overlays-module")
-    or overlayData.read("ucp/building-overlays-module.lua")
-    or overlayData.read(MODULE_FOLDERS[1] .. "calibration.lua")
-  local spots, games = {}, {}
-  if result then
-    for _, entry in ipairs(result) do
-      if type(entry) == "table" and entry.game ~= nil then
-        games[#games + 1] = entry
-      elseif type(entry) == "table" and entry.name ~= nil then
-        spots[entry.name] = entry
-      end
-    end
-  end
-  return spots, games
-end
-
 ---------------------------------------------------------------------------------------
 -- The game's own overlay pictures
 ---------------------------------------------------------------------------------------
@@ -1089,8 +1071,9 @@ end
 local state            -- everything the running hook uses; nil until enable has hooked
 local overlays = {}    -- every overlay in the table, in record order
 local pending = {}     -- plugin folders registered before enable finished
-local loadedSources = {} -- folders already read, so a plugin found by itself and also calling in counts once
+local loadedSources = {} -- folders already read (keys, and in load order), so a plugin found by itself and also calling in counts once
 local firstSource      -- the first plugin folder: the game pictures' offsets are saved there
+local calibrationReady -- true once the user data folder is ready (afterInit)
 
 ---Adds one overlay (an entry of overlay_list.lua or of a plugin's overlays.lua) to the table
 ---the hook walks. `folder` is where its picture lives.
@@ -1168,12 +1151,27 @@ local function addOverlay(entry, folder, swap, source)
   core.writeInteger(state.block, #overlays)
 end
 
-local function calibrationPrefix(folder)
-  if folder == nil then return "ucp/building-overlays-module" end
-  local plugin = folder:match("plugins/([^/]+)/")
-  local source = plugin or folder:gsub("/$", ""):match("([^/]+)$") or "plugin"
-  -- Store calibration outside the source package, including installed ZIPs.
-  return "ucp/building-overlays-" .. source:gsub("[^%w_.-]", "_")
+---Moves the overlays of `source` (nil: the module's own) and the game pictures to the spots in
+---that source's saved calibration. True when the calibration was read from the ucp folder.
+local function applyCalibration(source)
+  local entries, legacy = overlayData.readCalibration(source,
+    source == nil and MODULE_FOLDERS[1] .. "calibration.lua" or nil)
+  for _, entry in ipairs(entries or {}) do
+    if type(entry) == "table" and entry.game ~= nil then
+      applyGameEntry(entry)
+    elseif type(entry) == "table" then
+      for _, overlay in ipairs(overlays) do
+        if overlay.name == entry.name and overlay.source == source then
+          overlay.x = math.tointeger(tonumber(entry.x) or 0) or 0
+          overlay.y = math.tointeger(tonumber(entry.y) or 0) or 0
+          core.writeInteger(overlay.record + R_X, overlay.x)
+          core.writeInteger(overlay.record + R_Y, overlay.y)
+          strips.cut(overlay.record, overlay.picture_, overlay.x, packTgx, store)
+        end
+      end
+    end
+  end
+  return legacy
 end
 
 ---A plugin hands over a folder holding an overlays.lua data file and the
@@ -1199,15 +1197,13 @@ local function registerOverlaySource(self, path)
   if loadedSources[folder] then
     return
   end
-  local prefix = calibrationPrefix(folder)
-  local entries = overlayData.readCalibration(prefix)
-    or overlayData.read(prefix .. ".lua")
-    or overlayData.read(folder .. "overlays.lua")
+  local entries = overlayData.read(folder .. "overlays.lua")
   if entries == nil then
     log(WARNING, MODULE_NAME .. ": no readable overlay data in " .. folder)
     return
   end
   loadedSources[folder] = true
+  loadedSources[#loadedSources + 1] = folder
   firstSource = firstSource or folder
   for _, entry in ipairs(entries) do
     if type(entry) == "table" and entry.game ~= nil then
@@ -1215,6 +1211,9 @@ local function registerOverlaySource(self, path)
     else
       addOverlay(entry, folder, false, folder)
     end
+  end
+  if calibrationReady then
+    applyCalibration(folder)
   end
   log(INFO, string.format("%s: %d overlay(s) in total after %s", MODULE_NAME, #overlays, folder))
 end
@@ -1241,7 +1240,7 @@ local function writeEntries(folder, entries)
     end
   end
   lines[#lines + 1] = "}"
-  local target, problem = overlayData.saveCalibration(calibrationPrefix(folder), lines)
+  local target, problem = overlayData.saveCalibration(folder, lines)
   if target == nil then
     log(WARNING, MODULE_NAME .. ": could not save calibration: " .. tostring(problem))
     return false
@@ -2034,18 +2033,9 @@ local function enable(self, config)
 
   -- The module's own list first; the count stays 0 until the first record is complete.
   local swap = setting(config, "large_gatehouse", "swap_sides")
-  local calibrated, calibratedGames = loadCalibration()
   for _, entry in ipairs(list) do
     if setting(config, entry.group, "enabled") then
-      local copy = {}
-      for key, value in pairs(entry) do
-        copy[key] = value
-      end
-      local spot = calibrated[entry.name]
-      if spot ~= nil then
-        copy.x, copy.y = spot.x, spot.y
-      end
-      addOverlay(copy, MODULE_FOLDERS[1] .. "overlays/", swap and entry.group == "large_gatehouse")
+      addOverlay(entry, MODULE_FOLDERS[1] .. "overlays/", swap and entry.group == "large_gatehouse")
     end
   end
 
@@ -2055,9 +2045,6 @@ local function enable(self, config)
     log(WARNING, MODULE_NAME .. ": the game's own overlays cannot be moved: " .. tostring(sitesProblem))
     values.SITES, values.SITE_COUNT = state.records, 0
     values.PANEL_FRAME = values.PANEL_FRAME or core.allocate(4, true)
-  end
-  for _, entry in ipairs(calibratedGames) do
-    applyGameEntry(entry)
   end
 
   if values.HOVER_ONLY == 1 then
@@ -2115,6 +2102,19 @@ local function enable(self, config)
   end
   pending = {}
   log(INFO, string.format("%s: %d overlay(s) active", MODULE_NAME, #overlays))
+
+  -- Saved spots live in the user data folder, which opens at afterInit. A calibration still read
+  -- from the ucp folder is saved there at once.
+  hooks.registerHookCallback("afterInit", function()
+    calibrationReady = true
+    local legacy = applyCalibration(nil)
+    for _, source in ipairs(loadedSources) do
+      legacy = applyCalibration(source) or legacy
+    end
+    if legacy then
+      writeCalibration()
+    end
+  end)
 end
 
 -- Plugins only see what is listed as public.

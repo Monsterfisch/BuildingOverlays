@@ -1,7 +1,7 @@
 # Building Overlays
 
 **Author**: Monsterfish
-**Version**: 1.1.1
+**Version**: 1.1.2
 
 Draws extra pictures on top of buildings. The game does this itself for the crenellations
 on towers: a picture that covers the walkway so units don't look like they stand outside

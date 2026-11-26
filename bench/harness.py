@@ -17,6 +17,7 @@ EXT_PATH = G + r'\Stronghold_Crusader_Extreme.exe'
 HEAP = 0x60000000
 STACK_TOP = 0x70100000
 SENTINEL = 0x7FFFFFF0
+USERDATA = 'ucp/userdata/building-overlays'
 _EXES = {}
 
 
@@ -98,6 +99,10 @@ class Host:
             self.m.write(sd + 9, b'\xE9\x00\x00\x00\x72\x90')
             self.m.write(sd, bytes([0xE9,0,0,0,0x73,0x90,0x90]))   # smarter-buildings
         os.chdir(G)   # io.open('ucp/modules/...') relative to the game folder
+        # UCP's userdata.interface(): this module's user data folder, relative to the game folder
+        os.makedirs(USERDATA, exist_ok=True)
+        lua.execute(b'userdata = { interface = function() return { open = function(self, name, ...) '
+                    b'return io.open("' + USERDATA.encode() + b'/" .. name, ...) end } end }')
         if pre is not None:
             pre(self)
         self.mod = lua.eval(b'dofile')((MODULE + r'\init.lua').encode('mbcs'))

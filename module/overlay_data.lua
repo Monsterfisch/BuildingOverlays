@@ -74,8 +74,19 @@ local function parse(text)
   return entries
 end
 
-function data.read(path)
-  local file, err = io.open(path, "rb")
+local store
+
+---Opens `name` in this module's UCP user data folder, as io.open does.
+local function userOpen(name, mode)
+  store = store or userdata.interface()
+  if store == nil then return nil, "the user data folder is not ready" end
+  local ok, file, err = pcall(store.open, store, name, mode)
+  if not ok then return nil, file end
+  return file, err
+end
+
+function data.read(path, open)
+  local file, err = (open or io.open)(path, "rb")
   if file == nil then return nil, err end
   local text = file:read(MAX_BYTES + 1)
   file:close()
@@ -85,29 +96,50 @@ function data.read(path)
   return entries, tonumber(text:match("^%-%- generation: (%d+)\n")) or 0
 end
 
-local function slots(prefix)
-  local first, firstSeq = data.read(prefix .. "-a.lua")
-  local second, secondSeq = data.read(prefix .. "-b.lua")
+---The name a source's calibration is saved under: "module", or the plugin's folder name.
+local function calibrationName(folder)
+  if folder == nil then return "module" end
+  return folder:match("plugins/([^/]+)/") or folder:gsub("/$", ""):match("([^/]+)$") or "plugin"
+end
+
+---The file name of `folder`'s calibration in the user data folder.
+local function userName(folder)
+  return (calibrationName(folder):gsub("[^%w.~-]", "-"))
+end
+
+local function slots(prefix, open)
+  local first, firstSeq = data.read(prefix .. "-a.lua", open)
+  local second, secondSeq = data.read(prefix .. "-b.lua", open)
   firstSeq = first and firstSeq or -1
   secondSeq = second and secondSeq or -1
   if firstSeq >= secondSeq then return first, firstSeq, prefix .. "-b.lua" end
   return second, secondSeq, prefix .. "-a.lua"
 end
 
-function data.readCalibration(prefix)
-  return (slots(prefix))
+---The calibration saved for the overlays from `folder` (nil: the module's own) in the user data
+---folder. Else, read only: the one in the game's ucp folder or the first readable `...` path,
+---with true as second result.
+function data.readCalibration(folder, ...)
+  local entries = slots(userName(folder), userOpen)
+  if entries ~= nil then return entries, false end
+  local legacy = "ucp/building-overlays-" .. calibrationName(folder):gsub("[^%w_.-]", "_")
+  entries = slots(legacy)
+  for _, path in ipairs({ legacy .. ".lua", ... }) do
+    entries = entries or data.read(path)
+  end
+  return entries, entries ~= nil
 end
 
-function data.saveCalibration(prefix, lines)
-  local _, sequence, target = slots(prefix)
+function data.saveCalibration(folder, lines)
+  local _, sequence, target = slots(userName(folder), userOpen)
   local contents = "-- generation: " .. (sequence + 1) .. "\n" .. table.concat(lines, "\n") .. "\n"
   if #contents > MAX_BYTES then return nil, "overlay data exceeds the size limit" end
-  local file, err = io.open(target, "wb")
+  local file, err = userOpen(target, "wb")
   if not file then return nil, err end
   local written, writeError = file:write(contents)
   local closed, closeError = file:close()
   if not written or not closed then return nil, writeError or closeError end
-  local entries, storedSequence = data.read(target)
+  local entries, storedSequence = data.read(target, userOpen)
   if not entries or storedSequence ~= sequence + 1 then return nil, "cannot verify " .. target end
   return target
 end
