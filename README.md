@@ -27,7 +27,7 @@ What the module does, in plain English, is in `module/locale/description-en.md`.
    `ucp/userdata/building-overlays/` in the game's folder under Documents, two alternating files
    per source, so an interrupted write leaves the other one readable:
    - `module-a.lua` / `-b.lua`: the module's own overlays.
-   - `<plugin folder>-a.lua` / `-b.lua`, for example `MyPlugin-1.2.3-a.lua`: a registered
+   - `<plugin name>-a.lua` / `-b.lua`, for example `MyPlugin-a.lua`: a registered
      plugin's overlays, written only when that plugin has overlays to save.
    - Moved game pictures (`{ game = n, ... }` entries) go into the first loaded plugin's files, or
      the module's if no plugin is loaded. If two sources set the same game picture and building,

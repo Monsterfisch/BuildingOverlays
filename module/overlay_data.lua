@@ -102,9 +102,10 @@ local function calibrationName(folder)
   return folder:match("plugins/([^/]+)/") or folder:gsub("/$", ""):match("([^/]+)$") or "plugin"
 end
 
----The file name of `folder`'s calibration in the user data folder.
+---The file name of `folder`'s calibration in the user data folder, without the plugin's version,
+---so a plugin update keeps it.
 local function userName(folder)
-  return (calibrationName(folder):gsub("[^%w.~-]", "-"))
+  return (calibrationName(folder):gsub("%-%d+%.%d+%.%d+$", ""):gsub("[^%w.~-]", "-"))
 end
 
 local function slots(prefix, open)
