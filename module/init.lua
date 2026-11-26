@@ -1227,6 +1227,12 @@ local function registerOverlaySource(self, path)
     log(WARNING, MODULE_NAME .. ": no readable overlay data in " .. folder)
     return
   end
+  local other = overlayData.claim(folder)
+  if other ~= nil then
+    log(WARNING, MODULE_NAME .. ": one overlay folder per plugin keeps its own calibration; "
+      .. folder .. " ignored, " .. other .. " is registered")
+    return
+  end
   local games = {}
   loadedSources[folder] = games
   loadedSources[#loadedSources + 1] = folder

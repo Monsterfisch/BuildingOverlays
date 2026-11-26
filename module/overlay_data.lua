@@ -120,6 +120,14 @@ local function userName(folder)
   if folder == nil then return "_module" end
   return (calibrationName(folder):gsub("%-%d+%.%d+%.%d+$", ""):gsub("[^%w.~-]", "-"):gsub("%.%.+", "."))
 end
+local claimed = {}
+---Registers `folder` under its calibration name. Returns the other folder already registered
+---under that name, if any.
+function data.claim(folder)
+  local name = userName(folder)
+  if claimed[name] ~= nil and claimed[name] ~= folder then return claimed[name] end
+  claimed[name] = folder
+end
 
 local function slots(prefix, open)
   local first, firstSeq = data.read(prefix .. "-a.lua", open)
