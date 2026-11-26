@@ -1488,19 +1488,6 @@ local function installPanel(v)
   w.STEP_X, w.STEP_Y, w.STEP_W = STEP_X, STEP_Y, STEP_W
   w.COLOUR, w.PICKED_COLOUR, w.FONT = COLOUR, PICKED_COLOUR, FONT
   w.LUA_CLICK = luaFunction("the overlay panel", function() onClick(ui) end)
-  -- Logged whenever the panel's selected building or the number of listed overlays changes.
-  w.DIAG = core.allocate(8, true)
-  core.writeInteger(w.DIAG, -2)
-  w.LUA_DIAG = luaFunction("the panel report", function()
-    local building = core.readInteger(w.DIAG)
-    local kind = -1
-    if building > 0 then
-      kind = core.readSmallInteger(v.BUILDINGS + building * BUILDING_SIZE + B_TYPE)
-    end
-    log(INFO, string.format("panel drawn, selected building %d (type %d), %d overlay(s) listed",
-      building, kind, core.readInteger(w.DIAG + 4)))
-  end)
-
   local originals = {
     render = core.readInteger(status + ITEM_RENDER),
     frame = core.readInteger(start + ITEM_ACTION),
