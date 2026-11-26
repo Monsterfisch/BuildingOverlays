@@ -862,7 +862,7 @@ local function luaFunction(purpose, callback)
   core.detourCode(function(registers)
     local ok, message = pcall(callback)
     if not ok then
-      log(WARNING, string.format("%s: %s failed: %s", MODULE_NAME, purpose, tostring(message)))
+      log(WARNING, string.format("%s failed: %s", purpose, tostring(message)))
     end
     return registers
   end, pad, 5)
@@ -1011,7 +1011,7 @@ local function installSites(tail, renderGm, values)
     end
     core.writeCode(entry[1], code)
   end
-  log(INFO, string.format("%s: %d of the game's own overlay pictures can be moved", MODULE_NAME, #found))
+  log(INFO, string.format("%d of the game's own overlay pictures can be moved", #found))
   if values.HOVER_ONLY == 1 then
     local roofField = (values.BUILDINGS + B_ROOF) & 0xFFFFFFFF
     local defaults = core.allocate(TYPE_COUNT * 4, true)
@@ -1046,7 +1046,7 @@ local function installSites(tail, renderGm, values)
         reads = reads + 1
       end
     end
-    log(INFO, string.format("%s: tower roofs stay while troops are on them (%d reads)", MODULE_NAME, reads))
+    log(INFO, string.format("tower roofs stay while troops are on them (%d reads)", reads))
   end
 end
 
@@ -1055,7 +1055,7 @@ local function applyGameEntry(entry)
   local site = sites[math.tointeger(tonumber(entry.game) or 0)]
   local kind = math.tointeger(tonumber(entry.building) or -1)
   if site == nil or kind == nil or kind < 0 or kind >= TYPE_COUNT then
-    log(WARNING, string.format("%s: no game overlay #%s for building %s", MODULE_NAME,
+    log(WARNING, string.format("no game overlay #%s for building %s",
       tostring(entry.game), tostring(entry.building)))
     return
   end
@@ -1080,7 +1080,7 @@ local calibrationReady -- true once the user data folder is ready (afterInit)
 local function addOverlay(entry, folder, swap, source)
   if type(entry.name) ~= "string" or type(entry.picture) ~= "string"
       or entry.picture == "" or entry.picture:find('[/\\:"<>|?*%c]') then
-    log(WARNING, MODULE_NAME .. ": invalid overlay name or picture in " .. folder)
+    log(WARNING, "invalid overlay name or picture in " .. folder)
     return
   end
   local existing
@@ -1090,17 +1090,17 @@ local function addOverlay(entry, folder, swap, source)
     end
   end
   if existing == nil and #overlays >= MAX_OVERLAYS then
-    log(WARNING, MODULE_NAME .. ": too many overlays; " .. tostring(entry.name) .. " skipped")
+    log(WARNING, "too many overlays; " .. tostring(entry.name) .. " skipped")
     return
   end
   local id = type(entry.building) == "number" and math.tointeger(entry.building) or BUILDINGS[entry.building]
   local picture, problem = loadPicture(folder, entry.picture or "")
   if id == nil or id < 0 or id >= TYPE_COUNT then
-    log(WARNING, string.format("%s: %s: unknown building %s; skipped", MODULE_NAME,
+    log(WARNING, string.format("%s: unknown building %s; skipped",
       tostring(entry.name), tostring(entry.building)))
     return
   elseif picture == nil then
-    log(WARNING, string.format("%s: %s%s.png: %s; %s skipped", MODULE_NAME, folder,
+    log(WARNING, string.format("%s%s.png: %s; %s skipped", folder,
       tostring(entry.picture), problem, tostring(entry.name)))
     return
   end
@@ -1123,7 +1123,7 @@ local function addOverlay(entry, folder, swap, source)
       end
     end
     record = existing.record
-    log(INFO, string.format("%s: %s now comes from %s", MODULE_NAME, overlay.name, folder))
+    log(INFO, string.format("%s now comes from %s", overlay.name, folder))
   else
     overlays[#overlays + 1] = overlay
     record = state.records + (#overlays - 1) * RECORD_SIZE
@@ -1166,10 +1166,10 @@ local function writeEntries(folder, entries)
   lines[#lines + 1] = "}"
   local target, problem = overlayData.saveCalibration(folder, lines)
   if target == nil then
-    log(WARNING, MODULE_NAME .. ": could not save calibration: " .. tostring(problem))
+    log(WARNING, "could not save calibration: " .. tostring(problem))
     return false
   end
-  log(INFO, MODULE_NAME .. ": saved " .. target)
+  log(INFO, "saved " .. target)
   return true
 end
 
@@ -1224,12 +1224,12 @@ local function registerOverlaySource(self, path)
   end
   local entries = overlayData.read(folder .. "overlays.lua")
   if entries == nil then
-    log(WARNING, MODULE_NAME .. ": no readable overlay data in " .. folder)
+    log(WARNING, "no readable overlay data in " .. folder)
     return
   end
   local other = overlayData.claim(folder)
   if other ~= nil then
-    log(WARNING, MODULE_NAME .. ": one overlay folder per plugin keeps its own calibration; "
+    log(WARNING, "one overlay folder per plugin keeps its own calibration; "
       .. folder .. " ignored, " .. other .. " is registered")
     return
   end
@@ -1248,7 +1248,7 @@ local function registerOverlaySource(self, path)
   if calibrationReady then
     applyCalibration(folder)
   end
-  log(INFO, string.format("%s: %d overlay(s) in total after %s", MODULE_NAME, #overlays, folder))
+  log(INFO, string.format("%d overlay(s) in total after %s", #overlays, folder))
 end
 
 ---------------------------------------------------------------------------------------
@@ -1333,7 +1333,7 @@ local function onClick(ui)
   if kind == 2 or kind == 4 then
     local ok, saved = pcall(writeCalibration)
     if not ok then
-      log(WARNING, MODULE_NAME .. ": saving failed: " .. tostring(saved))
+      log(WARNING, "saving failed: " .. tostring(saved))
     end
     core.writeInteger(ui.SAVE_LABEL, (ok and saved) and ui.SAVED_TEXT or ui.FAILED_TEXT)
   end
@@ -1392,8 +1392,8 @@ local function wrapItems(items, originals, wrappers)
     item = item + ITEM_SIZE
     limit = limit - 1
   end
-  log(INFO, string.format("%s: panel items at %08X: click item %s, %d status line(s) wrapped",
-    MODULE_NAME, items, frameDone and "wrapped" or "not found", renders))
+  log(INFO, string.format("panel items at %08X: click item %s, %d status line(s) wrapped",
+    items, frameDone and "wrapped" or "not found", renders))
 end
 
 local function installPanel(v)
@@ -1483,8 +1483,8 @@ local function installPanel(v)
     if building > 0 then
       kind = core.readSmallInteger(v.BUILDINGS + building * BUILDING_SIZE + B_TYPE)
     end
-    log(INFO, string.format("%s: panel drawn, selected building %d (type %d), %d overlay(s) listed",
-      MODULE_NAME, building, kind, core.readInteger(w.DIAG + 4)))
+    log(INFO, string.format("panel drawn, selected building %d (type %d), %d overlay(s) listed",
+      building, kind, core.readInteger(w.DIAG + 4)))
   end)
 
   local originals = {
@@ -1510,7 +1510,7 @@ local function installPanel(v)
     local menu = core.readInteger(constructorSite + 6)
     local function wrapLive()
       local items = core.readInteger(menu)
-      log(INFO, string.format("%s: building panel uses items at %08X (static %08X)", MODULE_NAME,
+      log(INFO, string.format("building panel uses items at %08X (static %08X)",
         items, start))
       if items ~= 0 and items ~= start then
         wrapItems(items, originals, wrappers)
@@ -1519,7 +1519,7 @@ local function installPanel(v)
     wrapLive()
     hooks.registerHookCallback("afterInit", wrapLive)
   else
-    log(WARNING, MODULE_NAME .. ": could not find the building panel itself; the overlay tool "
+    log(WARNING, "could not find the building panel itself; the overlay tool "
       .. "relies on its item table")
   end
 end
@@ -2016,7 +2016,7 @@ local function enable(self, config)
             address = address + 1
           end
           if hooked == 0 then
-            log(WARNING, MODULE_NAME .. ": flags on keeps may still show behind overlays (entity drawing not found)")
+            log(WARNING, "flags on keeps may still show behind overlays (entity drawing not found)")
           end
         end
         core.writeInteger(values.LOG_OFF, 0)
@@ -2024,7 +2024,7 @@ local function enable(self, config)
       if not sortOk then
         values.MARK_UNITS = 0
         values.MARKED, values.MARK_B = 0, 0
-        log(WARNING, MODULE_NAME .. ": units on buildings may show over overlays: " .. tostring(sortProblem))
+        log(WARNING, "units on buildings may show over overlays: " .. tostring(sortProblem))
       end
       local tileHook = assemble(strips.TILE_SCRIPT, values)
       core.writeCode(piece + strips.TILE_HOOK,
@@ -2032,7 +2032,7 @@ local function enable(self, config)
       values.TILE_STRIPS = 1
     end)
     if not ok then
-      log(WARNING, MODULE_NAME .. ": overlays are drawn in one piece: " .. tostring(problem))
+      log(WARNING, "overlays are drawn in one piece: " .. tostring(problem))
     end
   end
   local blob = assemble(script, values)
@@ -2048,20 +2048,20 @@ local function enable(self, config)
   core.writeCode(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
   local sitesOk, sitesProblem = pcall(installSites, tail, renderGm, values)
   if not sitesOk then
-    log(WARNING, MODULE_NAME .. ": the game's own overlays cannot be moved: " .. tostring(sitesProblem))
+    log(WARNING, "the game's own overlays cannot be moved: " .. tostring(sitesProblem))
     values.SITES, values.SITE_COUNT = state.records, 0
     values.PANEL_FRAME = values.PANEL_FRAME or core.allocate(4, true)
   end
 
   if values.HOVER_ONLY == 1 then
-    log(INFO, string.format("%s: tower roofs hide only under the mouse, crenellations as the game says "
-      .. "(%d checks changed)", MODULE_NAME, patchVanillaOverlays(tail, values)))
+    log(INFO, string.format("tower roofs hide only under the mouse, crenellations as the game says "
+      .. "(%d checks changed)", patchVanillaOverlays(tail, values)))
   end
 
   if setting(config, "editor", "enabled") then
     local ok, message = pcall(installPanel, values)
     if not ok then
-      log(WARNING, MODULE_NAME .. ": the overlay tool in the building panel is off: "
+      log(WARNING, "the overlay tool in the building panel is off: "
         .. tostring(message))
     end
   end
@@ -2069,20 +2069,20 @@ local function enable(self, config)
   if setting(config, "flags", "follow_turn") then
     local ok, message = pcall(fixFlagTurn)
     if not ok then
-      log(WARNING, MODULE_NAME .. ": flags keep the game's spot when the map is turned: " .. tostring(message))
+      log(WARNING, "flags keep the game's spot when the map is turned: " .. tostring(message))
     end
   end
   if setting(config, "flags", "on_edges") then
     local ok, message = pcall(flagsOnEdges, values)
     if not ok then
-      log(WARNING, MODULE_NAME .. ": flags stay in the middle of their tiles: " .. tostring(message))
+      log(WARNING, "flags stay in the middle of their tiles: " .. tostring(message))
     end
   end
 
   if setting(config, "keep_entrance", "enabled") then
     local ok, message = pcall(fixKeepDoor)
     if not ok then
-      log(WARNING, MODULE_NAME .. ": the keep entrance stays as the game draws it: " .. tostring(message))
+      log(WARNING, "the keep entrance stays as the game draws it: " .. tostring(message))
     end
   end
 
@@ -2101,13 +2101,13 @@ local function enable(self, config)
     end
   end)
   if not ok then
-    log(WARNING, MODULE_NAME .. ": could not look through the plugins: " .. tostring(problem))
+    log(WARNING, "could not look through the plugins: " .. tostring(problem))
   end
   for _, path in ipairs(pending) do
     registerOverlaySource(self, path)
   end
   pending = {}
-  log(INFO, string.format("%s: %d overlay(s) active", MODULE_NAME, #overlays))
+  log(INFO, string.format("%d overlay(s) active", #overlays))
 
   -- Saved spots live in the user data folder, which opens at afterInit. Sources apply in load
   -- order, so the last one wins for a game picture as with the packaged lists.
