@@ -12,14 +12,14 @@ line into `module/overlay_list.lua`.
 
 An empty large gatehouse gets a picture over its towers (one for a gatehouse whose entrance
 looks to the lower left, one for the lower right). When troops go onto the gatehouse the
-picture goes away. Can be switched off in the settings.
+picture goes away. Switched on in the settings.
 
 ### Keep entrance
 
 A fix for a bug of the game itself: on keeps turned one of two ways, the middle of the entrance
 in front of the keep was drawn in the wrong light - a bright pillar between shaded towers, or a
-dark one through a bright archway. Now it matches the towers beside it. Can be switched off in
-the settings.
+dark one through a bright archway. Now it matches the towers beside it. Switched on in the
+settings.
 
 ### Troops on the building
 
@@ -37,7 +37,7 @@ The game draws overlays in one piece at a building's front corner, so they show 
 and walls standing right next to it. This module draws its own pictures, and the game's own
 overlay pictures on every building, in narrow strips together with the building's tiles
 instead, so whatever stands in front covers them. Parts hanging over the sides of a building go
-with its back-most tile. Can be switched off in the settings ("Let buildings in front cover the
+with its back-most tile. Switched on in the settings ("Let buildings in front cover the
 overlays").
 
 ### Moving overlays in the game
@@ -48,7 +48,7 @@ stays the game's business). Click one to pick it: it is then shown on that build
 with a magenta frame, and blue arrow buttons appear on the right of the panel. Each click
 moves the picture by the step size; click "Step" to switch between 1, 5 and 20 pixels. Click
 the picked overlay again to stop. "Save" stores the positions in UCP's user data folder, and
-the module uses them from then on. The tool can be switched off in the settings.
+the module uses them from then on. The tool is switched on in the settings.
 
 ### Adding or changing a picture
 
@@ -144,6 +144,15 @@ code, in drawing order:
 Game #162 is the last picture of each of these buildings: they share that call, and the entry's
 `building` decides whose picture moves. Many other buildings draw pictures through the same
 numbered calls and can be moved the same way; select one and its panel lists them.
+
+## Vanilla and Recommended
+
+Every option of the module is off by default. With no option on and no plugin bringing
+overlays, the module installs nothing and the game draws as without it. Two plugins in this
+repository form the Building Overlays family in the launcher: `building-overlays-recommended`
+(offered first) switches on the recommended settings, `building-overlays-vanilla` keeps
+everything off. A plugin's own overlays are drawn either way; plugins that build on the module
+set the options they need themselves.
 
 ## How it works
 

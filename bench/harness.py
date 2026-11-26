@@ -12,6 +12,7 @@ from host import fasm, ucp_source
 
 import glob as _glob
 MODULE = os.environ.get('SW_MODULE', os.path.join(os.path.dirname(HERE), 'module'))
+RECOMMENDED = os.path.join(os.path.dirname(HERE), 'building-overlays-recommended', 'config.yml')
 VAN_PATH = G + r'\Stronghold Crusader.exe'
 EXT_PATH = G + r'\Stronghold_Crusader_Extreme.exe'
 HEAP = 0x60000000
@@ -19,6 +20,18 @@ STACK_TOP = 0x70100000
 SENTINEL = 0x7FFFFFF0
 USERDATA = 'ucp/userdata/building-overlays'
 _EXES = {}
+
+
+def recommended(overrides):
+    """The Recommended plugin's suggested values with `overrides` on top."""
+    import yaml
+    with open(RECOMMENDED, encoding='utf-8') as f:
+        tree = yaml.safe_load(f)['config-sparse']['modules']['building-overlays']['config']
+    config = {group: {name: node['contents']['suggested-value'] for name, node in names.items()}
+              for group, names in tree.items()}
+    for group, settings in overrides.items():
+        config[group] = {**config.get(group, {}), **settings}
+    return config
 
 
 def exe(p):
@@ -108,7 +121,7 @@ class Host:
         self.mod = lua.eval(b'dofile')((MODULE + r'\init.lua').encode('mbcs'))
         if isinstance(self.mod, tuple):     # init.lua may return (module, { public = ... })
             self.mod, self.public = self.mod[0], self.mod[1]
-        self.mod[b'enable'](self.mod, self.to_lua(config or {}))
+        self.mod[b'enable'](self.mod, self.to_lua(recommended(config or {})))
 
     def to_lua(self, value):
         if isinstance(value, dict):

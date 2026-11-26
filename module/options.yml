@@ -12,7 +12,7 @@ options:
     display: UCP2Switch
     contents:
       type: boolean
-      value: true
+      value: false
     header: '{{large_gatehouse_enabled}}'
   - url: building-overlays.large_gatehouse.swap_sides
     name: building-overlays-large-gatehouse-swap-sides
@@ -35,7 +35,7 @@ options:
     display: UCP2Switch
     contents:
       type: boolean
-      value: true
+      value: false
     header: '{{editor_enabled}}'
 - display: GroupBox
   category:
@@ -65,7 +65,7 @@ options:
     display: UCP2Switch
     contents:
       type: boolean
-      value: true
+      value: false
     header: '{{tile_by_tile}}'
   - url: building-overlays.drawing.hide_units
     name: building-overlays-drawing-hide-units
@@ -81,7 +81,7 @@ options:
     display: UCP2Switch
     contents:
       type: boolean
-      value: true
+      value: false
     header: '{{flags_on_top}}'
   - url: building-overlays.drawing.back_flag_behind
     name: building-overlays-drawing-back-flag-behind
@@ -89,7 +89,7 @@ options:
     display: UCP2Switch
     contents:
       type: boolean
-      value: true
+      value: false
     header: '{{back_flag_behind}}'
 - display: GroupBox
   category:
@@ -104,7 +104,7 @@ options:
     display: UCP2Switch
     contents:
       type: boolean
-      value: true
+      value: false
     header: '{{keep_entrance_enabled}}'
 - display: GroupBox
   category:
@@ -119,7 +119,7 @@ options:
     display: UCP2Switch
     contents:
       type: boolean
-      value: true
+      value: false
     header: '{{flags_follow_turn}}'
   - url: building-overlays.flags.on_edges
     name: building-overlays-flags-on-edges
@@ -127,7 +127,7 @@ options:
     display: UCP2Switch
     contents:
       type: boolean
-      value: true
+      value: false
     header: '{{flags_on_edges}}'
 meta:
   version: 1.0.0

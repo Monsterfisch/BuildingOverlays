@@ -1,0 +1,20 @@
+name: building-overlays-vanilla
+display-name: Building Overlays Vanilla
+author: Monsterfish
+version: 1.0.0
+type: plugin
+game:
+- SHC==1.41
+- SHCE==1.41
+family:
+- name: building-overlays
+  root: true
+  members:
+  - building-overlays-recommended
+  default: building-overlays-recommended
+meta:
+  version: 1.0.0
+dependencies:
+  framework: '>=3.0.8'
+  frontend: '>=1.0.17 <2.0.0'
+  building-overlays: ^1.1.4

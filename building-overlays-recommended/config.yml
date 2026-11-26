@@ -1,0 +1,36 @@
+meta:
+  version: 1.0.0
+config-sparse:
+  modules:
+    building-overlays:
+      config:
+        large_gatehouse:
+          enabled:
+            contents:
+              suggested-value: true
+        editor:
+          enabled:
+            contents:
+              suggested-value: true
+        drawing:
+          tile_by_tile:
+            contents:
+              suggested-value: true
+          flags_on_top:
+            contents:
+              suggested-value: true
+          back_flag_behind:
+            contents:
+              suggested-value: true
+        keep_entrance:
+          enabled:
+            contents:
+              suggested-value: true
+        flags:
+          follow_turn:
+            contents:
+              suggested-value: true
+          on_edges:
+            contents:
+              suggested-value: true
+  plugins: {}

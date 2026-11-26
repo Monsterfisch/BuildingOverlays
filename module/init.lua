@@ -38,12 +38,12 @@ local MODULE_NAME = "building-overlays"
 local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this to the active version
 
 local DEFAULTS = {
-  large_gatehouse = { enabled = true, swap_sides = false },
-  editor = { enabled = true },
-  drawing = { tile_by_tile = true, hide_units = false, flags_on_top = true, back_flag_behind = true },
+  large_gatehouse = { enabled = false, swap_sides = false },
+  editor = { enabled = false },
+  drawing = { tile_by_tile = false, hide_units = false, flags_on_top = false, back_flag_behind = false },
   mouse = { hover_only = false },
-  keep_entrance = { enabled = true },
-  flags = { follow_turn = true, on_edges = true },
+  keep_entrance = { enabled = false },
+  flags = { follow_turn = false, on_edges = false },
 }
 
 -- Overlays a plugin may add on top of the ones in overlay_list.lua.
@@ -448,7 +448,7 @@ local function setting(config, group, name)
   if defaults ~= nil and defaults[name] ~= nil then
     return defaults[name]
   end
-  return name == "enabled"
+  return false
 end
 
 local function scan(pattern, purpose)
@@ -1068,12 +1068,13 @@ end
 -- The overlay table
 ---------------------------------------------------------------------------------------
 
-local state            -- everything the running hook uses; nil until enable has hooked
+local state            -- everything the running hook uses; nil until enable has hooked, false if it installed nothing
 local overlays = {}    -- every overlay in the table, in record order
 local pending = {}     -- plugin folders registered before enable finished
 local loadedSources = {} -- folders already read (keys, to their packaged game entries, and in load order), so a plugin found by itself and also calling in counts once
 local firstSource      -- the first plugin folder: the game pictures' offsets are saved there
 local calibrationReady -- true once the user data folder is ready (afterInit)
+local enable           -- defined below
 
 ---Adds one overlay (an entry of overlay_list.lua or of a plugin's overlays.lua) to the table
 ---the hook walks. `folder` is where its picture lives.
@@ -1204,8 +1205,13 @@ end
 ---e.g. modules["building-overlays"]:registerOverlaySource(
 ---  "ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
 local function registerOverlaySource(self, path)
-  if state == nil then
+  if not state then
     pending[#pending + 1] = path
+    if state == false then
+      -- enable found every option off and no plugin overlays; it installs for these
+      local ok, problem = pcall(enable, self, {})
+      if not ok then log(WARNING, "plugin overlays are not drawn: " .. tostring(problem)) end
+    end
     return
   end
   local folder = path
@@ -1796,8 +1802,37 @@ end
 -- Enable
 ---------------------------------------------------------------------------------------
 
-local function enable(self, config)
+enable = function(self, config)
   config = config or {}
+  -- Every active plugin with resources/modsupport/building-overlays/overlays.lua is read without
+  -- the plugin having to call in (a plugin re-exported by a tool loses its init.lua).
+  local ok, problem = pcall(function()
+    for _, extension in pairs(allActiveExtensions or {}) do
+      if extension.name ~= nil and extension:type() == "PluginLoader" then
+        local path = "ucp/plugins/" .. extension.name .. "-*/resources/modsupport/building-overlays/"
+        local file = io.open(path .. "overlays.lua", "rb")
+        if file ~= nil then
+          file:close()
+          pending[#pending + 1] = path
+        end
+      end
+    end
+  end)
+  if not ok then
+    log(WARNING, "could not look through the plugins: " .. tostring(problem))
+  end
+  local anyOn = false
+  for group, names in pairs(DEFAULTS) do
+    for name in pairs(names) do
+      anyOn = anyOn or setting(config, group, name) == true
+    end
+  end
+  if #pending == 0 and not anyOn then
+    state = false
+    log(INFO, "every option is off and no plugin brings overlays; nothing installed")
+    return
+  end
+
   overlays = {}
 
   local tail = scan(AOB_TAIL, "the end of the building overlay drawing")
@@ -2086,23 +2121,6 @@ local function enable(self, config)
     end
   end
 
-  -- Every active plugin with resources/modsupport/building-overlays/overlays.lua is read without
-  -- the plugin having to call in (a plugin re-exported by a tool loses its init.lua).
-  local ok, problem = pcall(function()
-    for _, extension in pairs(allActiveExtensions or {}) do
-      if extension.name ~= nil and extension:type() == "PluginLoader" then
-        local path = "ucp/plugins/" .. extension.name .. "-*/resources/modsupport/building-overlays/"
-        local file = io.open(path .. "overlays.lua", "rb")
-        if file ~= nil then
-          file:close()
-          pending[#pending + 1] = path
-        end
-      end
-    end
-  end)
-  if not ok then
-    log(WARNING, "could not look through the plugins: " .. tostring(problem))
-  end
   for _, path in ipairs(pending) do
     registerOverlaySource(self, path)
   end
