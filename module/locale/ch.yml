@@ -5,7 +5,7 @@ large_gatehouse_enabled_tooltip: 有部队踏上城门楼时顶盖自动抬起�
 large_gatehouse_swap_sides: 互换左右两侧贴图
 large_gatehouse_swap_sides_tooltip: 如果朝向左下方的城门楼显示了朝向右下方的贴图（或相反），请启用此项。
 editor_group: 叠加层工具
-editor_group_descr: 选中建筑后点击其面板中的叠加层，用方向键和步长按钮微调，再点击保存。
+editor_group_descr: 选中建筑后点击其面板中的叠加层，用箭头按钮和步长按钮调整位置，再点击保存。
 editor_enabled: 在建筑面板中编辑叠加层
 editor_enabled_tooltip: 点击已选建筑面板中的叠加层即可编辑。
 mouse_group: 叠加层显示

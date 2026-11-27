@@ -5,12 +5,12 @@ large_gatehouse_enabled_tooltip: Die Abdeckung verschwindet, sobald Truppen das 
 large_gatehouse_swap_sides: Linkes und rechtes Bild tauschen
 large_gatehouse_swap_sides_tooltip: Verwende dies, wenn das Bild für ein nach links unten zeigendes Torhaus auf einem nach rechts unten zeigenden Torhaus erscheint (und umgekehrt).
 editor_group: Overlay-Werkzeug
-editor_group_descr: Wähle ein Gebäude und klicke auf ein Overlay in dessen Menü. Justiere es mit den Pfeilen und der Schrittweite und klicke dann auf Speichern.
+editor_group_descr: Wähle ein Gebäude und klicke in seinem Menü auf ein Overlay. Passe es mit den Pfeilen und der Taste für die Schrittweite an und klicke auf Speichern.
 editor_enabled: Overlays im Gebäudemenü bearbeiten
 editor_enabled_tooltip: Klicke auf ein Overlay im Menü des gewählten Gebäudes, um es zu bearbeiten.
 mouse_group: Overlay-Anzeige
 mouse_group_descr: Wähle, wie Overlays Truppen sichtbar machen und wo Flaggen sitzen.
-hover_only: Truppen beim Überfahren sichtbar machen
+hover_only: Truppen unter dem Mauszeiger sichtbar machen
 hover_only_tooltip: Zeige auf einen Turm, ein Torhaus oder einen Bergfried, um Truppen hinter dem Overlay zu sehen.
 drawing_group: Overlay-Darstellung
 drawing_group_descr: Steuere, wie Overlays, Truppen und Flaggen gezeichnet werden.

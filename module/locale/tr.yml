@@ -11,7 +11,7 @@ editor_enabled_tooltip: Düzenlemek için seçili binanın panelindeki bir kapla
 mouse_group: Kaplama görünümü
 mouse_group_descr: Kaplamaların birlikleri nasıl göstereceğini ve bayrakların nerede duracağını seçin.
 hover_only: Üzerine gelince birlikleri göster
-hover_only_tooltip: Kaplamasının arkasındaki birlikleri görmek için bir kuleye, kapı binasına veya iç kaleye işaret edin.
+hover_only_tooltip: Kaplamanın arkasındaki birlikleri görmek için imleci bir kulenin, kapı binasının veya iç kalenin üzerine getirin.
 drawing_group: Kaplama çizimi
 drawing_group_descr: Kaplamaların, birliklerin ve bayrakların nasıl çizileceğini kontrol eder.
 tile_by_tile: Kaplamaları öndeki binaların arkasında çiz
