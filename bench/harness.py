@@ -53,13 +53,17 @@ class Host:
         self.scripts = []
         lua = self.lua = lupa.LuaRuntime(unpack_returned_tuples=True, encoding=None)
         g = lua.globals()
+        g[b'data'] = lua.table_from({b'version': lua.table_from({b'isExtreme': lambda: extreme})})
         g[b'VERBOSE'], g[b'INFO'], g[b'WARNING'], g[b'ERROR'] = b'VERBOSE', b'INFO', b'WARNING', b'ERROR'
         g[b'log'] = lambda level, message: self.logs.append(
             '%s: %s' % (level.decode(), message.decode('latin-1')))
         c = lua.table()
         c[b'AOBScan'] = self.scan
+        c[b'AOBScanUnique'] = self.scan_unique
         c[b'scanForAOB'] = lambda *args: self.scan(*args, required=False)
         c[b'readInteger'] = lambda a: self.m.s32(int(a))
+        c[b'readBytes'] = lambda a, n: lua.table_from(list(self.m.read(int(a), int(n))))
+        c[b'compile'] = lambda code, address: lua.table_from(list(self.flatten(code)))
         c[b'readByte'] = lambda a: struct.unpack('<b', self.m.read(int(a), 1))[0]
         c[b'readSmallInteger'] = lambda a: struct.unpack('<h', self.m.read(int(a), 2))[0]
         c[b'allocateCode'] = self.allocate_code
@@ -147,22 +151,31 @@ class Host:
                 return bytes(page)
         return None
 
-    def scan(self, pattern, *rest, required=True):
+    def matches(self, pattern, lo, hi):
         """Scans the emulated memory (so earlier patches count), within the exe image."""
         pattern = pattern.decode('latin-1') if isinstance(pattern, bytes) else pattern
         hits = [h for h in self.E.find(pattern) if h is not None]
-        if rest and rest[0] is not None:
-            lo = int(rest[0]); hi = int(rest[1]) if len(rest) > 1 and rest[1] is not None else 0x7FFFFFFF
-            hits = [h for h in hits if lo <= h <= hi]
+        hits = [h for h in hits if lo <= h <= hi]
         toks = pattern.split()
         good = []
         for h in hits:
             data = self.m.read(h, len(toks))
             if all(t == '?' or int(t, 16) == data[i] for i, t in enumerate(toks)):
                 good.append(h)
-        if not good and required:
-            raise lupa.LuaError('AOBScan: no match ' + pattern)
-        return good[0] if good else None
+        return good
+
+    def scan(self, pattern, lo=None, hi=None, required=True):
+        hits = self.matches(pattern, lo or 0, hi or 0xFFFFFFFF)
+        if not hits and required:
+            raise lupa.LuaError('AOBScan: no match ' + repr(pattern))
+        return hits[0] if hits else None
+
+    def scan_unique(self, pattern):
+        sections = [(va, va + size - 1) for va, size, _, _, name in self.E.secs if name == '.text']
+        hits = [hit for lo, hi in sections for hit in self.matches(pattern, lo, hi)]
+        if len(hits) == 1:
+            return hits[0]
+        return None, b'found more than once' if hits else b'not found'
 
     def flatten(self, table):
         out = []

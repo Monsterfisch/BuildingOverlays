@@ -155,9 +155,11 @@ local GATES = { any = 0xF, open = 0x1, closing = 0x2, closed = 0x4, opening = 0x
 local ITEM_SIZE = 0x50
 local ITEM_TYPE, ITEM_X, ITEM_Y, ITEM_ACTION, ITEM_RENDER = 0x00, 0x04, 0x08, 0x14, 0x1C
 local TYPE_EVERY_FRAME, TYPE_BLOCK, TYPE_LAST = 0x00, 0x64, 0x66
--- The next item is the gatehouse open/close control (type 0x01000000).
-local AOB_REPAIR_ITEM = "03 00 00 00 54 01 00 00 D2 01 00 00 64 00 00 00 1C 00 00 00 "
-  .. string.rep("? ", ITEM_SIZE - 0x14) .. "00 00 00 01"
+-- BuildingMenu's static initializer and the next menu initializer both call Menu::Menu.
+local BUILDING_MENU = {
+  "68 ? ? ? ? B9 ? ? ? ? E8 81 93 F5 FF C3 68 ? ? ? ? B9 ? ? ? ? E8 71 93 F5 FF C3",
+  "68 ? ? ? ? B9 ? ? ? ? E8 E1 92 F5 FF C3 68 ? ? ? ? B9 ? ? ? ? E8 D1 92 F5 FF C3",
+}
 local STATUS_LINE = { 25, 570 }          -- the shared work status line every building shows
 
 -- handleMenuElementsCallbacks: the mouse and its "is the mouse in this box" test.
@@ -451,10 +453,8 @@ local function setting(config, group, name)
 end
 
 local function scan(pattern, purpose)
-  local ok, address = pcall(core.AOBScan, pattern)
-  if not ok or address == nil then
-    error("could not find " .. purpose)
-  end
+  local address, problem = core.AOBScanUnique(pattern)
+  if address == nil then error(purpose .. " " .. problem, 0) end
   return address
 end
 
@@ -1018,9 +1018,9 @@ local function installSites(tail, renderGm, values)
       { 74, "C7 81 ? ? ? ? 7D 00 00 00 C7 81 ? ? ? ? 7C 00 00 00", 16, 0x7C },   -- lookout tower
       { 77, "C7 86 ? ? ? ? 7A 00 00 00", 6, 0x7A },                               -- square tower
     }) do
-      local ok, site = pcall(core.AOBScan, known[2])
+      local site = core.AOBScanUnique(known[2])
       core.writeInteger(defaults + known[1] * 4,
-        (ok and site ~= nil) and core.readInteger(site + known[3]) or known[4])
+        site and core.readInteger(site + known[3]) or known[4])
     end
     local siegeValues = {}
     for key, value in pairs(values) do siegeValues[key] = value end
@@ -1073,7 +1073,7 @@ local pending = {}     -- plugin folders registered before enable finished
 local loadedSources = {} -- folders already read (keys, to their packaged game entries, and in load order), so a plugin found by itself and also calling in counts once
 local firstSource      -- the first plugin folder: the game pictures' offsets are saved there
 local calibrationReady -- true once the user data folder is ready (afterInit)
-local enable           -- defined below
+local startup = {}
 
 ---Adds one overlay (an entry of overlay_list.lua or of a plugin's overlays.lua) to the table
 ---the hook walks. `folder` is where its picture lives.
@@ -1199,13 +1199,12 @@ local function applyCalibration(source)
   end
 end
 
-local readSource
 do
   local rejectedSources = {}
 
   ---`path` with UCP's path aliases resolved and ending in a slash, and the entries of its
   ---overlays.lua (nil when the reader rejects it).
-  function readSource(path)
+  function startup.readSource(path)
     local folder = path
     if io.resolveAliasedPath ~= nil then
       local ok, resolved = pcall(io.resolveAliasedPath, path)
@@ -1229,60 +1228,32 @@ do
   end
 end
 
-local registerOverlaySource
-do
-  local pluginOverlayFailureReported = false
-
-  ---A plugin hands over a folder holding an overlays.lua data file and the
-  ---PNGs it names. Called from the plugin's own enable, after this module's.
-  ---e.g. modules["building-overlays"]:registerOverlaySource(
-  ---  "ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
-  function registerOverlaySource(self, path)
-    local folder, entries = readSource(path)
-    if entries == nil then
-      return
-    end
-    if not state then
-      pending[#pending + 1] = path
-      if state == false then
-        -- enable found every option off and no plugin overlays; it installs for these
-        local ok, problem = pcall(enable, self, {})
-        if not ok then
-          if not pluginOverlayFailureReported then
-            pluginOverlayFailureReported = true
-            log(ERROR, "Custom building overlays from plugins are off.")
-          end
-          log(WARNING, "plugin overlays are not drawn: " .. tostring(problem))
-        end
-      end
-      return
-    end
-    if loadedSources[folder] then
-      return
-    end
-    local other = overlayData.claim(folder)
-    if other ~= nil then
-      log(WARNING, "one overlay folder per plugin keeps its own calibration; "
-        .. folder .. " ignored, " .. other .. " is registered")
-      return
-    end
-    local games = {}
-    loadedSources[folder] = games
-    loadedSources[#loadedSources + 1] = folder
-    firstSource = firstSource or folder
-    for _, entry in ipairs(entries) do
-      if type(entry) == "table" and entry.game ~= nil then
-        games[#games + 1] = entry
-        applyGameEntry(entry)
-      else
-        addOverlay(entry, folder, false, folder)
-      end
-    end
-    if calibrationReady then
-      applyCalibration(folder)
-    end
-    log(INFO, string.format("%d overlay(s) in total after %s", #overlays, folder))
+function startup.registerSource(folder, entries)
+  if loadedSources[folder] then
+    return
   end
+  local other = overlayData.claim(folder)
+  if other ~= nil then
+    log(WARNING, "one overlay folder per plugin keeps its own calibration; "
+      .. folder .. " ignored, " .. other .. " is registered")
+    return
+  end
+  local games = {}
+  loadedSources[folder] = games
+  loadedSources[#loadedSources + 1] = folder
+  firstSource = firstSource or folder
+  for _, entry in ipairs(entries) do
+    if type(entry) == "table" and entry.game ~= nil then
+      games[#games + 1] = entry
+      applyGameEntry(entry)
+    else
+      addOverlay(entry, folder, false, folder)
+    end
+  end
+  if calibrationReady then
+    applyCalibration(folder)
+  end
+  log(INFO, string.format("%d overlay(s) in total after %s", #overlays, folder))
 end
 
 ---------------------------------------------------------------------------------------
@@ -1383,31 +1354,32 @@ end
 
 ---The building panel's item table, its first every-frame item and its work status line.
 local function findBuildingMenu()
-  -- A cached match can hide an earlier duplicate even in a bounded AOBScan.
-  local repairItem = core.scanForAOB(AOB_REPAIR_ITEM)
-  if repairItem == nil then
-    error("could not find the building panel's Repair button")
+  local constructor = core.AOBScanUnique(BUILDING_MENU[data.version.isExtreme() and 2 or 1])
+  if constructor == nil then error("the building menu initializer could not be bound", 0) end
+  local start = core.readInteger(constructor + 1)
+  if start == 0 or core.readInteger(start + ITEM_TYPE) ~= TYPE_EVERY_FRAME then
+    error("the building panel is not the one this module knows", 0)
   end
-  if core.scanForAOB(AOB_REPAIR_ITEM, repairItem + 1) ~= nil then
-    error("multiple matches for the building panel's Repair button")
-  end
-  local start, limit = repairItem, 400
-  while core.readInteger(start - ITEM_SIZE + ITEM_TYPE) ~= TYPE_LAST and limit > 0 do
-    start = start - ITEM_SIZE
-    limit = limit - 1
-  end
-  if limit == 0 or core.readInteger(start + ITEM_TYPE) ~= TYPE_EVERY_FRAME then
-    error("the building panel is not the one this module knows")
-  end
-  local item = start
-  while core.readInteger(item + ITEM_TYPE) ~= TYPE_BLOCK do
-    if core.readInteger(item + ITEM_TYPE) == 3 and core.readInteger(item + ITEM_X) == STATUS_LINE[1]
-        and core.readInteger(item + ITEM_Y) == STATUS_LINE[2] then
-      return start, item
+  local status, repair, common = nil, nil, true
+  for index = 0, 399 do
+    local item = start + ITEM_SIZE * index
+    local kind = core.readInteger(item + ITEM_TYPE)
+    if kind == TYPE_LAST then
+      if status and repair then return start, status, core.readInteger(constructor + 6) end
+      break
     end
-    item = item + ITEM_SIZE
+    if kind == TYPE_BLOCK then common = false end
+    if kind == 3 then
+      local x, y = core.readInteger(item + ITEM_X), core.readInteger(item + ITEM_Y)
+      if common and x == STATUS_LINE[1] and y == STATUS_LINE[2] then status = item end
+      if x == 340 and y == 466 and core.readInteger(item + 0x0C) == 100
+          and core.readInteger(item + 0x10) == 28 and core.readInteger(item + ITEM_SIZE) == 0x01000000 then
+        if repair ~= nil then error("the building menu has multiple Repair buttons", 0) end
+        repair = item
+      end
+    end
   end
-  error("the building panel's status line is not where this module expects it")
+  error("the building panel's Repair button or status line could not be verified", 0)
 end
 
 ---Wraps the first every-frame item (clicks) and the work status line (drawing) in an item list.
@@ -1431,7 +1403,7 @@ local function wrapItems(items, originals, wrappers)
 end
 
 local function installPanel(v)
-  local start, status = findBuildingMenu()
+  local start, status, menu = findBuildingMenu()
   local nameBox = scan(AOB_NAME_BOX, "the game's text drawing")
   local menuItem = scan(AOB_MENU_ITEM, "the menu item handler")
   local drawColourBox = readCallTarget(nameBox, NAME_BOX_DRAW_COLOUR_BOX, "the box drawing")
@@ -1522,27 +1494,12 @@ local function installPanel(v)
   }
 
   wrapItems(start, originals, wrappers)
-  local startBytes = {}
-  for _, byte in ipairs(core.itob(start)) do
-    startBytes[#startBytes + 1] = string.format("%02X", byte & 0xFF)
+  local function wrapLive()
+    local items = core.readInteger(menu)
+    if items ~= 0 and items ~= start then wrapItems(items, originals, wrappers) end
   end
-  local found, constructorSite = pcall(core.AOBScan, "68 " .. table.concat(startBytes, " ") .. " B9")
-  if found and constructorSite ~= nil then
-    local menu = core.readInteger(constructorSite + 6)
-    local function wrapLive()
-      local items = core.readInteger(menu)
-      log(INFO, string.format("building panel uses items at %08X (static %08X)",
-        items, start))
-      if items ~= 0 and items ~= start then
-        wrapItems(items, originals, wrappers)
-      end
-    end
-    wrapLive()
-    hooks.registerHookCallback("afterInit", wrapLive)
-  else
-    log(WARNING, "could not find the building panel itself; the overlay tool "
-      .. "relies on its item table")
-  end
+  wrapLive()
+  hooks.registerHookCallback("afterInit", wrapLive)
 end
 
 ---------------------------------------------------------------------------------------
@@ -1622,10 +1579,11 @@ local function fixKeepDoor()
   -- once for the stone keep and stronghold
   local pillars = {}
   local pattern = "8B 0D ? ? ? ? 3B CE C7 80 ? ? ? ? ? ? ? ? C7 80 ? ? ? ? ? ? ? ? 89 B0 ? ? ? ? 74 ? 83 F9 04 74"
-  local from = scan(pattern, "the keep entrance pillar")
+  local from = core.AOBScan(pattern)
+  if from == nil then error("the keep entrance pillars were not found", 0) end
   pillars[1] = from
-  local ok, second = pcall(core.AOBScan, pattern, from + 1)
-  if not ok or second == nil or second - from > 0x100 then
+  local second = core.scanForAOB(pattern, from + 1, from + 0x100)
+  if second == nil then
     error("the keep entrance pillar is not the code this module knows")
   end
   pillars[2] = second
@@ -1817,41 +1775,11 @@ end
 -- Enable
 ---------------------------------------------------------------------------------------
 
-enable = function(self, config)
-  config = config or {}
-  -- Every active plugin with resources/modsupport/building-overlays/overlays.lua is read without
-  -- the plugin having to call in (a plugin re-exported by a tool loses its init.lua).
-  local ok, problem = pcall(function()
-    for _, extension in pairs(allActiveExtensions or {}) do
-      if extension.name ~= nil and extension:type() == "PluginLoader" then
-        local path = "ucp/plugins/" .. extension.name .. "-*/resources/modsupport/building-overlays/"
-        local file = io.open(path .. "overlays.lua", "rb")
-        if file ~= nil then
-          file:close()
-          local _, entries = readSource(path)
-          if entries ~= nil then
-            pending[#pending + 1] = path
-          end
-        end
-      end
-    end
-  end)
-  if not ok then
-    log(WARNING, "could not look through the plugins: " .. tostring(problem))
+function startup.installDrawing(config)
+  local patches = {}
+  local function stage(address, code)
+    patches[#patches + 1] = { address = address, code = code }
   end
-  local anyOn = false
-  for group, names in pairs(DEFAULTS) do
-    for name in pairs(names) do
-      anyOn = anyOn or setting(config, group, name) == true
-    end
-  end
-  if #pending == 0 and not anyOn then
-    state = false
-    log(INFO, "every option is off and no plugin brings overlays; nothing installed")
-    return
-  end
-
-  overlays = {}
 
   local tail = scan(AOB_TAIL, "the end of the building overlay drawing")
   local pixelFormat = core.readInteger(scan(AOB_PIXEL_FORMAT, "the pixel format")
@@ -1871,7 +1799,7 @@ enable = function(self, config)
     + core.readInteger(renderGm + RENDER_GM_BLIT_CALL + 1)
   local buildings = (typeDisplacement - B_TYPE) & 0xFFFFFFFF
 
-  state = {
+  local drawing = {
     block = core.allocate(16, true),           -- +0 overlay count, +4 tool on, +8 picked record
     records = core.allocate(MAX_OVERLAYS * RECORD_SIZE, true),
   }
@@ -1881,11 +1809,11 @@ enable = function(self, config)
     original[#original + 1] = string.format("0x%02X", core.readByte(tail + offset) & 0xFF)
   end
   local values = {
-    BUILDINGS = buildings, BSHOWN = B_SHOWN, STATE = state.block, SELECTED = selected,
+    BUILDINGS = buildings, BSHOWN = B_SHOWN, STATE = drawing.block, SELECTED = selected,
     FRAME0 = B_FRAMES[1], FRAME1 = B_FRAMES[2], FRAME2 = B_FRAMES[3], FRAME3 = B_FRAMES[4],
     BTYPE = B_TYPE, OCCUPIED = B_OCCUPIED, VARIATION = B_VARIATION, VARIATION_X = VARIATION_X,
     GATE_STATE = B_GATE_STATE, SCRATCH = core.allocate(32, true), MAP_ORIENTATION = orientation,
-    PIXEL_FORMAT = pixelFormat, RECORDS = state.records, RECORD_SIZE = RECORD_SIZE,
+    PIXEL_FORMAT = pixelFormat, RECORDS = drawing.records, RECORD_SIZE = RECORD_SIZE,
     RENDER_CORE = renderCore, BLIT = blit, RESUME = tail + TAIL_SIZE,
     HOVER_ONLY = setting(config, "mouse", "hover_only") and 1 or 0,
     LAST_HOVER = core.allocate(4, true), VIEWPORT = core.allocate(4, true),
@@ -1918,7 +1846,7 @@ enable = function(self, config)
   values.MOUSE_Y = core.readInteger(start + FRAME_START_MOUSE_Y)
   values.FRAME_RESUME = start + FRAME_START_HOOK + FRAME_START_SIZE
   local frameHook = assemble(strips.FRAME_START_SCRIPT, values)
-  core.writeCode(start + FRAME_START_HOOK,
+  stage(start + FRAME_START_HOOK,
     { 0xE9, core.itob(core.getRelativeAddress(start + FRAME_START_HOOK, frameHook, -5)), 0x90 })
   if values.HOVER_ONLY == 1 then
     values.HOVERED = assemble(strips.HOVER_SCRIPT, values)
@@ -1930,6 +1858,7 @@ enable = function(self, config)
   values.CALL_COUNT, values.CALLS_DRAW = core.allocate(4, true), 0
   values.FLAGS_ON_TOP = setting(config, "drawing", "flags_on_top") and 1 or 0
   if setting(config, "drawing", "tile_by_tile") then
+    local beforeLayering = #patches
     local ok, problem = pcall(function()
       local piece = scan(strips.AOB_TILE_PIECE, "where the map draws a building piece")
       values.TILE_X = core.readInteger(piece + strips.TILE_X_OPERAND)
@@ -1962,6 +1891,7 @@ enable = function(self, config)
       values.REMEMBER_AT = assemble(strips.REMEMBER_AT_SCRIPT, values)
       values.REMEMBER = assemble(strips.REMEMBER_SCRIPT, values)
       values.MARK_UNITS = 0
+      local beforeSorting = #patches
       local sortOk, sortProblem = pcall(function()
         local queue = scan("83 C0 FF 83 F8 04 0F 87 ? ? ? ? 56 FF 24 85", "where the map queues a unit")
         local note = scan("83 7C 24 18 FF 75 ? 8B 54 24 14 85 D2 7D", "where the map draws a unit")
@@ -2032,16 +1962,16 @@ enable = function(self, config)
         values.MARK_UNITS = assemble(strips.MARK_SCRIPT, u)
         values.MARKED = core.allocate(MAX_BUILDINGS * 4, true)
         values.MARK_B = u.MARK_B
-        core.writeCode(queue, { 0xE9, core.itob(core.getRelativeAddress(queue, queueHook, -5)), 0x90 })
-        core.writeCode(note, { 0xE9, core.itob(core.getRelativeAddress(note, noteHook, -5)), 0x90, 0x90 })
-        core.writeCode(done, { 0xE9, core.itob(core.getRelativeAddress(done, redrawHook, -5)), 0x90, 0x90 })
+        stage(queue, { 0xE9, core.itob(core.getRelativeAddress(queue, queueHook, -5)), 0x90 })
+        stage(note, { 0xE9, core.itob(core.getRelativeAddress(note, noteHook, -5)), 0x90, 0x90 })
+        stage(done, { 0xE9, core.itob(core.getRelativeAddress(done, redrawHook, -5)), 0x90, 0x90 })
         if mapUnitsDone ~= 0 then
           local bytes = {}
           for offset = 0, strips.MAP_UNITS_DONE_SIZE - 1 do
             bytes[#bytes + 1] = string.format("0x%02X", core.readByte(mapUnitsDone + offset) & 0xFF)
           end
           local flagDraw = assemble(strips.FLAG_DRAW_SCRIPT:gsub("ORIGINAL", "db " .. table.concat(bytes, ",")), u)
-          core.writeCode(mapUnitsDone, { 0xE9, core.itob(core.getRelativeAddress(mapUnitsDone, flagDraw, -5)),
+          stage(mapUnitsDone, { 0xE9, core.itob(core.getRelativeAddress(mapUnitsDone, flagDraw, -5)),
             0x90, 0x90, 0x90, 0x90, 0x90 })
           -- the entity pass: its picture calls go through a stub that holds flags back
           local pass = scan(strips.AOB_ENTITY_PASS, "the map's entity drawing")
@@ -2061,7 +1991,7 @@ enable = function(self, config)
                   ENTITY_SPAN = 3000 * 0xE8, BUILDING_SIZE = BUILDING_SIZE, BUILDINGS = values.BUILDINGS,
                   B_X = B_X, B_Y = B_Y, B_SIZE = B_SIZE, MAP_ROTATION = values.MAP_ORIENTATION,
                   BUILDINGS = values.BUILDINGS })
-                core.writeCode(address + 1, { bytesOf(stub - (address + 5)) })
+                stage(address + 1, { bytesOf(stub - (address + 5)) })
                 hooked = hooked + 1
                 address = address + 4
               end
@@ -2076,22 +2006,57 @@ enable = function(self, config)
         core.writeInteger(values.LOG_OFF, 0)
       end)
       if not sortOk then
-        values.MARK_UNITS = 0
+        for index = #patches, beforeSorting + 1, -1 do patches[index] = nil end
+        values.CALLS_DRAW, values.MARK_UNITS = 0, 0
         values.MARKED, values.MARK_B = 0, 0
         log(ERROR, "Unit draw ordering for overlays is off.")
         log(WARNING, "units on buildings may show over overlays: " .. tostring(sortProblem))
       end
       local tileHook = assemble(strips.TILE_SCRIPT, values)
-      core.writeCode(piece + strips.TILE_HOOK,
+      stage(piece + strips.TILE_HOOK,
         { 0xE9, core.itob(core.getRelativeAddress(piece + strips.TILE_HOOK, tileHook, -5)) })
       values.TILE_STRIPS = 1
     end)
     if not ok then
+      for index = #patches, beforeLayering + 1, -1 do patches[index] = nil end
+      values.TILE_STRIPS, values.REMEMBER, values.CALLS_DRAW = 0, 0, 0
       log(ERROR, "Layered building overlays are off. Overlays will draw in one piece.")
       log(WARNING, "overlays are drawn in one piece: " .. tostring(problem))
     end
   end
   local blob = assemble(script, values)
+  stage(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
+  for _, patch in ipairs(patches) do
+    patch.code = core.compile(patch.code, patch.address)
+    patch.original = core.readBytes(patch.address, #patch.code)
+  end
+  local attempted = 0
+  local ok, problem = pcall(function()
+    for index, patch in ipairs(patches) do
+      attempted = index
+      core.writeCode(patch.address, patch.code, false)
+    end
+  end)
+  if not ok then
+    for index = attempted, 1, -1 do
+      local patch = patches[index]
+      core.writeCode(patch.address, patch.original)
+    end
+    error(problem, 0)
+  end
+  state, overlays = drawing, {}
+  return tail, renderGm, values
+end
+
+function startup.startDrawing(config)
+  if startup.drawingFailed then return end
+  local ok, tail, renderGm, values = pcall(startup.installDrawing, config)
+  if not ok then
+    startup.drawingFailed = true
+    log(ERROR, "Building overlay drawing is off: " .. tostring(tail))
+    return
+  end
+
 
   -- The module's own list first; the count stays 0 until the first record is complete.
   local swap = setting(config, "large_gatehouse", "swap_sides")
@@ -2101,7 +2066,6 @@ enable = function(self, config)
     end
   end
 
-  core.writeCode(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
   local sitesOk, sitesProblem = pcall(installSites, tail, renderGm, values)
   if not sitesOk then
     log(ERROR, "Moving the game's building overlays is off.")
@@ -2111,8 +2075,13 @@ enable = function(self, config)
   end
 
   if values.HOVER_ONLY == 1 then
-    log(INFO, string.format("tower roofs hide only under the mouse, crenellations as the game says "
-      .. "(%d checks changed)", patchVanillaOverlays(tail, values)))
+    local ok, result = pcall(patchVanillaOverlays, tail, values)
+    if ok then
+      log(INFO, string.format("tower roofs hide only under the mouse, crenellations as the game says "
+        .. "(%d checks changed)", result))
+    else
+      log(ERROR, "Adjusting the game's tower roofs is off: " .. tostring(result))
+    end
   end
 
   if setting(config, "editor", "enabled") then
@@ -2124,13 +2093,6 @@ enable = function(self, config)
     end
   end
 
-  if setting(config, "flags", "follow_turn") then
-    local ok, message = pcall(fixFlagTurn)
-    if not ok then
-      log(ERROR, "Flag repositioning when the map turns is off.")
-      log(WARNING, "flags keep the game's spot when the map is turned: " .. tostring(message))
-    end
-  end
   if setting(config, "flags", "on_edges") then
     local ok, message = pcall(flagsOnEdges, values)
     if not ok then
@@ -2139,16 +2101,8 @@ enable = function(self, config)
     end
   end
 
-  if setting(config, "keep_entrance", "enabled") then
-    local ok, message = pcall(fixKeepDoor)
-    if not ok then
-      log(ERROR, "The keep entrance drawing fix is off.")
-      log(WARNING, "the keep entrance stays as the game draws it: " .. tostring(message))
-    end
-  end
-
-  for _, path in ipairs(pending) do
-    registerOverlaySource(self, path)
+  for _, source in ipairs(pending) do
+    startup.registerSource(source.folder, source.entries)
   end
   pending = {}
   log(INFO, string.format("%d overlay(s) active", #overlays))
@@ -2164,11 +2118,75 @@ enable = function(self, config)
   end)
 end
 
+function startup.discoverSources()
+  -- Every active plugin with resources/modsupport/building-overlays/overlays.lua is read without
+  -- the plugin having to call in (a plugin re-exported by a tool loses its init.lua).
+  local ok, problem = pcall(function()
+    for _, extension in pairs(allActiveExtensions or {}) do
+      if extension.name ~= nil and extension:type() == "PluginLoader" then
+        local path = "ucp/plugins/" .. extension.name .. "-*/resources/modsupport/building-overlays/"
+        local file = io.open(path .. "overlays.lua", "rb")
+        if file ~= nil then
+          file:close()
+          local folder, entries = startup.readSource(path)
+          if entries ~= nil then
+            pending[#pending + 1] = { folder = folder, entries = entries }
+          end
+        end
+      end
+    end
+  end)
+  if not ok then
+    log(WARNING, "could not look through the plugins: " .. tostring(problem))
+  end
+end
+
+function startup.enable(self, config)
+  config = config or {}
+  startup.discoverSources()
+  if setting(config, "flags", "follow_turn") then
+    local ok, message = pcall(fixFlagTurn)
+    if not ok then
+      log(ERROR, "Flag repositioning when the map turns is off.")
+      log(WARNING, "flags keep the game's spot when the map is turned: " .. tostring(message))
+    end
+  end
+  if setting(config, "keep_entrance", "enabled") then
+    local ok, message = pcall(fixKeepDoor)
+    if not ok then
+      log(ERROR, "The keep entrance drawing fix is off.")
+      log(WARNING, "the keep entrance stays as the game draws it: " .. tostring(message))
+    end
+  end
+
+  for group, settings in pairs(DEFAULTS) do
+    for name in pairs(settings) do
+      if group ~= "keep_entrance" and (group ~= "flags" or name ~= "follow_turn")
+          and setting(config, group, name) == true then
+        return startup.startDrawing(config)
+      end
+    end
+  end
+  if #pending > 0 then return startup.startDrawing(config) end
+  state = false
+end
+
+function startup.registerOverlaySource(self, path)
+  local folder, entries = startup.readSource(path)
+  if not entries then return end
+  if state then
+    startup.registerSource(folder, entries)
+  elseif not startup.drawingFailed then
+    pending[#pending + 1] = { folder = folder, entries = entries }
+    if state == false then startup.startDrawing({}) end
+  end
+end
+
 -- Plugins only see what is listed as public.
 return {
-  enable = enable,
+  enable = startup.enable,
   disable = function(self, config) end,
-  registerOverlaySource = registerOverlaySource,
+  registerOverlaySource = startup.registerOverlaySource,
 }, {
   public = { "registerOverlaySource" },
 }
