@@ -562,17 +562,21 @@ def hover_suite(ext):
 def foreign_suite(ext):
     print('=== another module redirected picture calls first, %s' % ('Extreme' if ext else 'vanilla'))
     fresh_work()
+    redirects = {}
     def redirect(h):
-        # what interface-visual-fixes does: five renderGM calls of the tower half go elsewhere
         E = h.E
         pad = 0x6F000000
         h.m.write(pad, bytes([0xC2, 0x10, 0x00]))      # ret 0x10
         hits = E.find('52 50 6A 36 B9 ? ? ? ? E8 ? ? ? ? 8B 86 ? ? ? ? 85 C0 0F 84')
         for a in hits[:4]:
             call = a + 9
-            h.m.write(call + 1, struct.pack('<i', pad - (call + 5)))
+            redirects[call + 1] = struct.pack('<i', pad - (call + 5))
+            h.m.write(call + 1, redirects[call + 1])
     h = Host(extreme=ext, config={}, foreign_patches=False, aic=False, pre=redirect)
-    check('the numbering stays at 162 with redirected calls', any('162 of the game' in l for l in h.logs), True)
+    check('an unrecognized picture redirect reports one error', sum(
+        'unrecognized building picture redirect' in line for line in h.logs), 1)
+    check('the foreign calls are left in place', all(
+        h.m.read(address, len(code)) == code for address, code in redirects.items()), True)
 
 
 def strips_suite(ext):

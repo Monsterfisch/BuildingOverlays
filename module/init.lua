@@ -442,10 +442,6 @@ end
 
 local function validateSettings(config)
   local valid = {}
-  if type(config) ~= "table" then
-    log(ERROR, "Building Overlays: invalid settings type.")
-    return valid
-  end
   for group, defaults in pairs(DEFAULTS) do
     local section = config[group]
     if section ~= nil and type(section) ~= "table" then
@@ -867,6 +863,57 @@ ret 0x14
 local B_ON_TOP = 0x2F8
 local MAX_BUILDINGS = 2048             -- the game has room for 2000
 
+local startup = {}
+
+function startup.resolveRoofDefaults(buildings)
+  local defaults = {}
+  local roofField = (buildings + B_ROOF) & 0xFFFFFFFF
+  for _, roof in ipairs({
+    { 74, "Lookout tower", "C7 81 ? ? ? ? 7D 00 00 00 C7 81 ? ? ? ? 7C 00 00 00", 10, 0x81 },
+    { 77, "Square tower", "C7 86 ? ? ? ? 7A 00 00 00", 0, 0x86 },
+  }) do
+    local purpose = roof[2] .. " roof default"
+    local site = scan(roof[3], purpose) + roof[4]
+    if (readOperand(site, { 0, { 0xC7, roof[5] } }, purpose) & 0xFFFFFFFF) ~= roofField then
+      error(purpose .. " does not write the roof field", 0)
+    end
+    defaults[roof[1]] = core.readInteger(site + 6)
+  end
+  return defaults
+end
+
+-- Interface and Visual Fixes' tower-door feature redirects all five calls to one wrapper.
+function startup.resolveDoorCalls(target, renderCore, renderGm)
+  local sites = {}
+  for _, pattern in ipairs({
+    "DC 52 50 6A 36 B9 ? ? ? ? E8 ? ? ? ? 8B 86 ? ? ? ? 85 C0 0F 84 ? ? ? ? 83 C7 8F 57 83 C5 20",
+    "DC 52 50 6A 36 B9 ? ? ? ? E8 ? ? ? ? 8B 86 ? ? ? ? 85 C0 0F 84 ? ? ? ? 83 C7 89 57 83 C5 2E",
+    "CC 52 50 6A 36 B9 ? ? ? ? E8 ? ? ? ? 8B 86 ? ? ? ? 85 C0 0F 84 ? ? ? ? 83 C7 83 57 83 C5 30",
+    "CD 52 50 6A 36 B9 ? ? ? ? E8 ? ? ? ? 8B 86 ? ? ? ? 85 C0 0F 84 ? ? ? ? 83 C7 84 57 83 C5 31",
+    "03 D5 52 51 50 B9 ? ? ? ? E8 ? ? ? ? 66 83 BE ? ? ? ? 31 75 0A B9 ? ? ? ? E8 ? ? ? ? 5F 5E",
+  }) do
+    local site = scan(pattern, "the Interface and Visual Fixes tower-door call")
+    if (readOperand(site, { 5, { 0xB9 } }, "the tower-door texture core") & 0xFFFFFFFF) ~= renderCore
+        or (readCallTarget(site, 10, "the tower-door drawing") & 0xFFFFFFFF) ~= target then
+      error("unrecognized building picture redirect", 0)
+    end
+    sites[site + 10] = true
+  end
+  -- pushfd; pushad; sub esp,32; cmp dword [esp+72],54; jne finish
+  expectBytes(target, { 0x9C, 0x60, 0x83, 0xEC, 0x20, 0x83, 0x7C, 0x24, 0x48, 0x36, 0x0F, 0x85 },
+    "the Interface and Visual Fixes tower-door wrapper")
+  local finish = target + 16 + core.readInteger(target + 12)
+  if finish <= target or finish >= target + 1024 then error("unrecognized tower-door wrapper exit", 0) end
+  -- The native tail call or the wrapper's own ret 16 consumes the four picture arguments.
+  expectBytes(finish, { 0x83, 0xC4, 0x20, 0x61, 0x9D, 0xE9 }, "the tower-door wrapper exit")
+  if (finish + 10 + core.readInteger(finish + 6)) & 0xFFFFFFFF ~= renderGm then
+    error("the tower-door wrapper does not return to the picture renderer", 0)
+  end
+  expectBytes(finish + 10, { 0x83, 0xC4, 0x20, 0x61, 0x9D, 0xC2, 0x10, 0x00 },
+    "the tower-door wrapper return")
+  return sites
+end
+
 local sites = {}                         -- { records (type 0), number }
 
 local function bytesOf(value)
@@ -929,11 +976,8 @@ local function installSites(tail, renderGm, values, prepareVanillaOverlays)
     [renderGm + RENDER_GM_ALPHA] = { 0x24, 0x28, 0 },
     [readCallTarget(renderGm, RENDER_GM_ANIMATION_CALL, "the animation drawing")] = { 0x1C, 0x20, 0 },
   }
-  -- Another module may already have redirected some of these calls (interface-visual-fixes
-  -- does five): a call that lands outside the game image, right after `mov ecx, <texture
-  -- core>`, is such a picture call. It is hooked as well (on top of the other module's code),
-  -- so the numbering is the same whatever else is installed.
   local imageStart, imageEnd = ucp.internal.getMainImageRange()
+  local doorSites, doorTarget
   local found, patches, recordsBySite = {}, {}, {}
   for _, range in ipairs({ { f2, f2End }, { f1, tail } }) do
     local address = range[1]
@@ -944,6 +988,10 @@ local function installSites(tail, renderGm, values, prepareVanillaOverlays)
         if kind == nil and (target < imageStart or target > imageEnd)
             and (core.readByte(address - 5) & 0xFF) == 0xB9
             and (core.readInteger(address - 4) & 0xFFFFFFFF) == values.RENDER_CORE then
+          if not doorSites then
+            doorSites, doorTarget = startup.resolveDoorCalls(target, values.RENDER_CORE, renderGm), target
+          end
+          if not doorSites[address] or target ~= doorTarget then error("unrecognized building picture redirect", 0) end
           kind = { 0x24, 0x28, 0 }
         end
         if kind ~= nil then
@@ -1034,13 +1082,8 @@ local function installSites(tail, renderGm, values, prepareVanillaOverlays)
   if values.HOVER_ONLY == 1 then
     local roofField = (values.BUILDINGS + B_ROOF) & 0xFFFFFFFF
     local defaults = core.allocate(TYPE_COUNT * 4, true)
-    for _, known in ipairs({
-      { 74, "C7 81 ? ? ? ? 7D 00 00 00 C7 81 ? ? ? ? 7C 00 00 00", 16, 0x7C },   -- lookout tower
-      { 77, "C7 86 ? ? ? ? 7A 00 00 00", 6, 0x7A },                               -- square tower
-    }) do
-      local site = core.AOBScanUnique(known[2])
-      core.writeInteger(defaults + known[1] * 4,
-        site and core.readInteger(site + known[3]) or known[4])
+    for kind, image in pairs(values.ROOF_DEFAULTS) do
+      core.writeInteger(defaults + kind * 4, image)
     end
     local siegeValues = {}
     for key, value in pairs(values) do siegeValues[key] = value end
@@ -1100,7 +1143,6 @@ local pending = {}     -- plugin folders registered before enable finished
 local loadedSources = {} -- folders already read (keys, to their packaged game entries, and in load order), so a plugin found by itself and also calling in counts once
 local firstSource      -- the first plugin folder: the game pictures' offsets are saved there
 local calibrationReady -- true once the user data folder is ready (afterInit)
-local startup = {}
 
 ---Adds one overlay (an entry of overlay_list.lua or of a plugin's overlays.lua) to the table
 ---the hook walks. `folder` is where its picture lives.
@@ -1424,8 +1466,8 @@ local function wrapItems(items, originals, wrappers)
     item = item + ITEM_SIZE
     limit = limit - 1
   end
-  log(INFO, string.format("panel items at %08X: click item %s, %d status line(s) wrapped",
-    items, frameDone and "wrapped" or "not found", renders))
+  log(INFO, string.format("panel click item %s, %d status line(s) wrapped",
+    frameDone and "wrapped" or "not found", renders))
 end
 
 local function installPanel(v)
@@ -1822,6 +1864,15 @@ function startup.installDrawing(config)
   local blit = renderGm + RENDER_GM_BLIT_CALL + 5
     + core.readInteger(renderGm + RENDER_GM_BLIT_CALL + 1)
   local buildings = (typeDisplacement - B_TYPE) & 0xFFFFFFFF
+  local roofDefaults
+  if setting(config, "mouse", "hover_only") then
+    local ok, result = pcall(startup.resolveRoofDefaults, buildings)
+    if ok then
+      roofDefaults = result
+    else
+      log(ERROR, "Tower roof adjustment is off: " .. tostring(result))
+    end
+  end
 
   local drawing = {
     block = core.allocate(16, true),           -- +0 overlay count, +4 tool on, +8 picked record
@@ -1839,7 +1890,7 @@ function startup.installDrawing(config)
     GATE_STATE = B_GATE_STATE, SCRATCH = core.allocate(32, true), MAP_ORIENTATION = orientation,
     PIXEL_FORMAT = pixelFormat, RECORDS = drawing.records, RECORD_SIZE = RECORD_SIZE,
     RENDER_CORE = renderCore, BLIT = blit, RESUME = tail + TAIL_SIZE,
-    HOVER_ONLY = setting(config, "mouse", "hover_only") and 1 or 0,
+    HOVER_ONLY = roofDefaults and 1 or 0, ROOF_DEFAULTS = roofDefaults,
     LAST_HOVER = core.allocate(4, true), VIEWPORT = core.allocate(4, true),
     GATED = core.allocate(4, true), MOUSE_X = 0, MOUSE_Y = 0,
     V_VIEW = core.readInteger(scan(AOB_V_VIEW, "the V view flag") + V_VIEW_OBJECT) + V_VIEW_FIELD,
@@ -2138,6 +2189,11 @@ function startup.discoverSources()
 end
 
 function startup.enable(self, config)
+  if config ~= nil and type(config) ~= "table" then
+    log(ERROR, "Building Overlays: invalid settings type. Using defaults.")
+    state = false
+    return
+  end
   config = validateSettings(config or {})
   startup.discoverSources()
   if setting(config, "flags", "follow_turn") then
