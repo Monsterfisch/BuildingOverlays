@@ -1,39 +1,36 @@
 large_gatehouse_group: Büyük kapı binası
-large_gatehouse_group_descr: Üzerinde kimse yokken büyük bir kapı binasının kuleleri üzerine çizilen görsel; böylece boş geçit yerine duvarlar kapalı görünür.
-large_gatehouse_enabled: Boş büyük kapı binalarında kapalı görünümü çiz
-large_gatehouse_enabled_tooltip: Üzerinde asker bulunmayan büyük kapı binalarının kuleleri üzerine bir görsel çizilir. Birlikler kapı binasına çıkar çıkmaz görsel kaybolur ve birlikler her zamanki gibi görünür.
+large_gatehouse_group_descr: Kapı binasının üstünde kimse yokken bir kapak görünür.
+large_gatehouse_enabled: Boş büyük kapı binaları için kapalı görünüm
+large_gatehouse_enabled_tooltip: Birlikler kapı binasına çıktığında kapak kalkar.
 large_gatehouse_swap_sides: Sol ve sağ görselleri değiştir
 large_gatehouse_swap_sides_tooltip: Sol alta bakan bir kapı binası için tasarlanan görsel sağ alta bakanda (veya tersi) görünüyorsa bunu kullanın.
-editor_group: Katmanları oyun içinde taşıma
-editor_group_descr: Bir bina seçin ve panelindeki bir katmana tıklayın. Hizalamak için okları ve adım boyutunu kullanın. Kaydetme, kaydırmaları yerel UCP klasörüne yazar.
-editor_enabled: Bina panelinde katman aracını göster
-editor_enabled_tooltip: "Seçili binanın katmanlarını panelinde listeler. Katmanları oklarla taşıyabilir ve konumlarını «Save» düğmesiyle kaydedebilirsiniz."
-mouse_group: Kule, kapı binası ve iç kalelerdeki birlikleri görme
-mouse_group_descr: Normalde bir binanın üzerinde birlikler dururken katmanı kaybolur.
-hover_only: Katmanları yalnızca fare binanın üzerindeyken gizle
-hover_only_tooltip: |-
-  Kuleler, kapı binaları ve iç kaleler üzerlerinde birlik varken bile sur ve mazgallarını çizili tutar; böylece birlikler mazgalların arkasında durur. Yukarıda kimin olduğunu görmek için fareyi binanın üzerine getirin. Bu modülün katmanlarını ve oyun kulelerinin çatılarını kapsar; kule mazgalları ve diğer oyun katmanları oyunun kurallarını korur.
-drawing_group: Çizim
-drawing_group_descr: Katman görsellerinin haritada nasıl çizileceği.
-tile_by_tile: Öndeki binaların katmanları kapatmasına izin ver
-tile_by_tile_tooltip: |-
-  Oyun katmanlarını binanın ön köşesinde tek parça hâlinde çizdiğinden hemen yanındaki kule ve surların içinden görünürler. Bu ayar açıkken bu modülün görselleri binanın kendi kareleriyle birlikte dar şeritler hâlinde çizilir ve öndeki her şey onları doğru şekilde örter. Aynısı her binadaki oyunun kendi katman görselleri (bayraklar, animasyonlar, kule tepeleri…) için de geçerlidir.
-hide_units: Çatı altındaki birimleri gizle
-hide_units_tooltip: Bir kule, kapı binası veya iç kalenin çatısı görünürken üstündeki birlikler çizilmez, böylece hiçbir parçaları çatıdan dışarı taşmaz. Kapı binasından geçen birimler görünür kalır. «Öndeki binaların katmanları kapatmasına izin ver» ayarının açık olmasını gerektirir.
+editor_group: Kaplama aracı
+editor_group_descr: Bir bina seçin ve panelindeki bir kaplamaya tıklayın. Oklarla ve adım boyutu düğmesiyle ayarlayıp Kaydet’e tıklayın.
+editor_enabled: Bina panelinde kaplamaları düzenle
+editor_enabled_tooltip: Düzenlemek için seçili binanın panelindeki bir kaplamaya tıklayın.
+mouse_group: Kaplama görünümü
+mouse_group_descr: Kaplamaların birlikleri nasıl göstereceğini ve bayrakların nerede duracağını seçin.
+hover_only: Üzerine gelince birlikleri göster
+hover_only_tooltip: Kaplamasının arkasındaki birlikleri görmek için bir kuleye, kapı binasına veya iç kaleye işaret edin.
+drawing_group: Kaplama çizimi
+drawing_group_descr: Kaplamaların, birliklerin ve bayrakların nasıl çizileceğini kontrol eder.
+tile_by_tile: Kaplamaları öndeki binaların arkasında çiz
+tile_by_tile_tooltip: Öndeki surlar ve binalar arkalarındaki kaplamaları kapatabilir.
+hide_units: Çatıların altındaki birlikleri gizle
+hide_units_tooltip: Çatıların altındaki birlikler gizlenir. Kapılardan geçen birimler görünür kalır.
 flags_on_top: Bayrakları katmanların önünde göster
 flags_on_top_tooltip: İç kale veya başka bir binadaki bayraklar o binanın katman görsellerinden hemen sonra çizilir, böylece kendi katmanı hiçbir kısmını gizlemez. Önündeki surlar ve binalar bayrağı eskisi gibi örter. «Öndeki binaların katmanları kapatmasına izin ver» ayarının açık olmasını gerektirir.
 back_flag_behind: Arka bayrağı binanın arkasında tut
 back_flag_behind_tooltip: Binanın uzak köşesindeki bayrak katmanların önünde değil, oyunun çizdiği gibi binanın ve üzerindeki birimlerin arkasında kalır. «Bayrakları katmanların önünde göster» ayarını gerektirir.
 keep_entrance_group: İç kale girişi
-keep_entrance_group_descr: İç kale önündeki girişte bulunan bir oyun görseli hatasını düzeltir.
-keep_entrance_enabled: İç kale girişinin ortasını doğru çiz
-keep_entrance_enabled_tooltip: |-
-  Dört yönden ikisine dönük iç kalelerde oyun girişin ortasını yanlış ışıkta çizer: gölgeli kuleler arasında parlak bir sütun ya da parlak kemerde koyu bir sütun. Bu ayar açıkken orta kısım yanındaki iki kuleyle uyumlu olur. Bir an içinde veya harita döndürüldüğünde etkili olur.
+keep_entrance_group_descr: İç kale girişindeki gölgeleme uyumsuzluğunu giderir.
+keep_entrance_enabled: İç kale girişi gölgelemesini eşitle
+keep_entrance_enabled_tooltip: İç kale girişinin ortası yanındaki kulelerle aynı tonu kullanır.
 flags_group: Bayraklar
-flags_group_descr: Oyunun binalara bayrak yerleştirme şeklini düzeltir.
-flags_follow_turn: Harita döndürüldüğünde bayrakları yerinde tut
-flags_follow_turn_tooltip: Oyun bir bayrak direğinin ekran konumunu yalnızca bayrak dikildiğinde, o anki görünüm için hesaplar. Harita döndürüldükten sonra direkler binanın kenarından birkaç piksel kayar. Bu ayar açıkken haritanın her dönüşünde doğru yere taşınırlar.
-flags_on_edges: Bayrakları binanın kenarına yerleştir
-flags_on_edges_tooltip: Oyun bayrağı karenin ortasına koyduğundan köşedeki bir bayrak kenardan yarım kare içeride durur. Bu ayar açıkken direği her görünümde kenara (köşe karesinde tam köşeye) taşınır.
+flags_group_descr: Bayrakları binalarla hizalı tutar.
+flags_follow_turn: Harita dönerken bayrakları hizalı tut
+flags_follow_turn_tooltip: Haritayı döndürdüğünüzde bayraklar yerinde kalır.
+flags_on_edges: Bayrakları bina kenarlarına yerleştir
+flags_on_edges_tooltip: Bayrak direkleri karenin ortasından bina kenarına taşınır.
 qol: Kullanım kolaylığı
 bugfixes: Hata düzeltmeleri

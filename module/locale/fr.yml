@@ -1,39 +1,36 @@
 large_gatehouse_group: Grande porte
-large_gatehouse_group_descr: Une image dessinée sur les tours d'une grande porte tant que personne ne se tient dessus, afin que les murs paraissent fermés au lieu d'afficher le chemin de ronde vide.
-large_gatehouse_enabled: Afficher l'aspect fermé sur les grandes portes vides
-large_gatehouse_enabled_tooltip: Les grandes portes sans troupes reçoivent une image sur leurs tours. Dès que des troupes montent sur la porte, l'image disparaît et elles s'affichent normalement.
+large_gatehouse_group_descr: Un toit apparaît tant que personne ne se tient sur le corps de garde.
+large_gatehouse_enabled: Aspect fermé pour les grandes portes vides
+large_gatehouse_enabled_tooltip: Le toit se retire dès que des troupes montent sur le corps de garde.
 large_gatehouse_swap_sides: Inverser les images gauche et droite
 large_gatehouse_swap_sides_tooltip: Utilisez cette option si l'image prévue pour une porte orientée vers le bas à gauche apparaît sur une porte orientée vers le bas à droite (et inversement).
-editor_group: Déplacer les calques en jeu
-editor_group_descr: Sélectionnez un bâtiment et cliquez sur un calque dans son panneau. Utilisez les flèches et la taille de pas pour l'aligner. Enregistrer inscrit les décalages dans le dossier UCP local.
-editor_enabled: Afficher l'outil de calques dans le panneau du bâtiment
-editor_enabled_tooltip: "Liste les calques du bâtiment sélectionné dans son panneau, avec des flèches pour les déplacer et le bouton « Save » pour enregistrer leurs positions."
-mouse_group: Voir les troupes sur les tours, portes et donjons
-mouse_group_descr: Normalement, le calque d'un bâtiment disparaît lorsque des troupes se tiennent dessus.
-hover_only: Ne masquer les calques que lorsque la souris survole le bâtiment
-hover_only_tooltip: |-
-  Les tours, portes et donjons conservent leurs murs et créneaux dessinés même avec des troupes dessus, afin qu'elles se tiennent derrière les créneaux. Pointez la souris sur le bâtiment pour voir qui s'y trouve. Couvre les calques de ce module et les toits des tours du jeu ; les créneaux des tours et les autres calques du jeu gardent leurs propres règles.
-drawing_group: Affichage
-drawing_group_descr: Manière dont les images de calque sont affichées sur la carte.
-tile_by_tile: Laisser les bâtiments devant masquer les calques
-tile_by_tile_tooltip: |-
-  Le jeu dessine ses calques d'un seul bloc à l'angle avant du bâtiment, si bien qu'ils transparaissent à travers les tours et murs juste à côté. Avec cette option, les images de ce module sont dessinées en fines bandes avec les cases du bâtiment, afin que tout élément devant les masque correctement. Il en va de même pour les calques natifs du jeu sur chaque bâtiment (drapeaux, animations, sommets de tours…).
-hide_units: Masquer les unités sous les toits
-hide_units_tooltip: Les troupes sur une tour, une porte ou un donjon ne sont pas affichées tant que son toit est visible, pour qu'aucune partie ne dépasse. Les unités traversant une porte restent visibles. Fonctionne avec « Laisser les bâtiments devant masquer les calques » (doit être activé).
+editor_group: Outil de superpositions
+editor_group_descr: Sélectionnez un bâtiment et cliquez sur une superposition dans son panneau. Ajustez-la avec les flèches et le pas, puis cliquez sur Enregistrer.
+editor_enabled: Modifier les superpositions dans le panneau du bâtiment
+editor_enabled_tooltip: Cliquez sur une superposition dans le panneau du bâtiment sélectionné pour la modifier.
+mouse_group: Affichage des superpositions
+mouse_group_descr: Choisissez comment les superpositions révèlent les troupes et où se placent les drapeaux.
+hover_only: Révéler les troupes au survol
+hover_only_tooltip: Pointez une tour, une porte ou un donjon pour voir les troupes derrière sa superposition.
+drawing_group: Rendu des superpositions
+drawing_group_descr: Contrôle l’ordre de dessin des superpositions, des troupes et des drapeaux.
+tile_by_tile: Dessiner les superpositions derrière les bâtiments au premier plan
+tile_by_tile_tooltip: Les murs et bâtiments devant peuvent masquer les superpositions situées derrière.
+hide_units: Masquer les troupes sous les toits
+hide_units_tooltip: Les troupes sous les toits sont masquées. Les unités qui traversent les portes restent visibles.
 flags_on_top: Afficher les drapeaux devant les calques
 flags_on_top_tooltip: Les drapeaux sur un donjon ou un autre bâtiment sont dessinés juste après ses calques afin qu'aucun calque ne les cache. Les murs et bâtiments devant continuent de les masquer normalement. Nécessite « Laisser les bâtiments devant masquer les calques ».
 back_flag_behind: Laisser le drapeau arrière derrière le bâtiment
 back_flag_behind_tooltip: Le drapeau sur l'angle arrière d'un bâtiment reste derrière le bâtiment et les unités dessus, là où le jeu le dessine, au lieu de passer devant les calques. Nécessite « Afficher les drapeaux devant les calques ».
 keep_entrance_group: Entrée du donjon
-keep_entrance_group_descr: Corrige un bug graphique du jeu à l'entrée devant un donjon.
-keep_entrance_enabled: Dessiner correctement le milieu de l'entrée du donjon
-keep_entrance_enabled_tooltip: |-
-  Sur les donjons orientés dans deux des quatre sens, le jeu dessine le milieu de l'entrée avec un mauvais éclairage : un pilier clair entre des tours ombragées, ou un pilier sombre dans une arche lumineuse. Avec cette option, le milieu s'accorde avec les deux tours adjacentes. Prend effet en un instant ou lors d'une rotation de la carte.
+keep_entrance_group_descr: Corrige un écart d’ombrage à l’entrée du donjon.
+keep_entrance_enabled: Harmoniser l’ombrage de l’entrée du donjon
+keep_entrance_enabled_tooltip: Le centre de l’entrée du donjon prend la même teinte que les tours voisines.
 flags_group: Drapeaux
-flags_group_descr: Corrige la façon dont le jeu place les drapeaux sur les bâtiments.
-flags_follow_turn: Garder les drapeaux à leur place lors de la rotation de la carte
-flags_follow_turn_tooltip: Le jeu ne calcule la position écran du mât qu'au moment de poser le drapeau, pour la vue actuelle. Après rotation de la carte, les mâts se décalent de quelques pixels hors du bord du bâtiment. Avec cette option, ils suivent chaque rotation de la carte.
-flags_on_edges: Placer les drapeaux au bord du bâtiment
-flags_on_edges_tooltip: Le jeu place un drapeau au centre de sa case, ce qui décale un drapeau d'angle d'une demi-case vers l'intérieur. Avec cette option, son mât se place au bord (exactement à l'angle sur une case d'angle) dans toutes les vues.
+flags_group_descr: Maintient les drapeaux alignés avec les bâtiments.
+flags_follow_turn: Garder les drapeaux alignés en pivotant la carte
+flags_follow_turn_tooltip: Les drapeaux restent en place lorsque vous pivotez la carte.
+flags_on_edges: Placer les drapeaux au bord des bâtiments
+flags_on_edges_tooltip: Les mâts passent du centre de la case au bord du bâtiment.
 qol: Qualité de vie
 bugfixes: Corrections de bugs

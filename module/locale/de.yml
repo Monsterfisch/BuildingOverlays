@@ -1,38 +1,36 @@
 large_gatehouse_group: Großes Torhaus
-large_gatehouse_group_descr: Ein Bild, das über die Türme eines großen Torhauses gezeichnet wird, solange niemand darauf steht, sodass die Mauern geschlossen wirken statt den leeren Wehrgang zu zeigen.
-large_gatehouse_enabled: Geschlossene Optik bei leeren großen Torhäusern zeichnen
-large_gatehouse_enabled_tooltip: Leere große Torhäuser erhalten ein Bild über ihren Türmen. Sobald Truppen das Torhaus betreten, verschwindet das Bild und sie werden wie gewohnt angezeigt.
+large_gatehouse_group_descr: Eine Abdeckung erscheint, solange niemand auf dem Torhaus steht.
+large_gatehouse_enabled: Geschlossene Optik für leere große Torhäuser
+large_gatehouse_enabled_tooltip: Die Abdeckung verschwindet, sobald Truppen das Torhaus betreten.
 large_gatehouse_swap_sides: Linkes und rechtes Bild tauschen
 large_gatehouse_swap_sides_tooltip: Verwende dies, wenn das Bild für ein nach links unten zeigendes Torhaus auf einem nach rechts unten zeigenden Torhaus erscheint (und umgekehrt).
-editor_group: Overlays im Spiel verschieben
-editor_group_descr: Wähle ein Gebäude und klicke im Gebäudefenster auf ein Overlay. Nutze die Pfeile und die Schrittweite zum Ausrichten. Speichern schreibt die Versätze in den lokalen UCP-Ordner.
-editor_enabled: Overlay-Werkzeug im Gebäudefenster anzeigen
-editor_enabled_tooltip: "Zeigt die Overlays des gewählten Gebäudes in seinem Fenster, mit Pfeilen zum Verschieben und „Save“ zum Speichern ihrer Positionen."
-mouse_group: Truppen auf Türmen, Torhäusern und Bergfrieden sehen
-mouse_group_descr: Normalerweise wird das Overlay eines Gebäudes ausgeblendet, solange Truppen darauf stehen.
-hover_only: Overlays nur ausblenden, während der Mauszeiger auf dem Gebäude liegt
-hover_only_tooltip: |-
-  Türme, Torhäuser und Bergfriede behalten ihre gezeichneten Mauern und Zinnen auch mit Truppen darauf, sodass die Truppen hinter den Zinnen stehen. Fahre mit der Maus über das Gebäude, um zu sehen, wer oben steht. Gilt für die Overlays dieses Moduls und die Dächer der Spieltürme; Turmzinnen und alle übrigen Spiel-Overlays behalten die Regeln des Spiels.
-drawing_group: Darstellung
-drawing_group_descr: Wie Overlay-Grafiken auf der Karte gezeichnet werden.
-tile_by_tile: Gebäude davor verdecken die Overlays
-tile_by_tile_tooltip: |-
-  Das Spiel zeichnet seine Overlays in einem Stück an der vorderen Ecke eines Gebäudes, sodass sie durch direkt danebenstehende Türme und Mauern hindurchscheinen. Mit dieser Option werden die Grafiken dieses Moduls in schmalen Streifen zusammen mit den eigenen Feldern des Gebäudes gezeichnet, sodass alles davor sie korrekt verdeckt. Dasselbe gilt für die eigenen Overlay-Grafiken des Spiels auf jedem Gebäude (Flaggen, Animationen, Turmdächer …).
-hide_units: Einheiten unter Dächern verbergen
-hide_units_tooltip: Truppen auf einem Turm, Torhaus oder Bergfried werden nicht gezeichnet, solange das Dach sichtbar ist, damit kein Teil von ihnen durch das Dach ragt. Einheiten, die durch ein Torhaus marschieren, bleiben sichtbar. Erfordert „Gebäude davor verdecken die Overlays“.
+editor_group: Overlay-Werkzeug
+editor_group_descr: Wähle ein Gebäude und klicke auf ein Overlay in dessen Menü. Justiere es mit den Pfeilen und der Schrittweite und klicke dann auf Speichern.
+editor_enabled: Overlays im Gebäudemenü bearbeiten
+editor_enabled_tooltip: Klicke auf ein Overlay im Menü des gewählten Gebäudes, um es zu bearbeiten.
+mouse_group: Overlay-Anzeige
+mouse_group_descr: Wähle, wie Overlays Truppen sichtbar machen und wo Flaggen sitzen.
+hover_only: Truppen beim Überfahren sichtbar machen
+hover_only_tooltip: Zeige auf einen Turm, ein Torhaus oder einen Bergfried, um Truppen hinter dem Overlay zu sehen.
+drawing_group: Overlay-Darstellung
+drawing_group_descr: Steuere, wie Overlays, Truppen und Flaggen gezeichnet werden.
+tile_by_tile: Overlays hinter vorderen Gebäuden zeichnen
+tile_by_tile_tooltip: Vordere Mauern und Gebäude können dahinterliegende Overlays verdecken.
+hide_units: Truppen unter Dächern verbergen
+hide_units_tooltip: Truppen unter Dächern werden verborgen. Einheiten, die durch Tore ziehen, bleiben sichtbar.
 flags_on_top: Flaggen vor den Overlays anzeigen
 flags_on_top_tooltip: Flaggen auf einem Bergfried oder einem anderen Gebäude werden direkt nach dessen Overlays gezeichnet, sodass das eigene Overlay keinen Teil davon verdeckt. Mauern und Gebäude davor verdecken die Flagge weiterhin wie gewohnt. Erfordert „Gebäude davor verdecken die Overlays“.
 back_flag_behind: Hintere Flagge hinter dem Gebäude belassen
 back_flag_behind_tooltip: Die Flagge an der hinteren Ecke eines Gebäudes bleibt hinter dem Gebäude und den Einheiten darauf, wo das Spiel sie zeichnet, statt vor den Overlays. Erfordert „Flaggen vor den Overlays anzeigen“.
 keep_entrance_group: Bergfried-Eingang
-keep_entrance_group_descr: Behebt einen Grafikfehler des Spiels am Eingang vor einem Bergfried.
-keep_entrance_enabled: Mitte des Bergfried-Eingangs korrekt zeichnen
-keep_entrance_enabled_tooltip: Bei Bergfrieden in zwei der vier Kartenausrichtungen zeichnet das Spiel die Mitte des Eingangs im falschen Licht – ein heller Pfeiler zwischen schattigen Türmen oder ein dunkler in einem hellen Torbogen. Mit dieser Option passt die Mitte zu den beiden Türmen daneben. Wirkt nach einem Augenblick oder beim Drehen der Karte.
+keep_entrance_group_descr: Behebt eine Schattierungsabweichung am Bergfried-Eingang.
+keep_entrance_enabled: Schattierung am Bergfried-Eingang angleichen
+keep_entrance_enabled_tooltip: Die Mitte des Bergfried-Eingangs nutzt denselben Farbton wie die Türme daneben.
 flags_group: Flaggen
-flags_group_descr: Behebt, wie das Spiel Flaggen auf Gebäuden platziert.
-flags_follow_turn: Flaggen beim Drehen der Karte an Ort und Stelle halten
-flags_follow_turn_tooltip: Das Spiel berechnet die Bildschirmposition eines Fahnenmasts nur beim Aufstellen der Flagge für die damalige Ansicht. Nach dem Drehen der Karte stehen die Masten einige Pixel neben der Gebäudekante. Mit dieser Option wandern sie bei jeder Kartendrehung mit.
-flags_on_edges: Flaggen an die Gebäudekante setzen
-flags_on_edges_tooltip: Das Spiel stellt eine Flagge in die Mitte ihres Feldes, sodass eine Flagge an einer Gebäudeecke ein halbes Feld eingerückt steht. Mit dieser Option rückt der Mast in jeder Ansicht an die Kante (auf Eckfeldern genau auf die Ecke).
+flags_group_descr: Hält Flaggen an Gebäuden ausgerichtet.
+flags_follow_turn: Flaggen beim Drehen der Karte ausgerichtet halten
+flags_follow_turn_tooltip: Flaggen bleiben beim Drehen der Karte an ihrer Position.
+flags_on_edges: Flaggen an Gebäudekanten platzieren
+flags_on_edges_tooltip: Fahnenmasten rücken von der Feldmitte an die Gebäudekante.
 qol: Komfort
 bugfixes: Fehlerkorrekturen

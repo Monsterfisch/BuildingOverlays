@@ -1,39 +1,36 @@
 large_gatehouse_group: Puerta grande
-large_gatehouse_group_descr: Imagen dibujada sobre las torres de una puerta grande mientras no haya nadie encima, para que los muros parezcan cerrados en lugar de mostrar la pasarela vacía.
-large_gatehouse_enabled: Dibujar el aspecto cerrado en puertas grandes vacías
-large_gatehouse_enabled_tooltip: Las puertas grandes sin tropas reciben una imagen sobre sus torres. En cuanto las tropas suben a la puerta, la imagen desaparece y se muestran como de costumbre.
+large_gatehouse_group_descr: Aparece una cubierta mientras nadie esté sobre la casa de la puerta.
+large_gatehouse_enabled: Aspecto cerrado para casas de la puerta grandes vacías
+large_gatehouse_enabled_tooltip: La cubierta desaparece cuando las tropas suben a la casa de la puerta.
 large_gatehouse_swap_sides: Intercambiar imágenes izquierda y derecha
 large_gatehouse_swap_sides_tooltip: Úsalo si la imagen destinada a una puerta orientada abajo a la izquierda aparece en una orientada abajo a la derecha (y viceversa).
-editor_group: Mover superposiciones en el juego
-editor_group_descr: Selecciona un edificio y haz clic en una superposición de su panel. Usa las flechas y el tamaño de paso para alinearla. Guardar registra los desplazamientos en la carpeta local de UCP.
-editor_enabled: Mostrar la herramienta de superposiciones en el panel del edificio
-editor_enabled_tooltip: "Muestra las superposiciones del edificio seleccionado en su panel, con flechas para moverlas y Save para guardar sus posiciones."
-mouse_group: Ver tropas en torres, puertas y fortalezas
-mouse_group_descr: Normalmente la superposición de un edificio desaparece mientras hay tropas encima.
-hover_only: Ocultar superposiciones solo mientras el ratón esté sobre el edificio
-hover_only_tooltip: |-
-  Las torres, puertas y fortalezas mantienen dibujados sus muros y almenas incluso con tropas encima, para que queden tras las almenas. Apunta con el ratón al edificio para ver quién hay arriba. Cubre las superposiciones de este módulo y los techos de las torres del juego; las almenas de torres y demás superposiciones del juego mantienen sus reglas originales.
-drawing_group: Dibujo
-drawing_group_descr: Cómo se dibujan las superposiciones en el mapa.
-tile_by_tile: Dejar que los edificios delante cubran las superposiciones
-tile_by_tile_tooltip: |-
-  El juego dibuja sus superposiciones de una pieza en la esquina delantera del edificio, por lo que atraviesan torres y muros pegados a él. Con esto activado, las imágenes de este módulo y las superposiciones propias del juego (banderas, animaciones, cimas de torres…) se dibujan en tiras estrechas junto con las casillas del edificio, para que todo lo que haya delante las cubra correctamente.
-hide_units: Ocultar unidades bajo techos
-hide_units_tooltip: Las tropas sobre una torre, puerta o fortaleza no se dibujan mientras se muestre su techo, evitando que sobresalgan por él. Las unidades que cruzan una puerta siguen visibles. Requiere «Dejar que los edificios delante cubran las superposiciones».
+editor_group: Herramienta de superposiciones
+editor_group_descr: Selecciona un edificio y haz clic en una superposición de su panel. Ajústala con las flechas y el botón de paso, y pulsa Guardar.
+editor_enabled: Editar superposiciones en el panel del edificio
+editor_enabled_tooltip: Haz clic en una superposición del panel del edificio seleccionado para editarla.
+mouse_group: Visualización de superposiciones
+mouse_group_descr: Elige cómo revelan tropas las superposiciones y dónde se colocan las banderas.
+hover_only: Revelar tropas al pasar el cursor
+hover_only_tooltip: Apunta a una torre, casa de la puerta o fortaleza para ver las tropas tras su superposición.
+drawing_group: Dibujado de superposiciones
+drawing_group_descr: Controla cómo se dibujan las superposiciones, las tropas y las banderas.
+tile_by_tile: Dibujar superposiciones detrás de edificios delanteros
+tile_by_tile_tooltip: Las murallas y edificios situados delante pueden cubrir las superposiciones detrás de ellos.
+hide_units: Ocultar tropas bajo los tejados
+hide_units_tooltip: Las tropas bajo tejados quedan ocultas. Las unidades que cruzan puertas siguen visibles.
 flags_on_top: Mostrar banderas delante de las superposiciones
 flags_on_top_tooltip: Las banderas sobre una fortaleza u otro edificio se dibujan justo después de sus superposiciones para que su propia superposición no las oculte. Los muros y edificios delante siguen tapando la bandera normalmente. Requiere «Dejar que los edificios delante cubran las superposiciones».
 back_flag_behind: Dejar la bandera trasera detrás del edificio
 back_flag_behind_tooltip: La bandera en la esquina lejana de un edificio permanece detrás del edificio y sus unidades, donde la dibuja el juego, en vez de delante de las superposiciones. Requiere «Mostrar banderas delante de las superposiciones».
 keep_entrance_group: Entrada de la fortaleza
-keep_entrance_group_descr: Corrige un error gráfico del juego en la entrada frente a una fortaleza.
-keep_entrance_enabled: Dibujar bien el centro de la entrada de la fortaleza
-keep_entrance_enabled_tooltip: |-
-  En dos de las cuatro orientaciones de la fortaleza, el juego dibuja el centro de la entrada con iluminación errónea: un pilar claro entre torres en sombra, o uno oscuro en un arco luminoso. Con esto activado, el centro coincide con las dos torres laterales. Surte efecto enseguida o al rotar el mapa.
+keep_entrance_group_descr: Corrige un desajuste de sombreado en la entrada de la fortaleza.
+keep_entrance_enabled: Igualar el sombreado de la entrada de la fortaleza
+keep_entrance_enabled_tooltip: El centro de la entrada de la fortaleza usa el mismo tono que las torres contiguas.
 flags_group: Banderas
-flags_group_descr: Corrige cómo coloca el juego las banderas en los edificios.
-flags_follow_turn: Mantener las banderas en su sitio al rotar el mapa
-flags_follow_turn_tooltip: El juego calcula la posición del mástil en pantalla solo al colocar la bandera, para la vista de ese momento. Al rotar el mapa los mástiles quedan desplazados varios píxeles del borde del edificio. Con esto activado acompañan cada giro del mapa.
-flags_on_edges: Colocar las banderas en el borde del edificio
-flags_on_edges_tooltip: El juego pone la bandera en el centro de su casilla, de modo que una bandera de esquina queda media casilla hacia dentro. Con esto activado el mástil se mueve al borde (la esquina exacta en casillas de esquina) en todas las vistas.
+flags_group_descr: Mantiene las banderas alineadas con los edificios.
+flags_follow_turn: Mantener las banderas alineadas al girar el mapa
+flags_follow_turn_tooltip: Las banderas conservan su posición al rotar el mapa.
+flags_on_edges: Colocar banderas en los bordes de los edificios
+flags_on_edges_tooltip: Los mástiles pasan del centro de la casilla al borde del edificio.
 qol: Comodidad de juego
 bugfixes: Correcciones de errores

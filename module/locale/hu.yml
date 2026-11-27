@@ -1,38 +1,36 @@
 large_gatehouse_group: Nagy kapuház
-large_gatehouse_group_descr: Kép, amely egy üres nagy kapuház tornyai fölé rajzolódik, hogy a falak zártnak tűnjenek az üres gyilokjáró helyett.
-large_gatehouse_enabled: Zárt megjelenés rajzolása üres nagy kapuházakra
-large_gatehouse_enabled_tooltip: Az üres nagy kapuházak fedőképet kapnak a tornyaikra. Amint csapatok lépnek a kapuházra, a kép eltűnik, és a szokásos módon látszanak.
+large_gatehouse_group_descr: Tető jelenik meg a kapuházon, amíg senki sem áll rajta.
+large_gatehouse_enabled: Zárt megjelenés az üres nagy kapuházaknak
+large_gatehouse_enabled_tooltip: A fedél eltűnik, amikor csapatok lépnek a kapuházra.
 large_gatehouse_swap_sides: Bal és jobb oldali képek felcserélése
 large_gatehouse_swap_sides_tooltip: Akkor használd, ha a balra lefelé néző kapuházhoz szánt kép a jobbra lefelé nézőn jelenik meg (vagy fordítva).
-editor_group: Fedőképek mozgatása játék közben
-editor_group_descr: Válassz ki egy épületet, és kattints egy fedőképre a paneljén. A nyilakkal és a lépésközzel igazítsd a helyére. A mentés a helyi UCP mappába írja az eltolásokat.
-editor_enabled: Fedőkép-eszköz megjelenítése az épületpanelben
-editor_enabled_tooltip: "A kiválasztott épület fedőképeit a paneljén sorolja fel: a nyilakkal mozgathatók, a Save megőrzi a helyüket."
-mouse_group: Csapatok láthatósága tornyokon, kapuházakon és vártornyokon
-mouse_group_descr: Alapesetben egy épület fedőképe eltűnik, amíg csapatok állnak rajta.
-hover_only: Fedőképek elrejtése csak ha az egér az épület fölött van
-hover_only_tooltip: |-
-  A tornyok, kapuházak és vártornyok falai és lőrései csapatokkal a tetejükön is látszanak, így a katonák a pártázat mögött állnak. Vidd az egeret az épület fölé, hogy lásd, kik állnak fent. A modul fedőképeire és a játék tornyainak tetejére vonatkozik; a toronylőrések és más játékfedőképek megtartják a játék szabályait.
-drawing_group: Megjelenítés
-drawing_group_descr: Hogyan kerülnek a fedőképek a térképre.
-tile_by_tile: Az elöl álló épületek takarják a fedőképeket
-tile_by_tile_tooltip: |-
-  A játék egyetlen darabban rajzolja a fedőképeket az épület elülső sarkához, így átlátszanak a közvetlenül mellette álló tornyokon és falakon. Bekapcsolva a modul képei keskeny csíkokban, az épület mezőivel együtt rajzolódnak ki, így minden elöl álló elem rendesen takarja őket. Ugyanez vonatkozik a játék saját fedőképeire is minden épületen (zászlók, animációk, toronytetők…).
-hide_units: Egységek elrejtése tetők alatt
-hide_units_tooltip: A tornyon, kapuházon vagy vártornyon álló csapatok nem rajzolódnak ki, amíg a tető látszik, így nem lógnak át rajta. A kapuházon áthaladó egységek láthatók maradnak. Igényli „Az elöl álló épületek takarják a fedőképeket” beállítást.
+editor_group: Rátét-szerkesztő eszköz
+editor_group_descr: Jelölj ki egy épületet, majd kattints egy rátétre a paneljén. Állítsd be a nyilakkal és a lépésköz gombbal, majd kattints a Mentésre.
+editor_enabled: Rátétek szerkesztése az épület paneljén
+editor_enabled_tooltip: Kattints egy rátétre a kijelölt épület paneljén a szerkesztéséhez.
+mouse_group: Rátétek megjelenítése
+mouse_group_descr: Válaszd ki, hogyan fedjék fel a rátétek a csapatokat és hol álljanak a zászlók.
+hover_only: Csapatok felfedése rámutatáskor
+hover_only_tooltip: Mutass egy toronyra, kapuházra vagy vártoronyra a rátét mögötti csapatok megjelenítéséhez.
+drawing_group: Rátétek kirajzolása
+drawing_group_descr: Szabályozza a rátétek, csapatok és zászlók kirajzolását.
+tile_by_tile: Rátétek kirajzolása az elöl lévő épületek mögé
+tile_by_tile_tooltip: Az elöl lévő falak és épületek eltakarhatják a mögöttük lévő rátéteket.
+hide_units: Csapatok elrejtése tetők alatt
+hide_units_tooltip: A tetők alatti csapatok rejtve maradnak. A kapukon áthaladó egységek láthatók maradnak.
 flags_on_top: Zászlók megjelenítése a fedőképek előtt
 flags_on_top_tooltip: A vártornyon vagy más épületen álló zászlók közvetlenül az épület fedőképei után rajzolódnak ki, így a saját fedőkép nem takarja el őket. Az elöl álló falak és épületek továbbra is takarják a zászlót. Igényli „Az elöl álló épületek takarják a fedőképeket” beállítást.
 back_flag_behind: Hátsó zászló hagyása az épület mögött
 back_flag_behind_tooltip: Az épület távoli sarkán lévő zászló az épület és a rajta álló egységek mögött marad, ahogy a játék rajzolja, nem a fedőképek előtt. Igényli a „Zászlók megjelenítése a fedőképek előtt” beállítást.
 keep_entrance_group: Vártorony bejárata
-keep_entrance_group_descr: Javítja a játék grafikai hibáját a vártorony előtti bejáratnál.
-keep_entrance_enabled: A vártorony bejáratának közepe helyesen rajzolódjon ki
-keep_entrance_enabled_tooltip: Négyből két térképforgatásnál a játék rossz megvilágítással rajzolja a bejárat közepét — világos pillér árnyékos tornyok között, vagy sötét pillér világos boltívben. Bekapcsolva a közepe illeszkedik a mellette lévő két toronyhoz. Egy pillanat múlva vagy a térkép elforgatásakor lép életbe.
+keep_entrance_group_descr: Javítja a vártorony bejáratának árnyékolási eltérését.
+keep_entrance_enabled: Vártorony bejáratának árnyékolás-egyeztetése
+keep_entrance_enabled_tooltip: A vártorony bejáratának közepe ugyanazt az árnyalatot kapja, mint a mellette lévő tornyok.
 flags_group: Zászlók
-flags_group_descr: Javítja, hogyan helyezi el a játék a zászlókat az épületeken.
-flags_follow_turn: Zászlók helyben tartása a térkép elforgatásakor
-flags_follow_turn_tooltip: A játék csak a zászló felhelyezésekor számítja ki a rúd képernyőbeli helyét az akkori nézethez. A térkép elforgatása után a rudak pár pixellel elcsúsznak az épület szélétől. Bekapcsolva minden forgatással együtt mozognak.
-flags_on_edges: Zászlók áthelyezése az épület szélére
-flags_on_edges_tooltip: A játék a mező közepére teszi a zászlót, így a sarkon lévő zászló fél mezővel beljebb áll. Bekapcsolva a rúd minden nézetben a szélére (sarokmezőn magára a sarokra) kerül.
+flags_group_descr: Az épületekhez igazítva tartja a zászlókat.
+flags_follow_turn: Zászlók igazításának megtartása térképforgatáskor
+flags_follow_turn_tooltip: A zászlók a helyükön maradnak a térkép forgatásakor.
+flags_on_edges: Zászlók elhelyezése az épületek szélén
+flags_on_edges_tooltip: A zászlórudak a mező közepéről az épület szélére kerülnek.
 qol: Kényelmi funkciók
 bugfixes: Hibajavítások
