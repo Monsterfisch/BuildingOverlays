@@ -35,6 +35,5 @@ flags_follow_turn: Harita döndürüldüğünde bayrakları yerinde tut
 flags_follow_turn_tooltip: Oyun bir bayrak direğinin ekran konumunu yalnızca bayrak dikildiğinde, o anki görünüm için hesaplar. Harita döndürüldükten sonra direkler binanın kenarından birkaç piksel kayar. Bu ayar açıkken haritanın her dönüşünde doğru yere taşınırlar.
 flags_on_edges: Bayrakları binanın kenarına yerleştir
 flags_on_edges_tooltip: Oyun bayrağı karenin ortasına koyduğundan köşedeki bir bayrak kenardan yarım kare içeride durur. Bu ayar açıkken direği her görünümde kenara (köşe karesinde tam köşeye) taşınır.
-qol: Yaşam kalitesi
+qol: Kullanım kolaylığı
 bugfixes: Hata düzeltmeleri
-misc: Diğer

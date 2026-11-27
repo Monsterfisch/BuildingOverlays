@@ -1,7 +1,7 @@
 options:
 - display: GroupBox
   category:
-  - '{{bugfixes}}'
+  - '{{qol}}'
   header: '{{large_gatehouse_group}}'
   text: '{{large_gatehouse_group_descr}}'
   hasHeader: true
@@ -14,17 +14,9 @@ options:
       type: boolean
       value: false
     header: '{{large_gatehouse_enabled}}'
-  - url: building-overlays.large_gatehouse.swap_sides
-    name: building-overlays-large-gatehouse-swap-sides
-    text: '{{large_gatehouse_swap_sides_tooltip}}'
-    display: UCP2Switch
-    contents:
-      type: boolean
-      value: false
-    header: '{{large_gatehouse_swap_sides}}'
 - display: GroupBox
   category:
-  - '{{misc}}'
+  - '{{qol}}'
   header: '{{editor_group}}'
   text: '{{editor_group_descr}}'
   hasHeader: true
@@ -52,6 +44,14 @@ options:
       type: boolean
       value: false
     header: '{{hover_only}}'
+  - url: building-overlays.flags.on_edges
+    name: building-overlays-flags-on-edges
+    text: '{{flags_on_edges_tooltip}}'
+    display: UCP2Switch
+    contents:
+      type: boolean
+      value: false
+    header: '{{flags_on_edges}}'
 - display: GroupBox
   category:
   - '{{bugfixes}}'
@@ -70,27 +70,30 @@ options:
   - url: building-overlays.drawing.hide_units
     name: building-overlays-drawing-hide-units
     text: '{{hide_units_tooltip}}'
+    enabled: building-overlays.drawing.tile_by_tile
     display: UCP2Switch
     contents:
       type: boolean
       value: false
     header: '{{hide_units}}'
-  - url: building-overlays.drawing.flags_on_top
-    name: building-overlays-drawing-flags-on-top
-    text: '{{flags_on_top_tooltip}}'
-    display: UCP2Switch
+  - url: building-overlays.drawing.flag_layering
+    name: building-overlays-drawing-flag-layering
+    text: '{{flag_layering}}'
+    tooltip: '{{flag_layering_tooltip}}'
+    enabled: building-overlays.drawing.tile_by_tile
+    display: Choice
     contents:
-      type: boolean
-      value: false
-    header: '{{flags_on_top}}'
-  - url: building-overlays.drawing.back_flag_behind
-    name: building-overlays-drawing-back-flag-behind
-    text: '{{back_flag_behind_tooltip}}'
-    display: UCP2Switch
-    contents:
-      type: boolean
-      value: false
-    header: '{{back_flag_behind}}'
+      type: choice
+      value: inherit
+      choices:
+      - name: inherit
+        text: '{{flag_layering_inherit}}'
+      - name: native
+        text: '{{flag_layering_native}}'
+      - name: front
+        text: '{{flag_layering_front}}'
+      - name: rear_behind
+        text: '{{flag_layering_rear_behind}}'
 - display: GroupBox
   category:
   - '{{bugfixes}}'
@@ -121,13 +124,32 @@ options:
       type: boolean
       value: false
     header: '{{flags_follow_turn}}'
-  - url: building-overlays.flags.on_edges
-    name: building-overlays-flags-on-edges
-    text: '{{flags_on_edges_tooltip}}'
-    display: UCP2Switch
-    contents:
-      type: boolean
-      value: false
-    header: '{{flags_on_edges}}'
+- url: building-overlays.large_gatehouse.swap_sides
+  hidden: true
+  name: building-overlays-large-gatehouse-swap-sides
+  text: '{{large_gatehouse_swap_sides_tooltip}}'
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  header: '{{large_gatehouse_swap_sides}}'
+- url: building-overlays.drawing.flags_on_top
+  hidden: true
+  name: building-overlays-drawing-flags-on-top
+  text: '{{flags_on_top_tooltip}}'
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  header: '{{flags_on_top}}'
+- url: building-overlays.drawing.back_flag_behind
+  hidden: true
+  name: building-overlays-drawing-back-flag-behind
+  text: '{{back_flag_behind_tooltip}}'
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  header: '{{back_flag_behind}}'
 meta:
   version: 1.0.0

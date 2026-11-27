@@ -34,6 +34,5 @@ flags_follow_turn: 旋转地图时保持旗帜位置正确
 flags_follow_turn_tooltip: 原版游戏只在插旗时按当时视角计算旗杆屏幕位置，旋转地图后旗杆会偏离建筑边缘数像素。开启后旗杆会随每次地图旋转同步对齐。
 flags_on_edges: 将旗帜移至建筑边缘
 flags_on_edges_tooltip: 原版游戏将旗帜放在地块正中，使建筑转角旗帜向内缩进半格。开启后旗杆在任意视角下都会对齐建筑边缘（转角处对齐墙角）。
-qol: 体验优化
+qol: 便利性改进
 bugfixes: 错误修复
-misc: 其他

@@ -1,17 +1,7 @@
 large_gatehouse_group: Large gatehouse
-large_gatehouse_group_descr: 'A picture drawn over the towers of a large gatehouse while nobody is standing on it,
-  so
-
-  the walls look closed up instead of showing the empty walkway.
-
-  '
-large_gatehouse_enabled: Draw the closed-up look on empty large gatehouses
-large_gatehouse_enabled_tooltip: 'Large gatehouses with no troops on them get a picture over their towers. As soon
-  as
-
-  troops step onto the gatehouse the picture goes away and they are shown as usual.
-
-  '
+large_gatehouse_group_descr: A cover appears while nobody is standing on the gatehouse.
+large_gatehouse_enabled: Closed look for empty large gatehouses
+large_gatehouse_enabled_tooltip: The cover lifts when troops step onto the gatehouse.
 large_gatehouse_swap_sides: Swap the left and right pictures
 large_gatehouse_swap_sides_tooltip: 'Use this if the picture meant for a gatehouse looking to the lower left shows
   up on one
@@ -19,49 +9,21 @@ large_gatehouse_swap_sides_tooltip: 'Use this if the picture meant for a gatehou
   looking to the lower right (and the other way round).
 
   '
-editor_group: Moving overlays in the game
-editor_group_descr: Select a building and click an overlay in its panel. Use the arrows and step-size control to
-  align it. Save records the offsets in the local UCP folder.
-editor_enabled: Show the overlay tool in the building panel
-editor_enabled_tooltip: "Lists the selected building's overlays in its panel, with arrows to move them and Save to keep their positions."
-mouse_group: Seeing troops on towers, gatehouses and keeps
-mouse_group_descr: 'Normally a building''s overlay goes away while troops stand on it.
-
-  '
-hover_only: Only hide the overlays while the mouse is on the building
-hover_only_tooltip: 'Towers, gatehouses and keeps keep their walls and crenellations drawn even with troops on
-
-  them, so the troops stand behind the battlements. Point the mouse at the building to see
-
-  who is up there. Covers this module''s overlays and the roofs of the game''s towers. A tower''s crenellations
-
-  and every other game overlay keep the game''s own rules.
-
-  '
-drawing_group: Drawing
-drawing_group_descr: 'How overlay pictures are put on the map.
-
-  '
-tile_by_tile: Let buildings in front cover the overlays
-tile_by_tile_tooltip: 'The game draws its overlays in one piece at a building''s front corner, so they show through
-
-  towers and walls standing right next to the building. With this on, this module''s pictures
-
-  are drawn in narrow strips together with the building''s own tiles, and anything standing in
-
-  front covers them properly. The same goes for the game''s own overlay pictures on every
-
-  building (flags, animations, tower tops, ...).
-
-  '
-hide_units: Hide units under roofs
-hide_units_tooltip: 'Troops standing on a tower, gatehouse or keep are not drawn while its roof is showing, so no
-
-  part of them pokes through the roof. Units walking through a gatehouse stay visible. Works
-
-  together with "Let buildings in front cover the overlays" (needs it on).
-
-  '
+editor_group: Overlay tool
+editor_group_descr: Select a building and click an overlay in its panel. Adjust it with the arrows and step-size
+  button, then click Save.
+editor_enabled: Edit overlays in the building panel
+editor_enabled_tooltip: Click an overlay in the selected building's panel to edit it.
+mouse_group: Overlay display
+mouse_group_descr: Choose how overlays reveal troops and where flags sit.
+hover_only: Reveal troops on hover
+hover_only_tooltip: Point at a tower, gatehouse or keep to reveal troops behind its overlay.
+drawing_group: Overlay drawing
+drawing_group_descr: Control how overlays, troops and flags are drawn.
+tile_by_tile: Draw overlays behind foreground buildings
+tile_by_tile_tooltip: Walls and buildings in front can cover the overlays behind them.
+hide_units: Hide troops under roofs
+hide_units_tooltip: Troops under roofs are hidden. Units passing through gates stay visible.
 flags_on_top: Show flags in front of the overlays
 flags_on_top_tooltip: 'Flags standing on a keep or another building are drawn right after that building''s overlay
 
@@ -82,42 +44,20 @@ back_flag_behind_tooltip: 'The flag on a building''s far corner stays behind the
 
   '
 keep_entrance_group: Keep entrance
-keep_entrance_group_descr: 'Fixes a picture bug of the game at the entrance in front of a keep.
-
-  '
-keep_entrance_enabled: Draw the middle of the keep entrance right
-keep_entrance_enabled_tooltip: 'On keeps turned one of two ways, the game draws the middle of the entrance in the
-  wrong
-
-  light: a bright pillar between shaded towers, or a dark one through a bright archway. With
-
-  this on, the middle matches the two towers beside it. Takes effect within a moment, or when
-
-  the map is turned.
-
-  '
+keep_entrance_group_descr: Corrects a shading mismatch at the keep entrance.
+keep_entrance_enabled: Match keep entrance shading
+keep_entrance_enabled_tooltip: The middle of the keep entrance uses the same shade as the towers beside it.
 flags_group: Flags
-flags_group_descr: 'Fixes how the game places flags on buildings.
-
-  '
-flags_follow_turn: Keep flags in their spot when the map is turned
-flags_follow_turn_tooltip: 'The game works out where a flag''s pole stands on screen only when the flag is put up,
-  for the
-
-  view at that moment. After turning the map the poles stand a few pixels off, away from the
-
-  edge of the building. With this on they move along with every turn of the map.
-
-  '
-flags_on_edges: Put flags on the building's edge
-flags_on_edges_tooltip: 'The game puts a flag up in the middle of its tile, so a flag on a building''s corner stands
-  half
-
-  a tile in from the edge. With this on its pole moves out to the edge (the corner itself on a
-
-  corner tile), in every view.
-
-  '
+flags_group_descr: Keep flags aligned with buildings.
+flags_follow_turn: Keep flags aligned as the map turns
+flags_follow_turn_tooltip: Flags stay in position when you rotate the map.
+flags_on_edges: Place flags on building edges
+flags_on_edges_tooltip: Flagpoles move from the middle of their tile to the building edge.
 qol: Quality of Life
 bugfixes: Bugfixes
-misc: Miscellaneous
+flag_layering: Flag layering
+flag_layering_tooltip: Choose where flags draw relative to overlay pictures.
+flag_layering_inherit: Use existing settings
+flag_layering_native: Game default
+flag_layering_front: In front of overlays
+flag_layering_rear_behind: Keep rear flag behind

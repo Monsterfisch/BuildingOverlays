@@ -1220,49 +1220,60 @@ local function readSource(path)
   return folder, entries
 end
 
----A plugin hands over a folder holding an overlays.lua data file and the
----PNGs it names. Called from the plugin's own enable, after this module's.
----e.g. modules["building-overlays"]:registerOverlaySource(
----  "ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
-local function registerOverlaySource(self, path)
-  local folder, entries = readSource(path)
-  if entries == nil then
-    return
-  end
-  if not state then
-    pending[#pending + 1] = path
-    if state == false then
-      -- enable found every option off and no plugin overlays; it installs for these
-      local ok, problem = pcall(enable, self, {})
-      if not ok then log(WARNING, "plugin overlays are not drawn: " .. tostring(problem)) end
+local registerOverlaySource
+do
+  local pluginOverlayFailureReported = false
+
+  ---A plugin hands over a folder holding an overlays.lua data file and the
+  ---PNGs it names. Called from the plugin's own enable, after this module's.
+  ---e.g. modules["building-overlays"]:registerOverlaySource(
+  ---  "ucp/plugins/MyPlugin-*/resources/modsupport/building-overlays/")
+  function registerOverlaySource(self, path)
+    local folder, entries = readSource(path)
+    if entries == nil then
+      return
     end
-    return
-  end
-  if loadedSources[folder] then
-    return
-  end
-  local other = overlayData.claim(folder)
-  if other ~= nil then
-    log(WARNING, "one overlay folder per plugin keeps its own calibration; "
-      .. folder .. " ignored, " .. other .. " is registered")
-    return
-  end
-  local games = {}
-  loadedSources[folder] = games
-  loadedSources[#loadedSources + 1] = folder
-  firstSource = firstSource or folder
-  for _, entry in ipairs(entries) do
-    if type(entry) == "table" and entry.game ~= nil then
-      games[#games + 1] = entry
-      applyGameEntry(entry)
-    else
-      addOverlay(entry, folder, false, folder)
+    if not state then
+      pending[#pending + 1] = path
+      if state == false then
+        -- enable found every option off and no plugin overlays; it installs for these
+        local ok, problem = pcall(enable, self, {})
+        if not ok then
+          if not pluginOverlayFailureReported then
+            pluginOverlayFailureReported = true
+            log(ERROR, "Custom building overlays from plugins are off.")
+          end
+          log(WARNING, "plugin overlays are not drawn: " .. tostring(problem))
+        end
+      end
+      return
     end
+    if loadedSources[folder] then
+      return
+    end
+    local other = overlayData.claim(folder)
+    if other ~= nil then
+      log(WARNING, "one overlay folder per plugin keeps its own calibration; "
+        .. folder .. " ignored, " .. other .. " is registered")
+      return
+    end
+    local games = {}
+    loadedSources[folder] = games
+    loadedSources[#loadedSources + 1] = folder
+    firstSource = firstSource or folder
+    for _, entry in ipairs(entries) do
+      if type(entry) == "table" and entry.game ~= nil then
+        games[#games + 1] = entry
+        applyGameEntry(entry)
+      else
+        addOverlay(entry, folder, false, folder)
+      end
+    end
+    if calibrationReady then
+      applyCalibration(folder)
+    end
+    log(INFO, string.format("%d overlay(s) in total after %s", #overlays, folder))
   end
-  if calibrationReady then
-    applyCalibration(folder)
-  end
-  log(INFO, string.format("%d overlay(s) in total after %s", #overlays, folder))
 end
 
 ---------------------------------------------------------------------------------------
@@ -1799,6 +1810,13 @@ end
 
 enable = function(self, config)
   config = config or {}
+  local flagLayering = type(config.drawing) == "table" and config.drawing.flag_layering
+  local frontFlags = setting(config, "drawing", "flags_on_top")
+  local rearFlagBehind = setting(config, "drawing", "back_flag_behind")
+  if flagLayering == "native" or flagLayering == "front" or flagLayering == "rear_behind" then
+    frontFlags = flagLayering ~= "native"
+    rearFlagBehind = flagLayering == "rear_behind"
+  end
   -- Every active plugin with resources/modsupport/building-overlays/overlays.lua is read without
   -- the plugin having to call in (a plugin re-exported by a tool loses its init.lua).
   local ok, problem = pcall(function()
@@ -1819,7 +1837,7 @@ enable = function(self, config)
   if not ok then
     log(WARNING, "could not look through the plugins: " .. tostring(problem))
   end
-  local anyOn = false
+  local anyOn = frontFlags
   for group, names in pairs(DEFAULTS) do
     for name in pairs(names) do
       anyOn = anyOn or setting(config, group, name) == true
@@ -1908,7 +1926,7 @@ enable = function(self, config)
   values.TILE_STRIPS = 0
   values.REMEMBER = 0
   values.CALL_COUNT, values.CALLS_DRAW = core.allocate(4, true), 0
-  values.FLAGS_ON_TOP = setting(config, "drawing", "flags_on_top") and 1 or 0
+  values.FLAGS_ON_TOP = frontFlags and 1 or 0
   if setting(config, "drawing", "tile_by_tile") then
     local ok, problem = pcall(function()
       local piece = scan(strips.AOB_TILE_PIECE, "where the map draws a building piece")
@@ -1982,7 +2000,7 @@ enable = function(self, config)
         u.CALL_SIZE, u.CALL_MAX = strips.CALL_SIZE, strips.CALL_MAX
         u.CALLS = core.allocate(strips.CALL_SIZE * strips.CALL_MAX, true)
         u.CALL_COUNT = values.CALL_COUNT
-        u.HIDE_BACK = setting(config, "drawing", "back_flag_behind") and 1 or 0
+        u.HIDE_BACK = rearFlagBehind and 1 or 0
         u.MAX_TILES = 80400
         u.BUILDING_LAYER = (orientation - 0x55489C + 0x2029B0) & 0xFFFFFFFF
         local mapUnitsDone = 0

@@ -35,6 +35,5 @@ flags_follow_turn: Mantener las banderas en su sitio al rotar el mapa
 flags_follow_turn_tooltip: El juego calcula la posición del mástil en pantalla solo al colocar la bandera, para la vista de ese momento. Al rotar el mapa los mástiles quedan desplazados varios píxeles del borde del edificio. Con esto activado acompañan cada giro del mapa.
 flags_on_edges: Colocar las banderas en el borde del edificio
 flags_on_edges_tooltip: El juego pone la bandera en el centro de su casilla, de modo que una bandera de esquina queda media casilla hacia dentro. Con esto activado el mástil se mueve al borde (la esquina exacta en casillas de esquina) en todas las vistas.
-qol: Calidad de vida
-bugfixes: Correcciones
-misc: Varios
+qol: Comodidad de juego
+bugfixes: Correcciones de errores

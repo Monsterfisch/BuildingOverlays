@@ -36,5 +36,4 @@ flags_follow_turn_tooltip: Le jeu ne calcule la position écran du mât qu'au mo
 flags_on_edges: Placer les drapeaux au bord du bâtiment
 flags_on_edges_tooltip: Le jeu place un drapeau au centre de sa case, ce qui décale un drapeau d'angle d'une demi-case vers l'intérieur. Avec cette option, son mât se place au bord (exactement à l'angle sur une case d'angle) dans toutes les vues.
 qol: Qualité de vie
-bugfixes: Corrections
-misc: Divers
+bugfixes: Corrections de bugs

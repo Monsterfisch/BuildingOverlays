@@ -34,6 +34,5 @@ flags_follow_turn: Flaggen beim Drehen der Karte an Ort und Stelle halten
 flags_follow_turn_tooltip: Das Spiel berechnet die Bildschirmposition eines Fahnenmasts nur beim Aufstellen der Flagge für die damalige Ansicht. Nach dem Drehen der Karte stehen die Masten einige Pixel neben der Gebäudekante. Mit dieser Option wandern sie bei jeder Kartendrehung mit.
 flags_on_edges: Flaggen an die Gebäudekante setzen
 flags_on_edges_tooltip: Das Spiel stellt eine Flagge in die Mitte ihres Feldes, sodass eine Flagge an einer Gebäudeecke ein halbes Feld eingerückt steht. Mit dieser Option rückt der Mast in jeder Ansicht an die Kante (auf Eckfeldern genau auf die Ecke).
-qol: Komfortfunktionen
+qol: Komfort
 bugfixes: Fehlerkorrekturen
-misc: Sonstiges
