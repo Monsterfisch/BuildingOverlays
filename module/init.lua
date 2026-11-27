@@ -440,16 +440,35 @@ local function log(level, text)
   end
 end
 
+local function validateSettings(config)
+  local valid = {}
+  if type(config) ~= "table" then
+    log(ERROR, "Building Overlays: invalid settings type.")
+    return valid
+  end
+  for group, defaults in pairs(DEFAULTS) do
+    local section = config[group]
+    if section ~= nil and type(section) ~= "table" then
+      log(ERROR, "Building Overlays: invalid " .. group .. " settings type.")
+    elseif section then
+      valid[group] = {}
+      for name, default in pairs(defaults) do
+        local value = section[name]
+        if value ~= nil and type(value) ~= type(default) then
+          log(ERROR, "Building Overlays: invalid " .. group .. "." .. name .. " setting type.")
+        else
+          valid[group][name] = value
+        end
+      end
+    end
+  end
+  return valid
+end
+
 local function setting(config, group, name)
   local section = config[group]
-  if type(section) == "table" and section[name] ~= nil then
-    return section[name]
-  end
-  local defaults = DEFAULTS[group]
-  if defaults ~= nil and defaults[name] ~= nil then
-    return defaults[name]
-  end
-  return false
+  if section and section[name] ~= nil then return section[name] end
+  return DEFAULTS[group] and DEFAULTS[group][name] or false
 end
 
 local function scan(pattern, purpose)
@@ -868,29 +887,30 @@ local function luaFunction(purpose, callback)
   return pad
 end
 
----The game's code section (from the PE header in memory).
-local function textSection()
-  local base = 0x400000
-  local nt = base + core.readInteger(base + 0x3C)
-  local sections = core.readSmallInteger(nt + 6) & 0xFFFF
-  local first = nt + 0x18 + (core.readSmallInteger(nt + 0x14) & 0xFFFF)
-  for index = 0, sections - 1 do
-    local header = first + index * 0x28
-    local name = ""
-    for k = 0, 7 do
-      local c = core.readByte(header + k) & 0xFF
-      if c == 0 then break end
-      name = name .. string.char(c)
-    end
-    if name == ".text" then
-      local start = base + core.readInteger(header + 0x0C)
-      return start, start + core.readInteger(header + 0x08)
-    end
+local function commitPatches(patches)
+  for _, patch in ipairs(patches) do
+    patch.code = core.compile(patch.code, patch.address)
+    patch.original = core.readBytes(patch.address, #patch.code)
   end
-  return 0x401000, 0x5A0000
+  local attempted = 0
+  local ok, problem = pcall(function()
+    for index, patch in ipairs(patches) do
+      attempted = index
+      core.writeCode(patch.address, patch.code, false)
+    end
+  end)
+  if not ok then
+    local restored = true
+    for index = attempted, 1, -1 do
+      local patch = patches[index]
+      if not pcall(core.writeCode, patch.address, patch.original, false) then restored = false end
+    end
+    local reason = restored and "" or " Some game code could not be restored."
+    error(tostring(problem) .. reason, 0)
+  end
 end
 
-local function installSites(tail, renderGm, values)
+local function installSites(tail, renderGm, values, prepareVanillaOverlays)
   local f1 = scan(F1_AOB, "the building overlay drawing")
   local f2 = scan(F2_AOB, "the building overlay drawing (towers)")
   local f2End = f2
@@ -910,18 +930,18 @@ local function installSites(tail, renderGm, values)
     [readCallTarget(renderGm, RENDER_GM_ANIMATION_CALL, "the animation drawing")] = { 0x1C, 0x20, 0 },
   }
   -- Another module may already have redirected some of these calls (interface-visual-fixes
-  -- does five): a call that lands outside the game's code, right after `mov ecx, <texture
+  -- does five): a call that lands outside the game image, right after `mov ecx, <texture
   -- core>`, is such a picture call. It is hooked as well (on top of the other module's code),
   -- so the numbering is the same whatever else is installed.
-  local textStart, textEnd = textSection()
-  local found = {}
+  local imageStart, imageEnd = ucp.internal.getMainImageRange()
+  local found, patches, recordsBySite = {}, {}, {}
   for _, range in ipairs({ { f2, f2End }, { f1, tail } }) do
     local address = range[1]
     while address <= range[2] - 5 do
       if (core.readByte(address) & 0xFF) == 0xE8 then
         local target = (address + 5 + core.readInteger(address + 1)) & 0xFFFFFFFF
         local kind = targets[target]
-        if kind == nil and (target < textStart or target >= textEnd)
+        if kind == nil and (target < imageStart or target > imageEnd)
             and (core.readByte(address - 5) & 0xFF) == 0xB9
             and (core.readInteger(address - 4) & 0xFFFFFFFF) == values.RENDER_CORE then
           kind = { 0x24, 0x28, 0 }
@@ -997,8 +1017,8 @@ local function installSites(tail, renderGm, values)
     code[#code + 1] = 0xE9
     for _, byte in ipairs({ bytesOf(common - (stub + STUB_SIZE)) }) do code[#code + 1] = byte end
     core.writeCode(stub, code)
-    core.writeCode(call.address + 1, { bytesOf(stub - (call.address + 5)) })
-    sites[number] = { records = records, number = number }
+    patches[#patches + 1] = { address = call.address + 1, code = { bytesOf(stub - (call.address + 5)) } }
+    recordsBySite[number] = { records = records, number = number }
   end
   for _, entry in ipairs({ { f1, strips.F1_ENTRY, 7 }, { f2, strips.F2_ENTRY, 5 } }) do
     local hook = core.allocateAssembly(entry[2], { CURRENT = values.CURRENT, GATED = values.GATED,
@@ -1008,9 +1028,9 @@ local function installSites(tail, renderGm, values)
     for _ = 6, entry[3] do
       code[#code + 1] = 0x90
     end
-    core.writeCode(entry[1], code)
+    patches[#patches + 1] = { address = entry[1], code = code }
   end
-  log(INFO, string.format("%d of the game's own overlay pictures can be moved", #found))
+  local reads, checks = 0, 0
   if values.HOVER_ONLY == 1 then
     local roofField = (values.BUILDINGS + B_ROOF) & 0xFFFFFFFF
     local defaults = core.allocate(TYPE_COUNT * 4, true)
@@ -1035,17 +1055,24 @@ local function installSites(tail, renderGm, values)
       ROOF_TYPE = core.allocate(4, true), ROOF_DEFAULTS = defaults, SIEGE_HERE = siegeHere,
       BUILDINGS = values.BUILDINGS,
     })
-    local reads = 0
     for address = f1, tail - 6 do
       if (core.readByte(address) & 0xFF) == 0x8B and (core.readByte(address + 1) & 0xFF) == 0x85
           and (core.readInteger(address + 2) & 0xFFFFFFFF) == roofField then
         local code = { 0xE8, bytesOf(reader - (address + 5)) }
         code[#code + 1] = 0x90
-        core.writeCode(address, code)
+        patches[#patches + 1] = { address = address, code = code }
         reads = reads + 1
       end
     end
+    checks = prepareVanillaOverlays(tail, values, patches)
+  end
+  commitPatches(patches)
+  sites = recordsBySite
+  log(INFO, string.format("%d of the game's own overlay pictures can be moved", #found))
+  if values.HOVER_ONLY == 1 then
     log(INFO, string.format("tower roofs stay while troops are on them (%d reads)", reads))
+    log(INFO, string.format("tower roofs hide only under the mouse, crenellations as the game says "
+      .. "(%d checks changed)", checks))
   end
 end
 
@@ -1354,8 +1381,7 @@ end
 
 ---The building panel's item table, its first every-frame item and its work status line.
 local function findBuildingMenu()
-  local constructor = core.AOBScanUnique(BUILDING_MENU[data.version.isExtreme() and 2 or 1])
-  if constructor == nil then error("the building menu initializer could not be bound", 0) end
+  local constructor = scan(BUILDING_MENU[data.version.isExtreme() and 2 or 1], "the building menu initializer")
   local start = core.readInteger(constructor + 1)
   if start == 0 or core.readInteger(start + ITEM_TYPE) ~= TYPE_EVERY_FRAME then
     error("the building panel is not the one this module knows", 0)
@@ -1509,7 +1535,7 @@ end
 ---Every `cmp dword [reg + building +0xB0], edx` (39 /r, 6 bytes) or `cmp dword [reg + that], 0`
 ---(83 /7 ib, 7 bytes) in the two overlay functions becomes a call that sets the flags as
 ---"empty" unless the mouse is on that building. Returns how many were changed.
-local function patchVanillaOverlays(tail, values)
+local function prepareVanillaOverlays(tail, values, patches)
   local field = (values.BUILDINGS + B_OCCUPIED) & 0xFFFFFFFF
   local count = 0
   local address = tail - VANILLA_SEARCH
@@ -1538,7 +1564,7 @@ local function patchVanillaOverlays(tail, values)
       for _ = 6, size do
         code[#code + 1] = 0x90
       end
-      core.writeCode(address, code)
+      patches[#patches + 1] = { address = address, code = code }
       count = count + 1
       address = address + size
     else
@@ -1577,16 +1603,14 @@ local function fixKeepDoor()
   end
   -- UpdateKeepDoor: `mov ecx, [map rotation] / cmp ecx, esi`, once for the manor house and
   -- once for the stone keep and stronghold
-  local pillars = {}
-  local pattern = "8B 0D ? ? ? ? 3B CE C7 80 ? ? ? ? ? ? ? ? C7 80 ? ? ? ? ? ? ? ? 89 B0 ? ? ? ? 74 ? 83 F9 04 74"
-  local from = core.AOBScan(pattern)
-  if from == nil then error("the keep entrance pillars were not found", 0) end
-  pillars[1] = from
-  local second = core.scanForAOB(pattern, from + 1, from + 0x100)
-  if second == nil then
-    error("the keep entrance pillar is not the code this module knows")
+  local manor = scan("66 83 F9 28 75 66 8B 0D ? ? ? ? 3B CE C7 80 ? ? ? ? 33 05 00 00",
+    "the manor entrance pillars") + 6
+  local keep = scan("66 83 F9 29 74 06 66 83 F9 2A 75 61 8B 0D ? ? ? ? 3B CE C7 80 ? ? ? ? 2E 05 00 00",
+    "the stone keep entrance pillars") + 12
+  local rotation = core.readInteger(manor + 2)
+  if core.readInteger(keep + 2) ~= rotation then
+    error("the keep entrance pillars disagree on map rotation", 0)
   end
-  pillars[2] = second
   local turned = assemble([[
 mov ecx, [ROTATION]
 push edx
@@ -1601,7 +1625,7 @@ and ecx, 7
 kp_done:
 pop edx
 ret
-]], { ROTATION = core.readInteger(from + 2), ORIENT = values.ORIENT })
+]], { ROTATION = rotation, ORIENT = values.ORIENT })
   local blob = assemble([[
 movzx ecx, word [esi + ORIENT]
 mov eax, [edi + MAP_ORI]
@@ -1631,7 +1655,7 @@ mov word [edi + ebx*2 + GFX], cx
 jmp DONE
 ]], values)
   core.writeCode(hook, { 0xE9, core.itob(core.getRelativeAddress(hook, blob, -5)), 0x90 })
-  for _, address in ipairs(pillars) do
+  for _, address in ipairs({ manor, keep }) do
     core.writeCode(address, { 0xE8, core.itob(core.getRelativeAddress(address, turned, -5)), 0x90 })
   end
 end
@@ -2026,24 +2050,7 @@ function startup.installDrawing(config)
   end
   local blob = assemble(script, values)
   stage(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
-  for _, patch in ipairs(patches) do
-    patch.code = core.compile(patch.code, patch.address)
-    patch.original = core.readBytes(patch.address, #patch.code)
-  end
-  local attempted = 0
-  local ok, problem = pcall(function()
-    for index, patch in ipairs(patches) do
-      attempted = index
-      core.writeCode(patch.address, patch.code, false)
-    end
-  end)
-  if not ok then
-    for index = attempted, 1, -1 do
-      local patch = patches[index]
-      core.writeCode(patch.address, patch.original)
-    end
-    error(problem, 0)
-  end
+  commitPatches(patches)
   state, overlays = drawing, {}
   return tail, renderGm, values
 end
@@ -2066,30 +2073,19 @@ function startup.startDrawing(config)
     end
   end
 
-  local sitesOk, sitesProblem = pcall(installSites, tail, renderGm, values)
+  local sitesOk, sitesProblem = pcall(installSites, tail, renderGm, values, prepareVanillaOverlays)
   if not sitesOk then
-    log(ERROR, "Moving the game's building overlays is off.")
-    log(WARNING, "the game's own overlays cannot be moved: " .. tostring(sitesProblem))
-    values.SITES, values.SITE_COUNT = state.records, 0
+    local feature = values.HOVER_ONLY == 1 and "Moving game overlays and adjusting tower roofs"
+      or "Moving the game's building overlays"
+    log(ERROR, feature .. " is off: " .. tostring(sitesProblem))
+    values.SITES, values.SITE_COUNT, values.SITE_STRIDE = state.records, 0, TYPE_COUNT * RECORD_SIZE
     values.PANEL_FRAME = values.PANEL_FRAME or core.allocate(4, true)
-  end
-
-  if values.HOVER_ONLY == 1 then
-    local ok, result = pcall(patchVanillaOverlays, tail, values)
-    if ok then
-      log(INFO, string.format("tower roofs hide only under the mouse, crenellations as the game says "
-        .. "(%d checks changed)", result))
-    else
-      log(ERROR, "Adjusting the game's tower roofs is off: " .. tostring(result))
-    end
   end
 
   if setting(config, "editor", "enabled") then
     local ok, message = pcall(installPanel, values)
     if not ok then
-      log(ERROR, "The building panel overlay tool is off.")
-      log(WARNING, "the overlay tool in the building panel is off: "
-        .. tostring(message))
+      log(ERROR, "The building panel overlay tool is off: " .. tostring(message))
     end
   end
 
@@ -2142,20 +2138,18 @@ function startup.discoverSources()
 end
 
 function startup.enable(self, config)
-  config = config or {}
+  config = validateSettings(config or {})
   startup.discoverSources()
   if setting(config, "flags", "follow_turn") then
     local ok, message = pcall(fixFlagTurn)
     if not ok then
-      log(ERROR, "Flag repositioning when the map turns is off.")
-      log(WARNING, "flags keep the game's spot when the map is turned: " .. tostring(message))
+      log(ERROR, "Flag repositioning when the map turns is off: " .. tostring(message))
     end
   end
   if setting(config, "keep_entrance", "enabled") then
     local ok, message = pcall(fixKeepDoor)
     if not ok then
-      log(ERROR, "The keep entrance drawing fix is off.")
-      log(WARNING, "the keep entrance stays as the game draws it: " .. tostring(message))
+      log(ERROR, "The keep entrance drawing fix is off: " .. tostring(message))
     end
   end
 
