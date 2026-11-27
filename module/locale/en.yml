@@ -55,9 +55,3 @@ flags_on_edges: Place flags on building edges
 flags_on_edges_tooltip: Flagpoles move from the middle of their tile to the building edge.
 qol: Quality of Life
 bugfixes: Bugfixes
-flag_layering: Flag layering
-flag_layering_tooltip: Choose where flags draw relative to overlay pictures.
-flag_layering_inherit: Use existing settings
-flag_layering_native: Game default
-flag_layering_front: In front of overlays
-flag_layering_rear_behind: Keep rear flag behind

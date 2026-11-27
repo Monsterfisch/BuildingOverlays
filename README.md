@@ -169,4 +169,4 @@ set the options they need themselves.
   gatehouse needs - its `+0xB0` flag stays 0) and `+0xB0 == 0`; entrance side from `+0x102` (0x50 = along x) flipped on map
   orientations 2 and 6.
 
-Art packs can set `building-overlays.large_gatehouse.swap_sides` when their left and right gatehouse pictures are reversed. **Use existing settings** in Flag layering honors the two profile settings `drawing.flags_on_top` and `drawing.back_flag_behind`. The other choices set flag layering directly. Flag layering takes effect with **Draw overlays behind foreground buildings**.
+Art packs can set `building-overlays.large_gatehouse.swap_sides` when their left and right gatehouse pictures are reversed. The flag layering switches take effect with **Draw overlays behind foreground buildings**.

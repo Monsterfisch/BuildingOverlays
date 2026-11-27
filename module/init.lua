@@ -1199,25 +1199,34 @@ local function applyCalibration(source)
   end
 end
 
----`path` with UCP's path aliases resolved and ending in a slash, and the entries of its
----overlays.lua (nil after a warning when the reader rejects it).
-local function readSource(path)
-  local folder = path
-  if io.resolveAliasedPath ~= nil then
-    local ok, resolved = pcall(io.resolveAliasedPath, path)
-    if ok and type(resolved) == "string" and resolved ~= "" then
-      folder = resolved
+local readSource
+do
+  local rejectedSources = {}
+
+  ---`path` with UCP's path aliases resolved and ending in a slash, and the entries of its
+  ---overlays.lua (nil when the reader rejects it).
+  function readSource(path)
+    local folder = path
+    if io.resolveAliasedPath ~= nil then
+      local ok, resolved = pcall(io.resolveAliasedPath, path)
+      if ok and type(resolved) == "string" and resolved ~= "" then
+        folder = resolved
+      end
     end
+    folder = folder:gsub("\\", "/")
+    if folder:sub(-1) ~= "/" then
+      folder = folder .. "/"
+    end
+    local entries, problem = overlayData.read(folder .. "overlays.lua")
+    if entries == nil then
+      if not rejectedSources[folder] then
+        rejectedSources[folder] = true
+        log(ERROR, "Building overlays could not be loaded from " .. folder)
+      end
+      log(WARNING, "no readable overlay data in " .. folder .. ": " .. tostring(problem))
+    end
+    return folder, entries
   end
-  folder = folder:gsub("\\", "/")
-  if folder:sub(-1) ~= "/" then
-    folder = folder .. "/"
-  end
-  local entries, problem = overlayData.read(folder .. "overlays.lua")
-  if entries == nil then
-    log(WARNING, "no readable overlay data in " .. folder .. ": " .. tostring(problem))
-  end
-  return folder, entries
 end
 
 local registerOverlaySource
@@ -1810,13 +1819,6 @@ end
 
 enable = function(self, config)
   config = config or {}
-  local flagLayering = type(config.drawing) == "table" and config.drawing.flag_layering
-  local frontFlags = setting(config, "drawing", "flags_on_top")
-  local rearFlagBehind = setting(config, "drawing", "back_flag_behind")
-  if flagLayering == "native" or flagLayering == "front" or flagLayering == "rear_behind" then
-    frontFlags = flagLayering ~= "native"
-    rearFlagBehind = flagLayering == "rear_behind"
-  end
   -- Every active plugin with resources/modsupport/building-overlays/overlays.lua is read without
   -- the plugin having to call in (a plugin re-exported by a tool loses its init.lua).
   local ok, problem = pcall(function()
@@ -1837,7 +1839,7 @@ enable = function(self, config)
   if not ok then
     log(WARNING, "could not look through the plugins: " .. tostring(problem))
   end
-  local anyOn = frontFlags
+  local anyOn = false
   for group, names in pairs(DEFAULTS) do
     for name in pairs(names) do
       anyOn = anyOn or setting(config, group, name) == true
@@ -1926,7 +1928,7 @@ enable = function(self, config)
   values.TILE_STRIPS = 0
   values.REMEMBER = 0
   values.CALL_COUNT, values.CALLS_DRAW = core.allocate(4, true), 0
-  values.FLAGS_ON_TOP = frontFlags and 1 or 0
+  values.FLAGS_ON_TOP = setting(config, "drawing", "flags_on_top") and 1 or 0
   if setting(config, "drawing", "tile_by_tile") then
     local ok, problem = pcall(function()
       local piece = scan(strips.AOB_TILE_PIECE, "where the map draws a building piece")
@@ -2000,7 +2002,7 @@ enable = function(self, config)
         u.CALL_SIZE, u.CALL_MAX = strips.CALL_SIZE, strips.CALL_MAX
         u.CALLS = core.allocate(strips.CALL_SIZE * strips.CALL_MAX, true)
         u.CALL_COUNT = values.CALL_COUNT
-        u.HIDE_BACK = rearFlagBehind and 1 or 0
+        u.HIDE_BACK = setting(config, "drawing", "back_flag_behind") and 1 or 0
         u.MAX_TILES = 80400
         u.BUILDING_LAYER = (orientation - 0x55489C + 0x2029B0) & 0xFFFFFFFF
         local mapUnitsDone = 0
