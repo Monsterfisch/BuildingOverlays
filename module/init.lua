@@ -2049,6 +2049,7 @@ enable = function(self, config)
             address = address + 1
           end
           if hooked == 0 then
+            log(ERROR, "Keep flag draw ordering for overlays is off.")
             log(WARNING, "flags on keeps may still show behind overlays (entity drawing not found)")
           end
         end
@@ -2057,6 +2058,7 @@ enable = function(self, config)
       if not sortOk then
         values.MARK_UNITS = 0
         values.MARKED, values.MARK_B = 0, 0
+        log(ERROR, "Unit draw ordering for overlays is off.")
         log(WARNING, "units on buildings may show over overlays: " .. tostring(sortProblem))
       end
       local tileHook = assemble(strips.TILE_SCRIPT, values)
@@ -2065,6 +2067,7 @@ enable = function(self, config)
       values.TILE_STRIPS = 1
     end)
     if not ok then
+      log(ERROR, "Layered building overlays are off. Overlays will draw in one piece.")
       log(WARNING, "overlays are drawn in one piece: " .. tostring(problem))
     end
   end
@@ -2081,6 +2084,7 @@ enable = function(self, config)
   core.writeCode(tail, { 0xE9, core.itob(core.getRelativeAddress(tail, blob, -5)), 0x90, 0x90 })
   local sitesOk, sitesProblem = pcall(installSites, tail, renderGm, values)
   if not sitesOk then
+    log(ERROR, "Moving the game's building overlays is off.")
     log(WARNING, "the game's own overlays cannot be moved: " .. tostring(sitesProblem))
     values.SITES, values.SITE_COUNT = state.records, 0
     values.PANEL_FRAME = values.PANEL_FRAME or core.allocate(4, true)
@@ -2094,6 +2098,7 @@ enable = function(self, config)
   if setting(config, "editor", "enabled") then
     local ok, message = pcall(installPanel, values)
     if not ok then
+      log(ERROR, "The building panel overlay tool is off.")
       log(WARNING, "the overlay tool in the building panel is off: "
         .. tostring(message))
     end
@@ -2102,12 +2107,14 @@ enable = function(self, config)
   if setting(config, "flags", "follow_turn") then
     local ok, message = pcall(fixFlagTurn)
     if not ok then
+      log(ERROR, "Flag repositioning when the map turns is off.")
       log(WARNING, "flags keep the game's spot when the map is turned: " .. tostring(message))
     end
   end
   if setting(config, "flags", "on_edges") then
     local ok, message = pcall(flagsOnEdges, values)
     if not ok then
+      log(ERROR, "Flag placement at tile edges is off.")
       log(WARNING, "flags stay in the middle of their tiles: " .. tostring(message))
     end
   end
@@ -2115,6 +2122,7 @@ enable = function(self, config)
   if setting(config, "keep_entrance", "enabled") then
     local ok, message = pcall(fixKeepDoor)
     if not ok then
+      log(ERROR, "The keep entrance drawing fix is off.")
       log(WARNING, "the keep entrance stays as the game draws it: " .. tostring(message))
     end
   end
