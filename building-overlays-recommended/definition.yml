@@ -1,0 +1,16 @@
+name: building-overlays-recommended
+display-name: Building Overlays Recommended
+author: Monsterfish
+version: 1.0.0
+type: plugin
+game:
+- SHC==1.41
+- SHCE==1.41
+family:
+- name: building-overlays
+meta:
+  version: 1.0.0
+dependencies:
+  framework: ^3.0.8
+  frontend: '>=1.0.17 <2.0.0'
+  building-overlays: ^1.1.4

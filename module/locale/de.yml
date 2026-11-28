@@ -1,0 +1,32 @@
+editor_group: Overlay-Werkzeug
+editor_group_descr: Wähle ein Gebäude und klicke in seinem Menü auf ein Overlay. Passe es mit den Pfeilen und der Taste für die Schrittweite an und klicke auf Speichern.
+editor_enabled: Overlays im Gebäudemenü bearbeiten
+editor_enabled_tooltip: Klicke auf ein Overlay im Menü des gewählten Gebäudes, um es zu bearbeiten.
+mouse_group: Overlay-Anzeige
+mouse_group_descr: Wähle, wie Overlays Truppen sichtbar machen und wo Flaggen sitzen.
+hover_only: Truppen unter dem Mauszeiger sichtbar machen
+hover_only_tooltip: Zeige auf einen Turm, ein Torhaus oder einen Bergfried, um Truppen hinter dem Overlay zu sehen.
+drawing_group: Overlay-Darstellung
+drawing_group_descr: Steuere, wie Overlays, Truppen und Flaggen gezeichnet werden.
+tile_by_tile: Overlays hinter vorderen Gebäuden zeichnen
+tile_by_tile_tooltip: Vordere Mauern und Gebäude können dahinterliegende Overlays verdecken.
+hide_units: Truppen unter Dächern verbergen
+hide_units_tooltip: Truppen unter Dächern werden verborgen. Einheiten, die durch Tore ziehen, bleiben sichtbar.
+flags_on_top: Flaggen vor den Overlays anzeigen
+flags_on_top_tooltip: Flaggen auf einem Bergfried oder einem anderen Gebäude werden direkt nach dessen Overlays gezeichnet, sodass das eigene Overlay keinen Teil davon verdeckt. Mauern und Gebäude davor verdecken die Flagge weiterhin wie gewohnt. Erfordert „Gebäude davor verdecken die Overlays“.
+back_flag_behind: Hintere Flagge hinter dem Gebäude belassen
+back_flag_behind_tooltip: Die Flagge an der hinteren Ecke eines Gebäudes bleibt hinter dem Gebäude und den Einheiten darauf, wo das Spiel sie zeichnet, statt vor den Overlays. Erfordert „Flaggen vor den Overlays anzeigen“.
+keep_entrance_group: Bergfried-Eingang
+keep_entrance_group_descr: Behebt eine Schattierungsabweichung am Bergfried-Eingang.
+keep_entrance_enabled: Schattierung am Bergfried-Eingang angleichen
+keep_entrance_enabled_tooltip: Die Mitte des Bergfried-Eingangs nutzt denselben Farbton wie die Türme daneben.
+flags_group: Flaggen
+flags_group_descr: Hält Flaggen an Gebäuden ausgerichtet.
+flags_follow_turn: Flaggen beim Drehen der Karte ausgerichtet halten
+flags_follow_turn_tooltip: Flaggen bleiben beim Drehen der Karte an ihrer Position.
+flags_on_edges: Flaggen an Gebäudekanten platzieren
+flags_on_edges_tooltip: Fahnenmasten rücken von der Feldmitte an die Gebäudekante.
+qol: Komfort
+bugfixes: Fehlerkorrekturen
+cat_display_previews: Kartenanzeige und Vorschauen
+cat_overlay_tools: Overlay-Werkzeuge

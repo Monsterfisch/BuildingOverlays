@@ -1,0 +1,32 @@
+editor_group: Herramienta de superposiciones
+editor_group_descr: Selecciona un edificio y haz clic en una superposición de su panel. Ajústala con las flechas y el botón de tamaño de paso y pulsa Guardar.
+editor_enabled: Editar superposiciones en el panel del edificio
+editor_enabled_tooltip: Haz clic en una superposición del panel del edificio seleccionado para editarla.
+mouse_group: Visualización de superposiciones
+mouse_group_descr: Elige cómo revelan tropas las superposiciones y dónde se colocan las banderas.
+hover_only: Revelar tropas al pasar el cursor
+hover_only_tooltip: Apunta a una torre, casa de la puerta o fortaleza para ver las tropas tras su superposición.
+drawing_group: Dibujado de superposiciones
+drawing_group_descr: Controla cómo se dibujan las superposiciones, las tropas y las banderas.
+tile_by_tile: Dibujar superposiciones detrás de edificios delanteros
+tile_by_tile_tooltip: Las murallas y edificios situados delante pueden cubrir las superposiciones detrás de ellos.
+hide_units: Ocultar tropas bajo los tejados
+hide_units_tooltip: Las tropas bajo tejados quedan ocultas. Las unidades que cruzan puertas siguen visibles.
+flags_on_top: Mostrar banderas delante de las superposiciones
+flags_on_top_tooltip: Las banderas sobre una fortaleza u otro edificio se dibujan justo después de sus superposiciones para que su propia superposición no las oculte. Los muros y edificios delante siguen tapando la bandera normalmente. Requiere «Dejar que los edificios delante cubran las superposiciones».
+back_flag_behind: Dejar la bandera trasera detrás del edificio
+back_flag_behind_tooltip: La bandera en la esquina lejana de un edificio permanece detrás del edificio y sus unidades, donde la dibuja el juego, en vez de delante de las superposiciones. Requiere «Mostrar banderas delante de las superposiciones».
+keep_entrance_group: Entrada de la fortaleza
+keep_entrance_group_descr: Corrige un desajuste de sombreado en la entrada de la fortaleza.
+keep_entrance_enabled: Igualar el sombreado de la entrada de la fortaleza
+keep_entrance_enabled_tooltip: El centro de la entrada de la fortaleza usa el mismo tono que las torres contiguas.
+flags_group: Banderas
+flags_group_descr: Mantiene las banderas alineadas con los edificios.
+flags_follow_turn: Mantener las banderas alineadas al girar el mapa
+flags_follow_turn_tooltip: Las banderas conservan su posición al rotar el mapa.
+flags_on_edges: Colocar banderas en los bordes de los edificios
+flags_on_edges_tooltip: Los mástiles pasan del centro de la casilla al borde del edificio.
+qol: Comodidad de juego
+bugfixes: Correcciones de errores
+cat_display_previews: Visualización del mapa y vistas previas
+cat_overlay_tools: Herramientas de superposición

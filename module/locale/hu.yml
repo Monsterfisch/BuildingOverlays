@@ -1,0 +1,32 @@
+editor_group: Rátét-szerkesztő eszköz
+editor_group_descr: Jelölj ki egy épületet, majd kattints egy rátétre a paneljén. Állítsd be a nyilakkal és a lépésköz gombbal, majd kattints a Mentésre.
+editor_enabled: Rátétek szerkesztése az épület paneljén
+editor_enabled_tooltip: Kattints egy rátétre a kijelölt épület paneljén a szerkesztéséhez.
+mouse_group: Rátétek megjelenítése
+mouse_group_descr: Válaszd ki, hogyan fedjék fel a rátétek a csapatokat és hol álljanak a zászlók.
+hover_only: Csapatok felfedése rámutatáskor
+hover_only_tooltip: Mutass egy toronyra, kapuházra vagy vártoronyra a rátét mögötti csapatok megjelenítéséhez.
+drawing_group: Rátétek kirajzolása
+drawing_group_descr: Szabályozza a rátétek, csapatok és zászlók kirajzolását.
+tile_by_tile: Rátétek kirajzolása az elöl lévő épületek mögé
+tile_by_tile_tooltip: Az elöl lévő falak és épületek eltakarhatják a mögöttük lévő rátéteket.
+hide_units: Csapatok elrejtése tetők alatt
+hide_units_tooltip: A tetők alatti csapatok rejtve maradnak. A kapukon áthaladó egységek láthatók maradnak.
+flags_on_top: Zászlók megjelenítése a fedőképek előtt
+flags_on_top_tooltip: A vártornyon vagy más épületen álló zászlók közvetlenül az épület fedőképei után rajzolódnak ki, így a saját fedőkép nem takarja el őket. Az elöl álló falak és épületek továbbra is takarják a zászlót. Igényli „Az elöl álló épületek takarják a fedőképeket” beállítást.
+back_flag_behind: Hátsó zászló hagyása az épület mögött
+back_flag_behind_tooltip: Az épület távoli sarkán lévő zászló az épület és a rajta álló egységek mögött marad, ahogy a játék rajzolja, nem a fedőképek előtt. Igényli a „Zászlók megjelenítése a fedőképek előtt” beállítást.
+keep_entrance_group: Vártorony bejárata
+keep_entrance_group_descr: Javítja a vártorony bejáratának árnyékolási eltérését.
+keep_entrance_enabled: Vártorony bejáratának árnyékolás-egyeztetése
+keep_entrance_enabled_tooltip: A vártorony bejáratának közepe ugyanazt az árnyalatot kapja, mint a mellette lévő tornyok.
+flags_group: Zászlók
+flags_group_descr: Az épületekhez igazítva tartja a zászlókat.
+flags_follow_turn: Zászlók igazításának megtartása térképforgatáskor
+flags_follow_turn_tooltip: A zászlók a helyükön maradnak a térkép forgatásakor.
+flags_on_edges: Zászlók elhelyezése az épületek szélén
+flags_on_edges_tooltip: A zászlórudak a mező közepéről az épület szélére kerülnek.
+qol: Kényelmi funkciók
+bugfixes: Hibajavítások
+cat_display_previews: Térképmegjelenítés és előnézetek
+cat_overlay_tools: Rátét-eszközök

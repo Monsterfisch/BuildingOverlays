@@ -12,12 +12,26 @@ from host import fasm, ucp_source
 
 import glob as _glob
 MODULE = os.environ.get('SW_MODULE', os.path.join(os.path.dirname(HERE), 'module'))
+RECOMMENDED = os.path.join(os.path.dirname(HERE), 'building-overlays-recommended', 'config.yml')
 VAN_PATH = G + r'\Stronghold Crusader.exe'
 EXT_PATH = G + r'\Stronghold_Crusader_Extreme.exe'
 HEAP = 0x60000000
 STACK_TOP = 0x70100000
 SENTINEL = 0x7FFFFFF0
+USERDATA = 'ucp/userdata/building-overlays'
 _EXES = {}
+
+
+def recommended(overrides):
+    """The Recommended plugin's suggested values with `overrides` on top."""
+    import yaml
+    with open(RECOMMENDED, encoding='utf-8') as f:
+        tree = yaml.safe_load(f)['config-sparse']['modules']['building-overlays']['config']
+    config = {group: {name: node['contents']['suggested-value'] for name, node in names.items()}
+              for group, names in tree.items()}
+    for group, settings in overrides.items():
+        config[group] = {**config.get(group, {}), **settings}
+    return config
 
 
 def exe(p):
@@ -39,13 +53,16 @@ class Host:
         self.scripts = []
         lua = self.lua = lupa.LuaRuntime(unpack_returned_tuples=True, encoding=None)
         g = lua.globals()
+        g[b'data'] = lua.table_from({b'version': lua.table_from({b'isExtreme': lambda: extreme})})
         g[b'VERBOSE'], g[b'INFO'], g[b'WARNING'], g[b'ERROR'] = b'VERBOSE', b'INFO', b'WARNING', b'ERROR'
         g[b'log'] = lambda level, message: self.logs.append(
             '%s: %s' % (level.decode(), message.decode('latin-1')))
         c = lua.table()
         c[b'AOBScan'] = self.scan
-        c[b'scanForAOB'] = self.scan
+        c[b'scanForAOB'] = lambda *args: self.scan(*args, required=False)
         c[b'readInteger'] = lambda a: self.m.s32(int(a))
+        c[b'readBytes'] = lambda a, n: lua.table_from(list(self.m.read(int(a), int(n))))
+        c[b'compile'] = lambda code, address: lua.table_from(list(self.flatten(code)))
         c[b'readByte'] = lambda a: struct.unpack('<b', self.m.read(int(a), 1))[0]
         c[b'readSmallInteger'] = lambda a: struct.unpack('<h', self.m.read(int(a), 2))[0]
         c[b'allocateCode'] = self.allocate_code
@@ -98,12 +115,16 @@ class Host:
             self.m.write(sd + 9, b'\xE9\x00\x00\x00\x72\x90')
             self.m.write(sd, bytes([0xE9,0,0,0,0x73,0x90,0x90]))   # smarter-buildings
         os.chdir(G)   # io.open('ucp/modules/...') relative to the game folder
+        # UCP's userdata.interface(): this module's user data folder, relative to the game folder
+        os.makedirs(USERDATA, exist_ok=True)
+        lua.execute(b'userdata = { interface = function() return { open = function(self, name, ...) '
+                    b'return io.open("' + USERDATA.encode() + b'/" .. name, ...) end } end }')
         if pre is not None:
             pre(self)
         self.mod = lua.eval(b'dofile')((MODULE + r'\init.lua').encode('mbcs'))
         if isinstance(self.mod, tuple):     # init.lua may return (module, { public = ... })
             self.mod, self.public = self.mod[0], self.mod[1]
-        self.mod[b'enable'](self.mod, self.to_lua(config or {}))
+        self.mod[b'enable'](self.mod, self.to_lua(recommended(config or {})))
 
     def to_lua(self, value):
         if isinstance(value, dict):
@@ -129,22 +150,24 @@ class Host:
                 return bytes(page)
         return None
 
-    def scan(self, pattern, *rest):
+    def matches(self, pattern, lo, hi):
         """Scans the emulated memory (so earlier patches count), within the exe image."""
         pattern = pattern.decode('latin-1') if isinstance(pattern, bytes) else pattern
         hits = [h for h in self.E.find(pattern) if h is not None]
-        if rest and rest[0] is not None:
-            lo = int(rest[0]); hi = int(rest[1]) if len(rest) > 1 and rest[1] is not None else 0x7FFFFFFF
-            hits = [h for h in hits if lo <= h <= hi]
+        hits = [h for h in hits if lo <= h <= hi]
         toks = pattern.split()
         good = []
         for h in hits:
             data = self.m.read(h, len(toks))
             if all(t == '?' or int(t, 16) == data[i] for i, t in enumerate(toks)):
                 good.append(h)
-        if not good:
-            raise lupa.LuaError('AOBScan: no match ' + pattern)
-        return good[0]
+        return good
+
+    def scan(self, pattern, lo=None, hi=None, required=True):
+        hits = self.matches(pattern, lo or 0, hi or 0xFFFFFFFF)
+        if not hits and required:
+            raise lupa.LuaError('AOBScan: no match ' + repr(pattern))
+        return hits[0] if hits else None
 
     def flatten(self, table):
         out = []

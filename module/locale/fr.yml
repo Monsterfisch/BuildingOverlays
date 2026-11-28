@@ -1,0 +1,32 @@
+editor_group: Outil de superpositions
+editor_group_descr: Sélectionnez un bâtiment et cliquez sur une superposition dans son panneau. Ajustez-la avec les flèches et le bouton de réglage du pas, puis cliquez sur Enregistrer.
+editor_enabled: Modifier les superpositions dans le panneau du bâtiment
+editor_enabled_tooltip: Cliquez sur une superposition dans le panneau du bâtiment sélectionné pour la modifier.
+mouse_group: Affichage des superpositions
+mouse_group_descr: Choisissez comment les superpositions révèlent les troupes et où se placent les drapeaux.
+hover_only: Révéler les troupes au survol
+hover_only_tooltip: Pointez une tour, une porte ou un donjon pour voir les troupes derrière sa superposition.
+drawing_group: Rendu des superpositions
+drawing_group_descr: Contrôle l’ordre de dessin des superpositions, des troupes et des drapeaux.
+tile_by_tile: Dessiner les superpositions derrière les bâtiments au premier plan
+tile_by_tile_tooltip: Les murs et bâtiments devant peuvent masquer les superpositions situées derrière.
+hide_units: Masquer les troupes sous les toits
+hide_units_tooltip: Les troupes sous les toits sont masquées. Les unités qui traversent les portes restent visibles.
+flags_on_top: Afficher les drapeaux devant les calques
+flags_on_top_tooltip: Les drapeaux sur un donjon ou un autre bâtiment sont dessinés juste après ses calques afin qu'aucun calque ne les cache. Les murs et bâtiments devant continuent de les masquer normalement. Nécessite « Laisser les bâtiments devant masquer les calques ».
+back_flag_behind: Laisser le drapeau arrière derrière le bâtiment
+back_flag_behind_tooltip: Le drapeau sur l'angle arrière d'un bâtiment reste derrière le bâtiment et les unités dessus, là où le jeu le dessine, au lieu de passer devant les calques. Nécessite « Afficher les drapeaux devant les calques ».
+keep_entrance_group: Entrée du donjon
+keep_entrance_group_descr: Corrige un écart d’ombrage à l’entrée du donjon.
+keep_entrance_enabled: Harmoniser l’ombrage de l’entrée du donjon
+keep_entrance_enabled_tooltip: Le centre de l’entrée du donjon prend la même teinte que les tours voisines.
+flags_group: Drapeaux
+flags_group_descr: Maintient les drapeaux alignés avec les bâtiments.
+flags_follow_turn: Garder les drapeaux alignés en pivotant la carte
+flags_follow_turn_tooltip: Les drapeaux restent en place lorsque vous pivotez la carte.
+flags_on_edges: Placer les drapeaux au bord des bâtiments
+flags_on_edges_tooltip: Les mâts passent du centre de la case au bord du bâtiment.
+qol: Qualité de vie
+bugfixes: Corrections de bugs
+cat_display_previews: Affichage de la carte et aperçus
+cat_overlay_tools: Outils de superposition

@@ -1,7 +1,13 @@
 name: building-overlays
 display-name: Building Overlays
 type: module
-version: 1.0.48
+version: 1.1.6
 author: Monsterfish
 meta:
   version: 1.0.0
+dependencies:
+  framework: ^3.0.8
+  frontend: '>=1.0.2'
+game:
+- SHC==1.41
+- SHCE==1.41

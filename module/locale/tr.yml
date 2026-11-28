@@ -1,0 +1,32 @@
+editor_group: Kaplama aracı
+editor_group_descr: Bir bina seçin ve panelindeki bir kaplamaya tıklayın. Oklarla ve adım boyutu düğmesiyle ayarlayıp Kaydet’e tıklayın.
+editor_enabled: Bina panelinde kaplamaları düzenle
+editor_enabled_tooltip: Düzenlemek için seçili binanın panelindeki bir kaplamaya tıklayın.
+mouse_group: Kaplama görünümü
+mouse_group_descr: Kaplamaların birlikleri nasıl göstereceğini ve bayrakların nerede duracağını seçin.
+hover_only: Üzerine gelince birlikleri göster
+hover_only_tooltip: Kaplamanın arkasındaki birlikleri görmek için imleci bir kulenin, kapı binasının veya iç kalenin üzerine getirin.
+drawing_group: Kaplama çizimi
+drawing_group_descr: Kaplamaların, birliklerin ve bayrakların nasıl çizileceğini kontrol eder.
+tile_by_tile: Kaplamaları öndeki binaların arkasında çiz
+tile_by_tile_tooltip: Öndeki surlar ve binalar arkalarındaki kaplamaları kapatabilir.
+hide_units: Çatıların altındaki birlikleri gizle
+hide_units_tooltip: Çatıların altındaki birlikler gizlenir. Kapılardan geçen birimler görünür kalır.
+flags_on_top: Bayrakları katmanların önünde göster
+flags_on_top_tooltip: İç kale veya başka bir binadaki bayraklar o binanın katman görsellerinden hemen sonra çizilir, böylece kendi katmanı hiçbir kısmını gizlemez. Önündeki surlar ve binalar bayrağı eskisi gibi örter. «Öndeki binaların katmanları kapatmasına izin ver» ayarının açık olmasını gerektirir.
+back_flag_behind: Arka bayrağı binanın arkasında tut
+back_flag_behind_tooltip: Binanın uzak köşesindeki bayrak katmanların önünde değil, oyunun çizdiği gibi binanın ve üzerindeki birimlerin arkasında kalır. «Bayrakları katmanların önünde göster» ayarını gerektirir.
+keep_entrance_group: İç kale girişi
+keep_entrance_group_descr: İç kale girişindeki gölgeleme uyumsuzluğunu giderir.
+keep_entrance_enabled: İç kale girişi gölgelemesini eşitle
+keep_entrance_enabled_tooltip: İç kale girişinin ortası yanındaki kulelerle aynı tonu kullanır.
+flags_group: Bayraklar
+flags_group_descr: Bayrakları binalarla hizalı tutar.
+flags_follow_turn: Harita dönerken bayrakları hizalı tut
+flags_follow_turn_tooltip: Haritayı döndürdüğünüzde bayraklar yerinde kalır.
+flags_on_edges: Bayrakları bina kenarlarına yerleştir
+flags_on_edges_tooltip: Bayrak direkleri karenin ortasından bina kenarına taşınır.
+qol: Kullanım kolaylığı
+bugfixes: Hata düzeltmeleri
+cat_display_previews: Harita görünümü ve önizlemeler
+cat_overlay_tools: Kaplama araçları
