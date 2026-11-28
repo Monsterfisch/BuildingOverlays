@@ -468,8 +468,8 @@ local function setting(config, group, name)
 end
 
 local function scan(pattern, purpose)
-  local address, problem = core.AOBScanUnique(pattern)
-  if address == nil then error(purpose .. " " .. problem, 0) end
+  local found, address = pcall(core.AOBScan, pattern)
+  if not found then error(purpose .. " not found", 0) end
   return address
 end
 

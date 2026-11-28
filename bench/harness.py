@@ -59,7 +59,6 @@ class Host:
             '%s: %s' % (level.decode(), message.decode('latin-1')))
         c = lua.table()
         c[b'AOBScan'] = self.scan
-        c[b'AOBScanUnique'] = self.scan_unique
         c[b'scanForAOB'] = lambda *args: self.scan(*args, required=False)
         c[b'readInteger'] = lambda a: self.m.s32(int(a))
         c[b'readBytes'] = lambda a, n: lua.table_from(list(self.m.read(int(a), int(n))))
@@ -169,13 +168,6 @@ class Host:
         if not hits and required:
             raise lupa.LuaError('AOBScan: no match ' + repr(pattern))
         return hits[0] if hits else None
-
-    def scan_unique(self, pattern):
-        sections = [(va, va + size - 1) for va, size, _, _, name in self.E.secs if name == '.text']
-        hits = [hit for lo, hi in sections for hit in self.matches(pattern, lo, hi)]
-        if len(hits) == 1:
-            return hits[0]
-        return None, b'found more than once' if hits else b'not found'
 
     def flatten(self, table):
         out = []
