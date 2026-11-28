@@ -28,3 +28,5 @@ flags_on_edges: قرار دادن پرچم‌ها روی لبهٔ ساختمان
 flags_on_edges_tooltip: میله‌های پرچم از میانهٔ کاشی به لبهٔ ساختمان منتقل می‌شوند.
 qol: سهولت استفاده
 bugfixes: رفع خطاها
+cat_display_previews: نمایش نقشه و پیش‌نمایش‌ها
+cat_overlay_tools: ابزارهای لایه‌های پوششی

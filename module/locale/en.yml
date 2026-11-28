@@ -44,3 +44,5 @@ flags_on_edges: Place flags on building edges
 flags_on_edges_tooltip: Flagpoles move from the middle of their tile to the building edge.
 qol: Quality of Life
 bugfixes: Bugfixes
+cat_display_previews: Map display and previews
+cat_overlay_tools: Overlay tools

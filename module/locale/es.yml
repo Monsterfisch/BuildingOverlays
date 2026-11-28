@@ -28,3 +28,5 @@ flags_on_edges: Colocar banderas en los bordes de los edificios
 flags_on_edges_tooltip: Los mástiles pasan del centro de la casilla al borde del edificio.
 qol: Comodidad de juego
 bugfixes: Correcciones de errores
+cat_display_previews: Visualización del mapa y vistas previas
+cat_overlay_tools: Herramientas de superposición

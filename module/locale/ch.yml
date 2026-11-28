@@ -28,3 +28,5 @@ flags_on_edges: 将旗帜置于建筑边缘
 flags_on_edges_tooltip: 旗杆从地块中央移至建筑边缘。
 qol: 便利性改进
 bugfixes: 错误修复
+cat_display_previews: 地图显示与预览
+cat_overlay_tools: 叠加层工具

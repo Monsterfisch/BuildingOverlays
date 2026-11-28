@@ -28,3 +28,5 @@ flags_on_edges: Zászlók elhelyezése az épületek szélén
 flags_on_edges_tooltip: A zászlórudak a mező közepéről az épület szélére kerülnek.
 qol: Kényelmi funkciók
 bugfixes: Hibajavítások
+cat_display_previews: Térképmegjelenítés és előnézetek
+cat_overlay_tools: Rátét-eszközök

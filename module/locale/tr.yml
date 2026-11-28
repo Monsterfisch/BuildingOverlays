@@ -28,3 +28,5 @@ flags_on_edges: Bayrakları bina kenarlarına yerleştir
 flags_on_edges_tooltip: Bayrak direkleri karenin ortasından bina kenarına taşınır.
 qol: Kullanım kolaylığı
 bugfixes: Hata düzeltmeleri
+cat_display_previews: Harita görünümü ve önizlemeler
+cat_overlay_tools: Kaplama araçları

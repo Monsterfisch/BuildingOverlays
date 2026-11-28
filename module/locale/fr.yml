@@ -28,3 +28,5 @@ flags_on_edges: Placer les drapeaux au bord des bâtiments
 flags_on_edges_tooltip: Les mâts passent du centre de la case au bord du bâtiment.
 qol: Qualité de vie
 bugfixes: Corrections de bugs
+cat_display_previews: Affichage de la carte et aperçus
+cat_overlay_tools: Outils de superposition

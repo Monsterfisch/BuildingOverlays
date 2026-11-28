@@ -28,3 +28,5 @@ flags_on_edges: Flaggen an Gebäudekanten platzieren
 flags_on_edges_tooltip: Fahnenmasten rücken von der Feldmitte an die Gebäudekante.
 qol: Komfort
 bugfixes: Fehlerkorrekturen
+cat_display_previews: Kartenanzeige und Vorschauen
+cat_overlay_tools: Overlay-Werkzeuge
