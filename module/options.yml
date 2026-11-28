@@ -2,21 +2,6 @@ options:
 - display: GroupBox
   category:
   - '{{qol}}'
-  header: '{{large_gatehouse_group}}'
-  text: '{{large_gatehouse_group_descr}}'
-  hasHeader: true
-  children:
-  - url: building-overlays.large_gatehouse.enabled
-    name: building-overlays-large-gatehouse-enabled
-    text: '{{large_gatehouse_enabled_tooltip}}'
-    display: UCP2Switch
-    contents:
-      type: boolean
-      value: false
-    header: '{{large_gatehouse_enabled}}'
-- display: GroupBox
-  category:
-  - '{{qol}}'
   header: '{{editor_group}}'
   text: '{{editor_group_descr}}'
   hasHeader: true
@@ -122,14 +107,5 @@ options:
       type: boolean
       value: false
     header: '{{flags_follow_turn}}'
-- url: building-overlays.large_gatehouse.swap_sides
-  hidden: true
-  name: building-overlays-large-gatehouse-swap-sides
-  text: '{{large_gatehouse_swap_sides_tooltip}}'
-  display: UCP2Switch
-  contents:
-    type: boolean
-    value: false
-  header: '{{large_gatehouse_swap_sides}}'
 meta:
   version: 1.0.0

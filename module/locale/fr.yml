@@ -1,9 +1,3 @@
-large_gatehouse_group: Grande porte
-large_gatehouse_group_descr: Un toit apparaît tant que personne ne se tient sur le corps de garde.
-large_gatehouse_enabled: Aspect fermé pour les grandes portes vides
-large_gatehouse_enabled_tooltip: Le toit se retire dès que des troupes montent sur le corps de garde.
-large_gatehouse_swap_sides: Inverser les images gauche et droite
-large_gatehouse_swap_sides_tooltip: Utilisez cette option si l'image prévue pour une porte orientée vers le bas à gauche apparaît sur une porte orientée vers le bas à droite (et inversement).
 editor_group: Outil de superpositions
 editor_group_descr: Sélectionnez un bâtiment et cliquez sur une superposition dans son panneau. Ajustez-la avec les flèches et le bouton de réglage du pas, puis cliquez sur Enregistrer.
 editor_enabled: Modifier les superpositions dans le panneau du bâtiment

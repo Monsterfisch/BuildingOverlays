@@ -12,7 +12,7 @@ MODULE = os.path.join(os.path.dirname(HERE), 'module')
 SURFACE = 0x40000000
 PITCH = 0x1FB0
 STRIDE = 0x32C
-OVERLAYS = os.path.join(MODULE, 'overlays')
+GATEHOUSE = os.path.join(HERE, 'large-gatehouse')   # a plugin's overlays: the large gatehouse
 
 # the module reads ucp/modules/building-overlays/... relative to the working directory
 WORK = None
@@ -28,7 +28,13 @@ harness.os.chdir = lambda path: _chdir(WORK)
 fails = []
 
 
-def saved_calibration(source='_module'):
+def register_gatehouse(h):
+    folder = os.path.join(WORK, 'large-gatehouse')
+    shutil.copytree(GATEHOUSE, folder)
+    h.mod[b'registerOverlaySource'](h.mod, folder.encode())
+
+
+def saved_calibration(source='large-gatehouse'):
     texts = [p.read_text() for p in (Path(WORK) / harness.USERDATA).glob(f'{source}-?.lua')]
     return max(texts, key=lambda text: int(text.splitlines()[0].split(': ')[1]))
 
@@ -43,7 +49,7 @@ def check(label, got, want):
 
 def pixels(name):
     from PIL import Image
-    return Image.open(os.path.join(OVERLAYS, name + '.png')).convert('RGBA')
+    return Image.open(os.path.join(GATEHOUSE, name + '.png')).convert('RGBA')
 
 
 def conv(p, is565):
@@ -55,6 +61,7 @@ def suite(ext):
     print('=== %s' % ('Extreme' if ext else 'vanilla'))
     fresh_work()
     h = Host(extreme=ext, config={}, foreign_patches=False, aic=False)
+    register_gatehouse(h)
     v_flag = struct.unpack('<I', h.E.data[h.E.va2off(h.E.find('6A 03 B9 ? ? ? ? E8 ? ? ? ? 89 2D ? ? ? ? E9')[0]) + 3:][:4])[0] + 0x5548C4
     h.put32(v_flag, 1)                 # the ordinary view (zero = V view)
     for line in h.logs:
@@ -348,7 +355,7 @@ def suite(ext):
     # a plugin's overlays.lua
     plugin = os.path.join(WORK, 'plugin')
     os.makedirs(plugin)
-    shutil.copy(os.path.join(OVERLAYS, 'large_gatehouse_overlay_closed_left.png'), os.path.join(plugin, 'a.png'))
+    shutil.copy(os.path.join(GATEHOUSE, 'large_gatehouse_overlay_closed_left.png'), os.path.join(plugin, 'a.png'))
     open(os.path.join(plugin, 'overlays.lua'), 'w').write(
         'return { { name = "p", building = "small_gatehouse", picture = "a", x = 5, y = 6 } }')
     h.mod[b'registerOverlaySource'](h.mod, plugin.encode())
@@ -357,7 +364,7 @@ def suite(ext):
     check('a plugin overlay is drawn', pixel(bx + 5 + 100, by + 6 + 100) == conv(left.getpixel((100, 100)), True), True)
     put_building(1, 45)
     draw(1, bx, by)
-    check('module overlays still work after registering', count() > 27000, True)
+    check('earlier overlays still work after registering', count() > 27000, True)
 
     # pictures bigger than 256 px (the keep picture is 348 x 309)
     from PIL import Image
@@ -379,10 +386,10 @@ def suite(ext):
     check('another unit on the keep does', count(), 0)
     clear_units()
 
-    # An overlay with one of the module's names takes its place.
+    # An overlay with the name of an earlier plugin's takes its place.
     plugin = os.path.join(WORK, 'plugin-gate')
     os.makedirs(plugin)
-    shutil.copy(os.path.join(OVERLAYS, 'large_gatehouse_overlay_closed_left.png'), os.path.join(plugin, 'a.png'))
+    shutil.copy(os.path.join(GATEHOUSE, 'large_gatehouse_overlay_closed_left.png'), os.path.join(plugin, 'a.png'))
     open(os.path.join(plugin, 'overlays.lua'), 'w').write(
         'return { { name = "large_gatehouse_right", building = 45, picture = "a", entrance = "right", x = 1, y = 2 } }')
     h.mod[b'registerOverlaySource'](h.mod, plugin.encode())
@@ -412,6 +419,7 @@ def hover_suite(ext):
     print('=== hover mode, %s' % ('Extreme' if ext else 'vanilla'))
     fresh_work()
     h = Host(extreme=ext, config={'mouse': {'hover_only': True}}, foreign_patches=False, aic=False)
+    register_gatehouse(h)
     v_flag = struct.unpack('<I', h.E.data[h.E.va2off(h.E.find('6A 03 B9 ? ? ? ? E8 ? ? ? ? 89 2D ? ? ? ? E9')[0]) + 3:][:4])[0] + 0x5548C4
     h.put32(v_flag, 1)
     E = h.E
@@ -526,7 +534,7 @@ def hover_suite(ext):
     h.put32(v_flag, 1)
     del h.cpu.hooks[t_render_gm]
 
-    # this module's overlays
+    # a plugin's overlays
     SURFACE = 0x40000000
     core = struct.unpack('<I', E.data[t_off - 9:][:4])[0]
     func = E.find('83 EC 18 8B 4C 24 28 53 55 8B 6C 24 24 69 ED 2C 03 00 00')[0]
@@ -583,6 +591,7 @@ def strips_suite(ext):
     print('=== tile by tile, %s' % ('Extreme' if ext else 'vanilla'))
     fresh_work()
     h = Host(extreme=ext, config={'drawing': {'hide_units': True}}, foreign_patches=False, aic=False)
+    register_gatehouse(h)
     E = h.E
     v_flag = struct.unpack('<I', E.data[E.va2off(E.find('6A 03 B9 ? ? ? ? E8 ? ? ? ? 89 2D ? ? ? ? E9')[0]) + 3:][:4])[0] + 0x5548C4
     h.put32(v_flag, 1)

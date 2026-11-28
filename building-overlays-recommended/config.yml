@@ -4,10 +4,6 @@ config-sparse:
   modules:
     building-overlays:
       config:
-        large_gatehouse:
-          enabled:
-            contents:
-              suggested-value: true
         editor:
           enabled:
             contents:

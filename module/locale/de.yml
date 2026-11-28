@@ -1,9 +1,3 @@
-large_gatehouse_group: Großes Torhaus
-large_gatehouse_group_descr: Eine Abdeckung erscheint, solange niemand auf dem Torhaus steht.
-large_gatehouse_enabled: Geschlossene Optik für leere große Torhäuser
-large_gatehouse_enabled_tooltip: Die Abdeckung verschwindet, sobald Truppen das Torhaus betreten.
-large_gatehouse_swap_sides: Linkes und rechtes Bild tauschen
-large_gatehouse_swap_sides_tooltip: Verwende dies, wenn das Bild für ein nach links unten zeigendes Torhaus auf einem nach rechts unten zeigenden Torhaus erscheint (und umgekehrt).
 editor_group: Overlay-Werkzeug
 editor_group_descr: Wähle ein Gebäude und klicke in seinem Menü auf ein Overlay. Passe es mit den Pfeilen und der Taste für die Schrittweite an und klicke auf Speichern.
 editor_enabled: Overlays im Gebäudemenü bearbeiten

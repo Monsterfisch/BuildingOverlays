@@ -1,9 +1,3 @@
-large_gatehouse_group: Puerta grande
-large_gatehouse_group_descr: Aparece una cubierta mientras nadie esté sobre la casa de la puerta.
-large_gatehouse_enabled: Aspecto cerrado para casas de la puerta grandes vacías
-large_gatehouse_enabled_tooltip: La cubierta desaparece cuando las tropas suben a la casa de la puerta.
-large_gatehouse_swap_sides: Intercambiar imágenes izquierda y derecha
-large_gatehouse_swap_sides_tooltip: Úsalo si la imagen destinada a una puerta orientada abajo a la izquierda aparece en una orientada abajo a la derecha (y viceversa).
 editor_group: Herramienta de superposiciones
 editor_group_descr: Selecciona un edificio y haz clic en una superposición de su panel. Ajústala con las flechas y el botón de tamaño de paso y pulsa Guardar.
 editor_enabled: Editar superposiciones en el panel del edificio

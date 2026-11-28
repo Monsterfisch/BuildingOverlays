@@ -3,9 +3,9 @@
 
   Draws pictures on top of buildings, the way the game draws its own crenellations over the
   tower walkways: a picture that hides the empty walkway and goes away when troops step
-  onto the building. Which pictures, for which building, entrance direction, occupancy and
-  gate state, and where they sit is listed in overlay_list.lua; the PNGs live in overlays/.
-  Plugins add their own through registerOverlaySource.
+  onto the building. The module brings no pictures of its own. Plugins list theirs (building,
+  entrance direction, occupancy, gate state and spot) in an overlays.lua next to the PNGs; they
+  are found by themselves or registered through registerOverlaySource.
 
   How it works
     * `renderGmOverlayBuilding` draws a building's extra sprites, then every path of it ends
@@ -29,7 +29,6 @@
 ]]
 
 local png = require("png")
-local list = require("overlay_list")
 local panel = require("panel")
 local strips = require("strips")
 local overlayData = require("overlay_data")
@@ -37,7 +36,6 @@ local overlayData = require("overlay_data")
 local MODULE_FOLDERS = { "ucp/modules/building-overlays/" }   -- UCP maps this to the active version
 
 local DEFAULTS = {
-  large_gatehouse = { enabled = false, swap_sides = false },
   editor = { enabled = false },
   drawing = { tile_by_tile = false, hide_units = false, flags_on_top = false, back_flag_behind = false },
   mouse = { hover_only = false },
@@ -45,10 +43,10 @@ local DEFAULTS = {
   flags = { follow_turn = false, on_edges = false },
 }
 
--- Overlays a plugin may add on top of the ones in overlay_list.lua.
+-- Overlays the plugins may add in all.
 local MAX_OVERLAYS = 64
 
--- Building ids (BuildingType); overlay_list.lua may also use the plain number.
+-- Building ids (BuildingType); an overlays.lua may also use the plain number.
 local BUILDINGS = {
   large_gatehouse = 45, small_gatehouse = 46,
   tower1 = 74, tower2 = 75, tower3 = 76, tower4 = 77, tower5 = 78,
@@ -1144,9 +1142,9 @@ local loadedSources = {} -- folders already read (keys, to their packaged game e
 local firstSource      -- the first plugin folder: the game pictures' offsets are saved there
 local calibrationReady -- true once the user data folder is ready (afterInit)
 
----Adds one overlay (an entry of overlay_list.lua or of a plugin's overlays.lua) to the table
----the hook walks. `folder` is where its picture lives.
-local function addOverlay(entry, folder, swap, source)
+---Adds one overlay (an entry of a plugin's overlays.lua) to the table the hook walks. `folder`
+---is where its picture lives.
+local function addOverlay(entry, folder, source)
   if type(entry.name) ~= "string" or type(entry.picture) ~= "string"
       or entry.picture == "" or entry.picture:find('[/\\:"<>|?*%c]') then
     log(WARNING, "invalid overlay name or picture in " .. folder)
@@ -1174,9 +1172,6 @@ local function addOverlay(entry, folder, swap, source)
     return
   end
   local entrance = ENTRANCES[entry.entrance or "any"] or 0
-  if swap and entrance ~= 0 then
-    entrance = 3 - entrance
-  end
   local overlay = {
     name = tostring(entry.name), id = id, entrance = entry.entrance or "any",
     units = entry.units or "empty", gate = entry.gate or "any", picture = entry.picture,
@@ -1185,7 +1180,7 @@ local function addOverlay(entry, folder, swap, source)
   }
   local record
   if existing ~= nil then
-    -- An overlay of the same name (a plugin's version of one of ours) takes over its record.
+    -- An overlay of the same name (a later plugin's version of it) takes over its record.
     for index, other in ipairs(overlays) do
       if other == existing then
         overlays[index] = overlay
@@ -1226,7 +1221,7 @@ local function formatEntry(overlay)
 end
 
 ---Saves `entries` (overlays of the table, or entries of a data file) as the calibration of
----`folder` (nil: the module's own).
+---`folder` (nil: the module's).
 local function writeEntries(folder, entries)
   local lines = { "return {" }
   for _, entry in ipairs(entries) do
@@ -1242,9 +1237,10 @@ local function writeEntries(folder, entries)
   return true
 end
 
----Moves the overlays of `source` (nil: the module's own) and the game pictures to the spots in
----that source's saved calibration, or the game pictures to its packaged spots if it has none.
----A calibration read from the ucp folder is saved into the user data folder.
+---Moves the overlays of `source` (nil: the module's file, game pictures only) and the game
+---pictures to the spots in that source's saved calibration, or the game pictures to its
+---packaged spots if it has none. A calibration read from the ucp folder is saved into the user
+---data folder.
 local function applyCalibration(source)
   local entries, legacy = overlayData.readCalibration(source,
     source == nil and MODULE_FOLDERS[1] .. "calibration.lua" or nil)
@@ -1316,7 +1312,7 @@ function startup.registerSource(folder, entries)
       games[#games + 1] = entry
       applyGameEntry(entry)
     else
-      addOverlay(entry, folder, false, folder)
+      addOverlay(entry, folder, folder)
     end
   end
   if calibrationReady then
@@ -1336,15 +1332,11 @@ local function writeCalibration()
     overlay.x = core.readInteger(overlay.record + R_X)
     overlay.y = core.readInteger(overlay.record + R_Y)
     log(INFO, formatEntry(overlay))
-    if overlay.source ~= nil then
-      if bySource[overlay.source] == nil then
-        bySource[overlay.source] = {}
-        sources[#sources + 1] = overlay.source
-      end
-      table.insert(bySource[overlay.source], overlay)
-    else
-      own[#own + 1] = overlay
+    if bySource[overlay.source] == nil then
+      bySource[overlay.source] = {}
+      sources[#sources + 1] = overlay.source
     end
+    table.insert(bySource[overlay.source], overlay)
   end
   -- The game's own pictures that were moved go with the first plugin's overlays (or the module's).
   local games = {}
@@ -2115,14 +2107,6 @@ function startup.startDrawing(config)
     return
   end
 
-
-  -- The module's own list first; the count stays 0 until the first record is complete.
-  local swap = setting(config, "large_gatehouse", "swap_sides")
-  for _, entry in ipairs(list) do
-    if setting(config, entry.group, "enabled") then
-      addOverlay(entry, MODULE_FOLDERS[1] .. "overlays/", swap and entry.group == "large_gatehouse")
-    end
-  end
 
   local sitesOk, sitesProblem = pcall(installSites, tail, renderGm, values, prepareVanillaOverlays)
   if not sitesOk then

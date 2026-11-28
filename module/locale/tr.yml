@@ -1,9 +1,3 @@
-large_gatehouse_group: Büyük kapı binası
-large_gatehouse_group_descr: Kapı binasının üstünde kimse yokken bir kapak görünür.
-large_gatehouse_enabled: Boş büyük kapı binaları için kapalı görünüm
-large_gatehouse_enabled_tooltip: Birlikler kapı binasına çıktığında kapak kalkar.
-large_gatehouse_swap_sides: Sol ve sağ görselleri değiştir
-large_gatehouse_swap_sides_tooltip: Sol alta bakan bir kapı binası için tasarlanan görsel sağ alta bakanda (veya tersi) görünüyorsa bunu kullanın.
 editor_group: Kaplama aracı
 editor_group_descr: Bir bina seçin ve panelindeki bir kaplamaya tıklayın. Oklarla ve adım boyutu düğmesiyle ayarlayıp Kaydet’e tıklayın.
 editor_enabled: Bina panelinde kaplamaları düzenle

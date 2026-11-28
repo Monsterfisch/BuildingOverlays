@@ -1,9 +1,3 @@
-large_gatehouse_group: Nagy kapuház
-large_gatehouse_group_descr: Tető jelenik meg a kapuházon, amíg senki sem áll rajta.
-large_gatehouse_enabled: Zárt megjelenés az üres nagy kapuházaknak
-large_gatehouse_enabled_tooltip: A fedél eltűnik, amikor csapatok lépnek a kapuházra.
-large_gatehouse_swap_sides: Bal és jobb oldali képek felcserélése
-large_gatehouse_swap_sides_tooltip: Akkor használd, ha a balra lefelé néző kapuházhoz szánt kép a jobbra lefelé nézőn jelenik meg (vagy fordítva).
 editor_group: Rátét-szerkesztő eszköz
 editor_group_descr: Jelölj ki egy épületet, majd kattints egy rátétre a paneljén. Állítsd be a nyilakkal és a lépésköz gombbal, majd kattints a Mentésre.
 editor_enabled: Rátétek szerkesztése az épület paneljén

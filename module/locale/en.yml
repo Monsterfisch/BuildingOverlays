@@ -1,14 +1,3 @@
-large_gatehouse_group: Large gatehouse
-large_gatehouse_group_descr: A cover appears while nobody is standing on the gatehouse.
-large_gatehouse_enabled: Closed look for empty large gatehouses
-large_gatehouse_enabled_tooltip: The cover lifts when troops step onto the gatehouse.
-large_gatehouse_swap_sides: Swap the left and right pictures
-large_gatehouse_swap_sides_tooltip: 'Use this if the picture meant for a gatehouse looking to the lower left shows
-  up on one
-
-  looking to the lower right (and the other way round).
-
-  '
 editor_group: Overlay tool
 editor_group_descr: Select a building and click an overlay in its panel. Adjust it with the arrows and step-size
   button, then click Save.
